@@ -1,5 +1,3 @@
-import { ClerkLocalizations } from '@/utils/AppConfig';
-
 export default async function AuthLayout(props: {
   children: React.ReactNode;
   params: Promise<{ locale: string }>;
