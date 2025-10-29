@@ -1,11 +1,13 @@
-"use client";
+'use client';
 
-import React, { useEffect, useState } from "react";
-import { Conversation, Message, type ConversationItem, type MessageItem } from "@/libs/base44";
-import { Search, Mail, MessageSquare, Instagram, Facebook, Youtube, Linkedin } from "lucide-react";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { AnimatePresence, motion } from "framer-motion";
+import type { ConversationItem, MessageItem } from '@/libs/base44';
+import { AnimatePresence, motion } from 'framer-motion';
+import { Facebook, Instagram, Linkedin, Mail, MessageSquare, Search, Youtube } from 'lucide-react';
+import Image from 'next/image';
+import React, { useEffect, useState } from 'react';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Conversation, Message } from '@/libs/base44';
 
 const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor" {...props}>
@@ -22,14 +24,14 @@ const platformIcons: Record<
   string,
   { icon: React.ComponentType<any>; color: string }
 > = {
-  instagram: { icon: Instagram, color: "text-pink-500" },
-  twitter: { icon: XIcon, color: "text-gray-800" },
-  facebook: { icon: Facebook, color: "text-blue-600" },
-  linkedin: { icon: Linkedin, color: "text-sky-700" },
-  youtube: { icon: Youtube, color: "text-red-600" },
-  tiktok: { icon: TikTokIcon, color: "text-black" },
-  threads: { icon: MessageSquare, color: "text-neutral-900" },
-  email: { icon: Mail, color: "text-gray-500" },
+  instagram: { icon: Instagram, color: 'text-pink-500' },
+  twitter: { icon: XIcon, color: 'text-gray-800' },
+  facebook: { icon: Facebook, color: 'text-blue-600' },
+  linkedin: { icon: Linkedin, color: 'text-sky-700' },
+  youtube: { icon: Youtube, color: 'text-red-600' },
+  tiktok: { icon: TikTokIcon, color: 'text-black' },
+  threads: { icon: MessageSquare, color: 'text-neutral-900' },
+  email: { icon: Mail, color: 'text-gray-500' },
 };
 
 function ConversationItemRow({
@@ -43,30 +45,43 @@ function ConversationItemRow({
 }) {
   const { icon: Icon, color } = platformIcons[conversation.platform] || {
     icon: MessageSquare,
-    color: "text-gray-500",
+    color: 'text-gray-500',
   };
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      className={`flex items-start p-3 gap-3 cursor-pointer transition-colors duration-200 border-r-4 ${
-        isSelected ? "bg-pink-50 border-pink-500" : "border-transparent hover:bg-gray-50"
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          onClick();
+        }
+      }}
+      className={`flex cursor-pointer items-start gap-3 border-r-4 p-3 transition-colors duration-200 ${
+        isSelected ? 'border-pink-500 bg-pink-50' : 'border-transparent hover:bg-gray-50'
       }`}
     >
       <div className="relative shrink-0">
-        <img src={conversation.contact_avatar} alt={conversation.contact_name} className="w-10 h-10 rounded-full" />
-        <div className="absolute -bottom-1 -right-1 bg-white rounded-full p-0.5">
-          <Icon className={`w-4 h-4 ${color}`} />
+        <Image
+          src={conversation.contact_avatar}
+          alt={conversation.contact_name}
+          width={40}
+          height={40}
+          className="h-10 w-10 rounded-full"
+        />
+        <div className="absolute -right-1 -bottom-1 rounded-full bg-white p-0.5">
+          <Icon className={`h-4 w-4 ${color}`} />
         </div>
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="flex justify-between items-center">
-          <p className="font-semibold text-sm text-gray-800 truncate">{conversation.contact_name}</p>
-          <p className="text-xs text-gray-400 shrink-0">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center justify-between">
+          <p className="truncate text-sm font-semibold text-gray-800">{conversation.contact_name}</p>
+          <p className="shrink-0 text-xs text-gray-400">
             {new Date(conversation.last_message_timestamp).toLocaleDateString()}
           </p>
         </div>
-        <p className="text-sm text-gray-500 truncate">{conversation.last_message_snippet}</p>
+        <p className="truncate text-sm text-gray-500">{conversation.last_message_snippet}</p>
       </div>
     </div>
   );
@@ -75,21 +90,35 @@ function ConversationItemRow({
 function ChatMessage({ message }: { message: MessageItem }) {
   const isOutgoing = message.is_outgoing;
   return (
-    <div className={`flex items-end gap-2 my-2 ${isOutgoing ? "justify-end" : "justify-start"}`}>
+    <div className={`my-2 flex items-end gap-2 ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
       {!isOutgoing && (
-        <img src={message.sender_avatar} alt={message.sender_name} className="w-8 h-8 rounded-full" />
+        <Image
+          src={message.sender_avatar}
+          alt={message.sender_name}
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-full"
+        />
       )}
       <div
-        className={`max-w-md px-4 py-2 rounded-2xl ${
-          isOutgoing ? "bg-pink-500 text-white rounded-br-none" : "bg-gray-100 text-gray-800 rounded-bl-none"
+        className={`max-w-md rounded-2xl px-4 py-2 ${
+          isOutgoing ? 'rounded-br-none bg-pink-500 text-white' : 'rounded-bl-none bg-gray-100 text-gray-800'
         }`}
       >
         <p>{message.content}</p>
-        <p className={`text-xs mt-1 ${isOutgoing ? "text-pink-100" : "text-gray-400"}`}>
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+        <p className={`mt-1 text-xs ${isOutgoing ? 'text-pink-100' : 'text-gray-400'}`}>
+          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
-      {isOutgoing && <img src={message.sender_avatar} alt={message.sender_name} className="w-8 h-8 rounded-full" />}
+      {isOutgoing && (
+        <Image
+          src={message.sender_avatar}
+          alt={message.sender_name}
+          width={32}
+          height={32}
+          className="h-8 w-8 rounded-full"
+        />
+      )}
     </div>
   );
 }
@@ -103,13 +132,13 @@ function ChatView({
   messages: MessageItem[];
   onSendMessage: (content: string) => void;
 }) {
-  const [newMessage, setNewMessage] = useState("");
+  const [newMessage, setNewMessage] = useState('');
 
   if (!conversation) {
     return (
-      <div className="flex-1 flex items-center justify-center bg-gray-50 h-full">
+      <div className="flex h-full flex-1 items-center justify-center bg-gray-50">
         <div className="text-center">
-          <Mail className="w-16 h-16 text-gray-300 mx-auto mb-4" />
+          <Mail className="mx-auto mb-4 h-16 w-16 text-gray-300" />
           <p className="text-gray-500">בחר שיחה כדי להתחיל</p>
         </div>
       </div>
@@ -119,26 +148,28 @@ function ChatView({
   const handleSend = () => {
     if (newMessage.trim()) {
       onSendMessage(newMessage);
-      setNewMessage("");
+      setNewMessage('');
     }
   };
 
   const PlatformIcon = platformIcons[conversation.platform]?.icon;
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-white">
-      <div className="p-4 border-b border-gray-200 flex items-center justify-between">
+    <div className="flex h-full flex-1 flex-col bg-white">
+      <div className="flex items-center justify-between border-b border-gray-200 p-4">
         <div>
-          <h2 className="font-bold text-lg">{conversation.contact_name}</h2>
-          <p className="text-sm text-gray-500 capitalize flex items-center">
-            {PlatformIcon && <PlatformIcon className="w-4 h-4 inline mr-1" />} {conversation.type.replace("_", " ")}
+          <h2 className="text-lg font-bold">{conversation.contact_name}</h2>
+          <p className="flex items-center text-sm text-gray-500 capitalize">
+            {PlatformIcon && <PlatformIcon className="mr-1 inline h-4 w-4" />}
+            {' '}
+            {conversation.type.replace('_', ' ')}
           </p>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
         <AnimatePresence>
-          {messages.map((msg) => (
+          {messages.map(msg => (
             <motion.div key={msg.id} layout initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }}>
               <ChatMessage message={msg} />
             </motion.div>
@@ -146,16 +177,16 @@ function ChatView({
         </AnimatePresence>
       </div>
 
-      <div className="p-4 border-t border-gray-200">
+      <div className="border-t border-gray-200 p-4">
         <div className="relative">
           <Input
             placeholder="כתוב הודעה..."
             value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            onChange={e => setNewMessage(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleSend()}
             className="pr-12"
           />
-          <Button size="icon" variant="ghost" className="absolute right-1 top-1/2 -translate-y-1/2" onClick={handleSend}>
+          <Button size="icon" variant="ghost" className="absolute top-1/2 right-1 -translate-y-1/2" onClick={handleSend}>
             <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-pink-500" viewBox="0 0 24 24" fill="currentColor">
               <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"></path>
             </svg>
@@ -170,39 +201,43 @@ export default function InboxClient(): React.ReactElement {
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ConversationItem | null>(null);
-  const [filter, setFilter] = useState<"unresolved" | "unread" | "all">("unread");
-  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState<'unresolved' | 'unread' | 'all'>('unread');
+  const [searchTerm, setSearchTerm] = useState('');
   const [isLoading, setIsLoading] = useState(true);
+
+  const handleSelectConversation = React.useCallback(async (conversation: ConversationItem) => {
+    setSelectedConversation(conversation);
+    const msgs = await Message.filter({ conversation_id: conversation.id }, 'timestamp');
+    setMessages(msgs);
+  }, []);
 
   useEffect(() => {
     void (async () => {
       setIsLoading(true);
-      const convos = await Conversation.list("-last_message_timestamp");
+      const convos = await Conversation.list('-last_message_timestamp');
       setConversations(convos);
-      if (convos.length > 0) void handleSelectConversation(convos[0]);
+      if (convos.length > 0 && convos[0]) {
+        void handleSelectConversation(convos[0]);
+      }
       setIsLoading(false);
     })();
-  }, []);
-
-  const handleSelectConversation = async (conversation: ConversationItem) => {
-    setSelectedConversation(conversation);
-    const msgs = await Message.filter({ conversation_id: conversation.id }, "timestamp");
-    setMessages(msgs);
-  };
+  }, [handleSelectConversation]); // Add handleSelectConversation to dependency array
 
   const handleSendMessage = async (content: string) => {
-    if (!selectedConversation) return;
-    const user = { full_name: "אריאל", avatar: "https://i.pravatar.cc/150?u=user" };
-    const newMessage: Omit<MessageItem, "id"> = {
+    if (!selectedConversation) {
+      return;
+    }
+    const user = { full_name: 'אריאל', avatar: 'https://i.pravatar.cc/150?u=user' };
+    const newMessage: Omit<MessageItem, 'id'> = {
       conversation_id: selectedConversation.id,
       sender_name: user.full_name,
       sender_avatar: user.avatar,
       content,
       timestamp: new Date().toISOString(),
       is_outgoing: true,
-    } as Omit<MessageItem, "id">;
+    } as Omit<MessageItem, 'id'>;
     const created = await Message.create(newMessage);
-    setMessages((prev) => [...prev, created]);
+    setMessages(prev => [...prev, created]);
     await Conversation.update(selectedConversation.id, {
       last_message_snippet: content,
       last_message_timestamp: new Date().toISOString(),
@@ -210,36 +245,38 @@ export default function InboxClient(): React.ReactElement {
   };
 
   const filteredConversations = conversations
-    .filter((c) => filter === "all" || c.status === filter)
-    .filter((c) => c.contact_name.toLowerCase().includes(searchTerm.toLowerCase()));
+    .filter(c => filter === 'all' || c.status === filter)
+    .filter(c => c.contact_name.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="h-full flex bg-gray-100 overflow-hidden">
-      <div className="w-[350px] shrink-0 bg-white border-r border-gray-200 flex flex-col h-full">
-        <div className="p-4 border-b border-gray-200 space-y-4">
+    <div className="flex h-full overflow-hidden bg-gray-100">
+      <div className="flex h-full w-[350px] shrink-0 flex-col border-r border-gray-200 bg-white">
+        <div className="space-y-4 border-b border-gray-200 p-4">
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-            <Input placeholder="Search conversation..." className="pl-10" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+            <Search className="absolute top-1/2 left-3 h-5 w-5 -translate-y-1/2 text-gray-400" />
+            <Input placeholder="Search conversation..." className="pl-10" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
           </div>
           <div className="grid grid-cols-3 gap-2">
-            <Button variant={filter === "unresolved" ? "default" : "outline"} onClick={() => setFilter("unresolved")}>Unresolved</Button>
-            <Button variant={filter === "unread" ? "default" : "outline"} onClick={() => setFilter("unread")}>Unread</Button>
-            <Button variant={filter === "all" ? "default" : "outline"} onClick={() => setFilter("all")}>All</Button>
+            <Button variant={filter === 'unresolved' ? 'default' : 'outline'} onClick={() => setFilter('unresolved')}>Unresolved</Button>
+            <Button variant={filter === 'unread' ? 'default' : 'outline'} onClick={() => setFilter('unread')}>Unread</Button>
+            <Button variant={filter === 'all' ? 'default' : 'outline'} onClick={() => setFilter('all')}>All</Button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {isLoading ? (
-            <p className="p-4 text-center text-gray-500">טוען שיחות...</p>
-          ) : (
-            filteredConversations.map((convo) => (
-              <ConversationItemRow
-                key={convo.id}
-                conversation={convo}
-                isSelected={selectedConversation?.id === convo.id}
-                onClick={() => void handleSelectConversation(convo)}
-              />
-            ))
-          )}
+          {isLoading
+            ? (
+                <p className="p-4 text-center text-gray-500">טוען שיחות...</p>
+              )
+            : (
+                filteredConversations.map(convo => (
+                  <ConversationItemRow
+                    key={convo.id}
+                    conversation={convo}
+                    isSelected={selectedConversation?.id === convo.id}
+                    onClick={() => void handleSelectConversation(convo)}
+                  />
+                ))
+              )}
         </div>
       </div>
 
@@ -247,5 +284,3 @@ export default function InboxClient(): React.ReactElement {
     </div>
   );
 }
-
-

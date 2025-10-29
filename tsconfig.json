@@ -43,6 +43,10 @@
     "checkJs": true,
     "esModuleInterop": true,
     "resolveJsonModule": true,
+    "typeRoots": [
+      "./types",
+      "./node_modules/@types"
+    ],
     // ======================================================================
     // Build & Performance
     // Settings that affect compilation output and build performance
@@ -89,6 +93,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     ".next/dev/types/**/*.ts",
-    "**/*.mts"
+    "**/*.mts",
+    "types/**/*.d.ts"
   ]
 }

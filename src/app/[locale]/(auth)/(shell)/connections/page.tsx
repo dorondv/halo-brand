@@ -1,12 +1,18 @@
+import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
-import { createSupabaseServerClient } from '@/libs/SupabaseServer';
-import ConnectionsClient from './ConnectionsClient';
+import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function ConnectionsPage() {
-    const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) redirect('/sign-in');
-    return <ConnectionsClient />;
+  const supabase = await createSupabaseServerClient();
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) {
+    redirect('/sign-in');
+  }
+  const t = await getTranslations('PageTitles');
+  return (
+    <div className="space-y-4">
+      <h1 className="text-2xl font-semibold">{t('connections')}</h1>
+      <p className="text-gray-600">{t('coming_soon')}</p>
+    </div>
+  );
 }
-
-

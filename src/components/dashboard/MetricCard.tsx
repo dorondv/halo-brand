@@ -1,40 +1,38 @@
-import { Card } from '@/components/ui/card';
-import { cn } from '@/libs/cn';
-import { TrendingUp } from 'lucide-react';
+import React from 'react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { formatNumber } from '@/utils/number-format';
 
-interface MetricCardProps {
-    title: string;
-    value: string | number;
-    change: number; // percentage diff vs last month
-    icon: React.ElementType;
-}
+type MetricCardProps = {
+  title: string;
+  value: string;
+  change: number;
+  icon: React.ElementType;
+};
 
-export function MetricCard({ title, value, change, icon: Icon }: MetricCardProps) {
-    const positive = change >= 0;
-    return (
-        <div className="bg-white/80 backdrop-blur-xl border border-gray-200 hover:border-pink-400 hover:shadow-xl hover:shadow-pink-500/10 transition-all duration-300 overflow-hidden group rounded-lg hover:-translate-y-1">
-            <div className="p-6 relative">
-                <div className="flex items-start justify-between">
-                    <div className="space-y-3">
-                        <p className="text-sm font-medium text-gray-600">{title}</p>
-                        <p className="text-3xl font-bold text-gray-900">
-                            {typeof value === 'number'
-                                ? new Intl.NumberFormat('en-US').format(value)
-                                : value}
-                        </p>
-                        <div className="flex items-center gap-2">
-                            <TrendingUp className={cn('w-4 h-4', positive ? 'text-pink-500' : 'text-red-500')} />
-                            <span className={cn('text-sm font-semibold', positive ? 'text-pink-500' : 'text-red-500')}>
-                                {change}%{positive ? '+' : ''}
-                            </span>
-                            <span className="text-xs text-gray-500">vs last month</span>
-                        </div>
-                    </div>
-                    <div className="p-3 rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg group-hover:scale-110 transition-transform duration-300">
-                        <Icon className="w-6 h-6 text-white" />
-                    </div>
-                </div>
-            </div>
-        </div>
-    );
+export function MetricCard({
+  title,
+  value,
+  change,
+  icon: Icon,
+}: MetricCardProps): React.ReactElement {
+  return (
+    <Card>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+        <CardTitle className="text-sm font-medium">{title}</CardTitle>
+        <Icon className="h-4 w-4 text-slate-500" />
+      </CardHeader>
+      <CardContent>
+        <div className="text-2xl font-bold">{formatNumber(value)}</div>
+        <p className="text-xs text-slate-500">
+          <span className={change >= 0 ? 'text-green-500' : 'text-red-500'}>
+            {change >= 0 ? '+' : ''}
+            {change.toFixed(1)}
+            %
+          </span>
+          {' '}
+          from last month
+        </p>
+      </CardContent>
+    </Card>
+  );
 }

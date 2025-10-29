@@ -3,7 +3,7 @@
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-export async function signIn(prevState: any, formData: FormData) {
+export async function signIn(_prevState: any, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const supabase = await createSupabaseServerClient();
@@ -22,7 +22,7 @@ export async function signIn(prevState: any, formData: FormData) {
   redirect('/dashboard');
 }
 
-export async function signUp(prevState: any, formData: FormData) {
+export async function signUp(_prevState: any, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
   const supabase = await createSupabaseServerClient();

@@ -1,6 +1,9 @@
 {
   "RootLayout": {
     "home_link": "בית",
+    "about_link": "אודות",
+    "counter_link": "מונה",
+    "portfolio_link": "פורטפוליו",
     "sign_in_link": "התחברות",
     "sign_up_link": "הרשמה"
   },
@@ -9,8 +12,44 @@
     "made_with": "נבנה עם <author></author>."
   },
   "Index": {
-    "meta_title": "הצגת Next.js Boilerplate",
-    "meta_description": "Next.js Boilerplate הוא קוד התחלה מושלם לפרויקט שלך. בנה את אפליקציית הריאקט שלך עם פריימוורק Next.js."
+    "meta_title": "מצגת Next.js",
+    "meta_description": "Next.js Boilerplate הוא קוד התחלתי מושלם לפרויקט שלך.",
+    "sponsors_title": "נותני חסות"
+  },
+  "Counter": {
+    "meta_title": "מונה",
+    "meta_description": "דוגמה לפעולת בסיס נתונים",
+    "security_powered_by": "אבטחה, זיהוי בוטים והגבלת קצב מופעלים על ידי"
+  },
+  "CounterForm": {
+    "presentation": "המונה נשמר בבסיס הנתונים ומוגדל לפי הערך שתספק.",
+    "label_increment": "הגדל ב",
+    "button_increment": "הגדל",
+    "error_increment_range": "הערך חייב להיות בין 1 ל-3"
+  },
+  "CurrentCount": {
+    "count": "ספירה: {count}"
+  },
+  "About": {
+    "meta_title": "אודות",
+    "meta_description": "תיאור דף אודות",
+    "about_paragraph": "ברוכים הבאים לדף האודות! אנחנו צוות שמפתח תוכנה מעולה.",
+    "translation_powered_by": "תרגום נתמך על ידי"
+  },
+  "Portfolio": {
+    "meta_title": "פורטפוליו",
+    "meta_description": "ברוכים הבאים לדף הפורטפוליו שלי!",
+    "presentation": "כאן תמצאו אוסף של עבודות והישגים שלי.",
+    "portfolio_name": "פורטפוליו {name}",
+    "error_reporting_powered_by": "דיווח שגיאות נתמך על ידי",
+    "coverage_powered_by": "כיסוי קוד נתמך על ידי"
+  },
+  "PortfolioSlug": {
+    "meta_title": "פורטפוליו {slug}",
+    "meta_description": "תיאור פורטפוליו {slug}",
+    "header": "פורטפוליו {slug}",
+    "content": "תיאור פרויקט לדוגמה",
+    "code_review_powered_by": "סקירת קוד נתמכת על ידי"
   },
   "SignIn": {
     "meta_title": "התחברות",
@@ -31,7 +70,10 @@
   "DashboardLayout": {
     "dashboard_link": "דשבורד",
     "user_profile_link": "ניהול החשבון",
-    "sign_out": "התנתק"
+    "sign_out": "התנתקות"
+  },
+  "Sponsors": {
+    "title": "נותני חסות"
   },
   "Common": {
     "brand_selector_label": "בחר מותג"
@@ -41,7 +83,7 @@
     "inbox": "אינבוקס",
     "create_post": "יצירת תוכן",
     "calendar": "לוח תוכן",
-    "analytics": "אנלטיקה",
+    "analytics": "תובנות והמלצות",
     "reports": "ייצוא דוחות",
     "connections": "חיבורים",
     "settings": "הגדרות",
@@ -56,6 +98,18 @@
     "metric_total_posts": "סה״כ פוסטים",
     "chart_followers_trend": "מגמת עוקבים",
     "chart_impressions": "חשיפות"
+  },
+  "PageTitles": {
+    "coming_soon": "בקרוב",
+    "inbox": "אינבוקס",
+    "create_post": "יצירת תוכן",
+    "calendar": "לוח תוכן",
+    "analytics": "תובנות והמלצות",
+    "reports": "ייצוא דוחות",
+    "connections": "חיבורים",
+    "settings": "הגדרות",
+    "support": "תמיכה",
+    "pricing": "תוכניות"
   },
   "Marketing": {
     "already_registered": "כבר רשום? התחבר",
@@ -102,5 +156,34 @@
     "signin_pending": "מתחבר...",
     "signup_cta": "הרשמה",
     "signup_pending": "נרשם..."
+  },
+  "CalendarPage": {
+    "title": "לוח תוכן",
+    "description": "תיאור לוח התוכן",
+    "monthView": "חודשי",
+    "yearView": "שנתי",
+    "hideEvents": "הסתר אירועים",
+    "showEvents": "הצג אירועים",
+    "schedulePost": "תזמן פוסט",
+    "legendTitle": "מקרא וסינון אירועים",
+    "selectDate": "בחר תאריך",
+    "yourPosts": "הפוסטים שלך",
+    "platforms": "פלטפורמות",
+    "noScheduledPosts": "אין פוסטים מתוזמנים",
+    "schedulePostButton": "תזמן פוסט",
+    "clickToSeeEvents": "לחץ על תאריך כדי לראות אירועים",
+    "importantEvents": "אירועים חשובים",
+    "thisMonth": "החודש",
+    "thisYear": "השנה",
+    "noSpecialEvents": "אין אירועים מיוחדים",
+    "dayNames": {
+      "sunday": "ראשון",
+      "monday": "שני",
+      "tuesday": "שלישי",
+      "wednesday": "רביעי",
+      "thursday": "חמישי",
+      "friday": "שישי",
+      "saturday": "שבת"
+    }
   }
 }

@@ -47,12 +47,12 @@ For Bun versions below v1.0.17, you must add `supabase` as a [trusted dependency
   ```
 
   To install the beta release channel:
-  
+
   ```sh
   brew install supabase/tap/supabase-beta
   brew link --overwrite supabase-beta
   ```
-  
+
   To upgrade:
 
   ```sh
