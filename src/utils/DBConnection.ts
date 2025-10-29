@@ -3,12 +3,21 @@ import { Pool } from 'pg';
 import { Env } from '@/libs/Env';
 import * as schema from '@/models/Schema';
 
-// Need a database for production? Check out https://www.prisma.io/?via=nextjsboilerplate
-// Tested and compatible with Next.js Boilerplate
+/**
+ * Creates a database connection pool for Drizzle ORM
+ * Supabase connections require SSL - automatically configured
+ */
 export const createDbConnection = () => {
+  const connectionString = Env.DATABASE_URL;
+
+  // Supabase requires SSL connections - detect by supabase.co domain
+  const isSupabase = connectionString.includes('supabase.co');
+
   const pool = new Pool({
-    connectionString: Env.DATABASE_URL,
+    connectionString,
     max: 1,
+    // Enable SSL for Supabase connections
+    ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
   });
 
   return drizzle({
