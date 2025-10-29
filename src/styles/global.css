@@ -1,0 +1,25 @@
+@layer theme, base, components, utilities;
+
+@import 'tailwindcss';
+
+@layer base {
+    body {
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+}
+
+@layer utilities {
+    .brand-gradient {
+        background: linear-gradient(135deg, #F50A81 0%, #FF6B9D 100%);
+    }
+
+    .brand-glow {
+        box-shadow: 0 0 20px rgba(245, 10, 129, 0.2);
+    }
+
+    .glass-light {
+        background: rgba(255, 255, 255, 0.8);
+        backdrop-filter: blur(20px);
+        border: 1px solid rgba(245, 10, 129, 0.1);
+    }
+}

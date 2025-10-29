@@ -1,0 +1,106 @@
+{
+  "RootLayout": {
+    "home_link": "בית",
+    "sign_in_link": "התחברות",
+    "sign_up_link": "הרשמה"
+  },
+  "BaseTemplate": {
+    "description": "קוד התחלתי לפרויקט Next.js עם Tailwind CSS",
+    "made_with": "נבנה עם <author></author>."
+  },
+  "Index": {
+    "meta_title": "הצגת Next.js Boilerplate",
+    "meta_description": "Next.js Boilerplate הוא קוד התחלה מושלם לפרויקט שלך. בנה את אפליקציית הריאקט שלך עם פריימוורק Next.js."
+  },
+  "SignIn": {
+    "meta_title": "התחברות",
+    "meta_description": "התחבר/י לחשבון שלך בקלות."
+  },
+  "SignUp": {
+    "meta_title": "הרשמה",
+    "meta_description": "הירשמ/י בקלות ובמהירות."
+  },
+  "Dashboard": {
+    "meta_title": "דשבורד",
+    "hello_message": "שלום {email}!",
+    "alternative_message": "רוצה לבנות SaaS מהר יותר? נסה <url></url>."
+  },
+  "UserProfile": {
+    "meta_title": "פרופיל משתמש"
+  },
+  "DashboardLayout": {
+    "dashboard_link": "דשבורד",
+    "user_profile_link": "ניהול החשבון",
+    "sign_out": "התנתק"
+  },
+  "Common": {
+    "brand_selector_label": "בחר מותג"
+  },
+  "Nav": {
+    "dashboard": "דשבורד",
+    "inbox": "אינבוקס",
+    "create_post": "יצירת תוכן",
+    "calendar": "לוח תוכן",
+    "analytics": "אנלטיקה",
+    "reports": "ייצוא דוחות",
+    "connections": "חיבורים",
+    "settings": "הגדרות",
+    "support": "תמיכה",
+    "pricing": "תוכניות"
+  },
+  "DashboardPage": {
+    "title": "דשבורד",
+    "metric_total_followers": "סה״כ עוקבים",
+    "metric_total_impressions": "סה״כ חשיפות",
+    "metric_total_engagement": "סה״כ מעורבות",
+    "metric_total_posts": "סה״כ פוסטים",
+    "chart_followers_trend": "מגמת עוקבים",
+    "chart_impressions": "חשיפות"
+  },
+  "Marketing": {
+    "already_registered": "כבר רשום? התחבר",
+    "go_to_dashboard": "אל הדשבורד",
+    "greeting": "שלום {email}",
+    "hero_line1": "נהל את כל",
+    "hero_line2_highlight": "המותגים שלך",
+    "hero_line3": "במקום אחד",
+    "hero_subtitle": "פלטפורמה מקצועית לניהול רשתות, יצירת תוכן ואנליטיקות מתקדמות",
+    "feature_content_title": "ניהול תוכן חכם",
+    "feature_content_desc": "תזמון ופרסום בכל הפלטפורמות",
+    "feature_analytics_title": "אנליטיקות מתקדמות",
+    "feature_analytics_desc": "תובנות עמוקות על הביצועים שלך",
+    "feature_brands_title": "ניהול מותגים",
+    "feature_brands_desc": "נהל מספר מותגים ממקום אחד",
+    "feature_ai_title": "AI מתקדם",
+    "feature_ai_desc": "המלצות ותובנות מונעות בינה מלאכותית",
+    "signup_title": "התחל עכשיו",
+    "signup_subtitle": "הצטרף והתחל לנהל את המותג שלך בצורה חכמה",
+    "benefits_title": "למה Hello Brand?",
+    "benefit_free_title": "חינם להתחלה",
+    "benefit_free_desc": "התחל ללא עלות והרחב לפי הצורך",
+    "benefit_easy_title": "קל לשימוש",
+    "benefit_easy_desc": "ממשק אינטואיטיבי וידידותי",
+    "benefit_support_title": "תמיכה 24/7",
+    "benefit_support_desc": "הצוות שלנו כאן תמיד בשבילך",
+    "stat_active_users": "משתמשים פעילים",
+    "stat_managed_posts": "פוסטים מנוהלים",
+    "stat_satisfaction": "שביעות רצון",
+    "footer_copyright": "© 2024 Hello Brand. כל הזכויות שמורות."
+  },
+  "Auth": {
+    "email_label": "אימייל",
+    "password_label": "סיסמה",
+    "signin_title": "ברוך הבא",
+    "signin_subtitle": "התחבר כדי להמשיך אל הדשבורד שלך",
+    "signup_title": "צור חשבון",
+    "signup_subtitle": "הצטרף והתחל לנהל את המותג שלך בקלות",
+    "signin_prompt_signup": "אין לך חשבון?",
+    "signup_prompt_signin": "כבר יש לך חשבון?",
+    "link_signin": "התחברות",
+    "link_signup": "הרשמה",
+    "signin_cta": "התחברות",
+    "signin_pending": "מתחבר...",
+    "signup_cta": "הרשמה",
+    "signup_pending": "נרשם..."
+  }
+}

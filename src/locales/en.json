@@ -1,0 +1,106 @@
+{
+  "RootLayout": {
+    "home_link": "Home",
+    "sign_in_link": "Sign in",
+    "sign_up_link": "Sign up"
+  },
+  "BaseTemplate": {
+    "description": "Starter code for your Nextjs Boilerplate with Tailwind CSS",
+    "made_with": "Made with <author></author>."
+  },
+  "Index": {
+    "meta_title": "Next.js Boilerplate Presentation",
+    "meta_description": "Next js Boilerplate is the perfect starter code for your project. Build your React application with the Next.js framework."
+  },
+  "SignIn": {
+    "meta_title": "Sign in",
+    "meta_description": "Seamlessly sign in to your account with our user-friendly login process."
+  },
+  "SignUp": {
+    "meta_title": "Sign up",
+    "meta_description": "Effortlessly create an account through our intuitive sign-up process."
+  },
+  "Dashboard": {
+    "meta_title": "Dashboard",
+    "hello_message": "Hello {email}!",
+    "alternative_message": "Want to build your SaaS faster using the same stack? Try <url></url>."
+  },
+  "UserProfile": {
+    "meta_title": "User Profile"
+  },
+  "DashboardLayout": {
+    "dashboard_link": "Dashboard",
+    "user_profile_link": "Manage your account",
+    "sign_out": "Sign out"
+  },
+  "Common": {
+    "brand_selector_label": "Choose brand"
+  },
+  "Nav": {
+    "dashboard": "Dashboard",
+    "inbox": "Inbox",
+    "create_post": "Create Post",
+    "calendar": "Calendar",
+    "analytics": "Insights & Analytics",
+    "reports": "Reports",
+    "connections": "Connections",
+    "settings": "Settings",
+    "support": "Support",
+    "pricing": "Pricing"
+  },
+  "DashboardPage": {
+    "title": "Dashboard",
+    "metric_total_followers": "Total Followers",
+    "metric_total_impressions": "Total Impressions",
+    "metric_total_engagement": "Total Engagement",
+    "metric_total_posts": "Total Posts",
+    "chart_followers_trend": "Followers Trend",
+    "chart_impressions": "Impressions"
+  },
+  "Marketing": {
+    "already_registered": "Already registered? Sign in",
+    "go_to_dashboard": "Go to dashboard",
+    "greeting": "Hi {email}",
+    "hero_line1": "Manage all",
+    "hero_line2_highlight": "your brands",
+    "hero_line3": "in one place",
+    "hero_subtitle": "A professional platform for social management, content creation, and advanced analytics",
+    "feature_content_title": "Smart content management",
+    "feature_content_desc": "Schedule and publish across all platforms",
+    "feature_analytics_title": "Advanced analytics",
+    "feature_analytics_desc": "Deep insights into your performance",
+    "feature_brands_title": "Brand management",
+    "feature_brands_desc": "Manage multiple brands from one place",
+    "feature_ai_title": "Advanced AI",
+    "feature_ai_desc": "AI-driven recommendations and insights",
+    "signup_title": "Get started now",
+    "signup_subtitle": "Join us and start managing your brand smartly",
+    "benefits_title": "Why Hello Brand?",
+    "benefit_free_title": "Free to start",
+    "benefit_free_desc": "Start for free and scale as needed",
+    "benefit_easy_title": "Easy to use",
+    "benefit_easy_desc": "Intuitive, user-friendly interface",
+    "benefit_support_title": "24/7 support",
+    "benefit_support_desc": "Our team is always here to help",
+    "stat_active_users": "Active users",
+    "stat_managed_posts": "Managed posts",
+    "stat_satisfaction": "Satisfaction",
+    "footer_copyright": "© 2024 Hello Brand. All rights reserved."
+  },
+  "Auth": {
+    "email_label": "Email",
+    "password_label": "Password",
+    "signin_title": "Welcome back",
+    "signin_subtitle": "Sign in to continue to your dashboard",
+    "signup_title": "Create an account",
+    "signup_subtitle": "Join us and start managing your brand smartly",
+    "signin_prompt_signup": "Don't have an account?",
+    "signup_prompt_signin": "Already have an account?",
+    "link_signin": "Sign in",
+    "link_signup": "Sign up",
+    "signin_cta": "Sign In",
+    "signin_pending": "Signing In...",
+    "signup_cta": "Sign Up",
+    "signup_pending": "Signing Up..."
+  }
+}
