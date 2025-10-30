@@ -2,7 +2,6 @@
   "RootLayout": {
     "home_link": "בית",
     "about_link": "אודות",
-    "counter_link": "מונה",
     "portfolio_link": "פורטפוליו",
     "sign_in_link": "התחברות",
     "sign_up_link": "הרשמה"
@@ -16,20 +15,7 @@
     "meta_description": "Next.js Boilerplate הוא קוד התחלתי מושלם לפרויקט שלך.",
     "sponsors_title": "נותני חסות"
   },
-  "Counter": {
-    "meta_title": "מונה",
-    "meta_description": "דוגמה לפעולת בסיס נתונים",
-    "security_powered_by": "אבטחה, זיהוי בוטים והגבלת קצב מופעלים על ידי"
-  },
-  "CounterForm": {
-    "presentation": "המונה נשמר בבסיס הנתונים ומוגדל לפי הערך שתספק.",
-    "label_increment": "הגדל ב",
-    "button_increment": "הגדל",
-    "error_increment_range": "הערך חייב להיות בין 1 ל-3"
-  },
-  "CurrentCount": {
-    "count": "ספירה: {count}"
-  },
+
   "About": {
     "meta_title": "אודות",
     "meta_description": "תיאור דף אודות",

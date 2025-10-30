@@ -1,22 +1,73 @@
-import { integer, pgTable, serial, timestamp } from 'drizzle-orm/pg-core';
+import {
+  boolean,
+  jsonb,
+  pgTable,
+  text,
+  timestamp,
+  uuid,
+  varchar,
+} from 'drizzle-orm/pg-core';
 
-// This file defines the structure of your database tables using the Drizzle ORM.
+// Users table
+export const users = pgTable('users', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  email: text('email').notNull().unique(),
+  plan: text('plan').default('free').notNull(),
+  name: text('name'),
+  isActive: boolean('is_active').default(true).notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
 
-// To modify the database schema:
-// 1. Update this file with your desired changes.
-// 2. Generate a new migration by running: `npm run db:generate`
+// Social accounts table
+export const socialAccounts = pgTable('social_accounts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  platform: varchar('platform', { length: 50 }).notNull(), // 'twitter', 'facebook', 'instagram', etc.
+  accessToken: text('access_token').notNull(),
+  refreshToken: text('refresh_token'),
+  accountName: text('account_name').notNull(),
+  accountId: text('account_id').notNull(),
+  platformSpecificData: jsonb('platform_specific_data'),
+  isActive: boolean('is_active').default(true).notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
 
-// The generated migration file will reflect your schema changes.
-// The migration is automatically applied during the Next.js initialization process through `instrumentation.ts`.
-// Simply restart your Next.js server to apply the database changes.
-// Alternatively, if your database is running, you can run `npm run db:migrate` and there is no need to restart the server.
+// Posts table
+export const posts = pgTable('posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id).notNull(),
+  content: text('content').notNull(),
+  imageUrl: text('image_url'),
+  aiCaption: text('ai_caption'),
+  hashtags: text('hashtags').array(),
+  mediaType: varchar('media_type', { length: 20 }).default('text'), // 'text', 'image', 'video'
+  metadata: jsonb('metadata'), // For platform-specific data
+  status: varchar('status', { length: 20 }).default('draft').notNull(), // 'draft', 'scheduled', 'published', 'failed'
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
 
-// Need a database for production? Check out https://www.prisma.io/?via=nextjsboilerplate
-// Tested and compatible with Next.js Boilerplate
-
-export const counterSchema = pgTable('counter', {
-  id: serial('id').primaryKey(),
-  count: integer('count').default(0),
+// Scheduled posts table
+export const scheduledPosts = pgTable('scheduled_posts', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  postId: uuid('post_id').references(() => posts.id).notNull(),
+  socialAccountId: uuid('social_account_id').references(() => socialAccounts.id).notNull(),
+  scheduledFor: timestamp('scheduled_for', { mode: 'date' }).notNull(),
+  publishedAt: timestamp('published_at', { mode: 'date' }),
+  status: varchar('status', { length: 20 }).default('pending').notNull(), // 'pending', 'published', 'failed'
+  errorDetails: jsonb('error_details'),
+  platformResponse: jsonb('platform_response'),
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .defaultNow()
     .$onUpdate(() => new Date())
