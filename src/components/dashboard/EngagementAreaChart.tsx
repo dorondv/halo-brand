@@ -3,22 +3,12 @@
 import { format } from 'date-fns';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 
-type DataPoint = { date: string; impressions: number };
+type DataPoint = { date: string; engagement: number };
 
-const sampleData: DataPoint[] = [
-  { date: 'Jan 01', impressions: 18000 },
-  { date: 'Jan 05', impressions: 22000 },
-  { date: 'Jan 10', impressions: 24500 },
-  { date: 'Jan 15', impressions: 20500 },
-  { date: 'Jan 20', impressions: 26000 },
-  { date: 'Jan 25', impressions: 27500 },
-  { date: 'Jan 30', impressions: 29000 },
-];
-
-export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[] }) {
+export function EngagementAreaChart({ data = [] }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
-    date: d.date.includes('-') ? format(new Date(d.date), 'MMM. dd') : d.date,
+    date: format(new Date(d.date), 'MMM. dd'),
   }));
 
   return (
@@ -26,7 +16,7 @@ export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[]
       <ResponsiveContainer width="100%" height="100%">
         <AreaChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
           <defs>
-            <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
+            <linearGradient id="colorEngagement" x1="0" y1="0" x2="0" y2="1">
               <stop offset="5%" stopColor="#F50A81" stopOpacity={0.8} />
               <stop offset="95%" stopColor="#F50A81" stopOpacity={0.1} />
             </linearGradient>
@@ -39,6 +29,12 @@ export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[]
             tickMargin={10}
             axisLine={false}
             tickLine={false}
+            tickFormatter={(value) => {
+              if (value >= 1000) {
+                return `${(value / 1000).toFixed(0)}K`;
+              }
+              return value.toString();
+            }}
           />
           <Tooltip
             contentStyle={{
@@ -50,11 +46,11 @@ export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[]
           />
           <Area
             type="monotone"
-            dataKey="impressions"
+            dataKey="engagement"
             stroke="#F50A81"
             strokeWidth={2}
             fillOpacity={1}
-            fill="url(#colorImpressions)"
+            fill="url(#colorEngagement)"
           />
         </AreaChart>
       </ResponsiveContainer>
@@ -62,4 +58,4 @@ export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[]
   );
 }
 
-export default ImpressionsAreaChart;
+export default EngagementAreaChart;

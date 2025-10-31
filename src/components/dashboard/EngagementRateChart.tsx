@@ -11,25 +11,12 @@ import {
   YAxis,
 } from 'recharts';
 
-type DataPoint = { date: string; followers: number };
-const sampleData: DataPoint[] = [
-  { date: 'Jan 01', followers: 0 },
-  { date: 'Jan 05', followers: 2632 },
-  { date: 'Jan 10', followers: 5263 },
-  { date: 'Jan 15', followers: 7895 },
-  { date: 'Jan 20', followers: 10527 },
-  { date: 'Jan 25', followers: 13158 },
-  { date: 'Jan 30', followers: 15790 },
-];
+type DataPoint = { date: string; rate: number };
 
-export function FollowersTrendChart({
-  data = sampleData,
-}: {
-  data?: DataPoint[];
-}) {
+export function EngagementRateChart({ data = [] }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
-    date: d.date.includes('-') ? format(new Date(d.date), 'MMM. dd') : d.date,
+    date: format(new Date(d.date), 'MMM. dd'),
   }));
 
   return (
@@ -44,6 +31,7 @@ export function FollowersTrendChart({
             tickMargin={10}
             axisLine={false}
             tickLine={false}
+            tickFormatter={value => `${value.toFixed(1)}%`}
           />
           <Tooltip
             contentStyle={{
@@ -51,14 +39,14 @@ export function FollowersTrendChart({
               border: '1px solid #fce7f3',
               borderRadius: '12px',
             }}
-            formatter={value => [new Intl.NumberFormat('he-IL').format(Number(value)), '']}
+            formatter={value => [`${Number(value).toFixed(1)}%`, '']}
           />
           <Line
             type="monotone"
-            dataKey="followers"
+            dataKey="rate"
             stroke="#F50A81"
             strokeWidth={3}
-            dot={{ r: 3, fill: '#F50A81' }}
+            dot={{ r: 4, fill: '#F50A81' }}
             activeDot={{ r: 6 }}
           />
         </LineChart>
@@ -67,4 +55,4 @@ export function FollowersTrendChart({
   );
 }
 
-export default FollowersTrendChart;
+export default EngagementRateChart;

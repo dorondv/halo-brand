@@ -26,6 +26,8 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:studio": "drizzle-kit studio",
+    "seed:dashboard": "dotenv -e .env -- node ./scripts/seed-dashboard.mjs",
+    "cleanup:dashboard": "dotenv -e .env -- node ./scripts/cleanup-dashboard.mjs",
     "storybook": "storybook dev -p 6006",
     "storybook:test": "vitest run --config .storybook/vitest.config.mts",
     "build-storybook": "storybook build"

@@ -25,11 +25,19 @@ export async function signIn(_prevState: any, formData: FormData) {
 export async function signUp(_prevState: any, formData: FormData) {
   const email = formData.get('email') as string;
   const password = formData.get('password') as string;
+  const fullName = formData.get('fullName') as string;
+  const companyName = formData.get('companyName') as string;
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.auth.signUp({
     email,
     password,
+    options: {
+      data: {
+        full_name: fullName,
+        company_name: companyName,
+      },
+    },
   });
 
   if (error) {

@@ -8,6 +8,20 @@
       "when": 1745518076143,
       "tag": "0000_init-db",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1761838123803,
+      "tag": "0001_condemned_mephisto",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1761926215084,
+      "tag": "0002_loud_charles_xavier",
+      "breakpoints": true
     }
   ]
 }

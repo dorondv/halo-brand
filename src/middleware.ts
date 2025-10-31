@@ -3,7 +3,13 @@ import createMiddleware from 'next-intl/middleware';
 
 import { routing } from './libs/I18nRouting';
 
-const handleI18nRouting = createMiddleware(routing);
+// Disable automatic locale detection from browser headers
+// Always use the default locale (Hebrew) unless explicitly specified in the URL
+// createMiddleware's typing may vary between versions of next-intl; cast to any
+// to avoid type mismatch while preserving runtime behavior.
+const handleI18nRouting = (createMiddleware as any)(routing, {
+  localeDetection: false, // Disable automatic browser locale detection
+});
 
 export async function middleware(req: NextRequest) {
   const res = handleI18nRouting(req);

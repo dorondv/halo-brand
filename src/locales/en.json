@@ -62,7 +62,18 @@
     "title": "Sponsors"
   },
   "Common": {
-    "brand_selector_label": "Choose brand"
+    "brand_selector_label": "Choose brand",
+    "brand_selector_all": "All Brands",
+    "brand_selector_placeholder": "Select a brand",
+    "brand_add_button": "Add Brand",
+    "brand_create_modal_title": "Create New Brand",
+    "brand_create_modal_description": "Choose a name for your new brand",
+    "brand_create_modal_label": "Brand Name",
+    "brand_create_modal_placeholder": "Your brand name",
+    "brand_create_button": "Create Brand",
+    "brand_create_cancel": "Cancel",
+    "brand_create_success": "Brand created successfully",
+    "brand_create_error": "Error creating brand"
   },
   "Nav": {
     "dashboard": "Dashboard",
@@ -78,12 +89,42 @@
   },
   "DashboardPage": {
     "title": "Dashboard",
-    "metric_total_followers": "Total Followers",
-    "metric_total_impressions": "Total Impressions",
-    "metric_total_engagement": "Total Engagement",
-    "metric_total_posts": "Total Posts",
+    "metric_total_followers": "Number of Followers",
+    "metric_total_impressions": "Number of Impressions",
+    "metric_total_engagement": "Number of Engagement",
+    "metric_total_posts": "Number of Posts",
     "chart_followers_trend": "Followers Trend",
-    "chart_impressions": "Impressions"
+    "chart_impressions": "Impressions",
+    "chart_engagement": "Engagement",
+    "chart_net_follower_growth": "Net Follower Growth",
+    "chart_posts_by_platform": "Posts by Platform",
+    "chart_engagement_rate": "Engagement Rate %",
+    "chart_countries_mix": "Countries Mix",
+    "chart_gender_mix": "Gender Mix",
+    "chart_age_mix": "Age Mix",
+    "all_platforms": "All Platforms",
+    "vs_last_month": "vs last month",
+    "posts_details_title": "Post Details",
+    "posts_details_description": "All posts in the selected date range. Columns can be sorted by clicking on the header.",
+    "posts_table_score": "Score",
+    "posts_table_engagement_rate": "Engagement Rate",
+    "posts_table_engagement": "Engagement",
+    "posts_table_impressions": "Impressions",
+    "posts_table_date": "Date",
+    "posts_table_post": "Post",
+    "posts_table_platform": "Platform",
+    "posts_table_post_media": "Post media",
+    "date_range_last_7_days": "Last 7 days",
+    "date_range_last_14_days": "Last 14 days",
+    "date_range_last_28_days": "Last 28 days",
+    "date_range_last_month": "Last month",
+    "date_range_custom": "Custom range",
+    "date_range_back_to_options": "Back to options",
+    "date_range_display_by": "Display by:",
+    "granularity_day": "Day",
+    "granularity_week": "Week",
+    "granularity_month": "Month",
+    "granularity_year": "Year"
   },
   "PageTitles": {
     "coming_soon": "Coming soon",
@@ -125,11 +166,19 @@
     "stat_active_users": "Active users",
     "stat_managed_posts": "Managed posts",
     "stat_satisfaction": "Satisfaction",
-    "footer_copyright": "© 2024 Hello Brand. All rights reserved."
+    "footer_copyright": "© Hello Brand 2024. All rights reserved."
   },
   "Auth": {
     "email_label": "Email",
     "password_label": "Password",
+    "full_name_label": "Full Name",
+    "full_name_placeholder": "Enter your full name",
+    "company_brand_label": "Company / Brand Name",
+    "company_brand_placeholder": "Your company or brand name",
+    "email_placeholder": "example@company.com",
+    "password_placeholder": "Create a strong password",
+    "signup_button": "Create Free Account",
+    "signup_disclaimer": "By registering, you agree to our terms of use and privacy policy",
     "signin_title": "Welcome back",
     "signin_subtitle": "Sign in to continue to your dashboard",
     "signup_title": "Create an account",
@@ -162,12 +211,14 @@
     "thisMonth": "this month",
     "thisYear": "this year",
     "noSpecialEvents": "No special events",
-    "dayNames.sunday": "Sunday",
-    "dayNames.monday": "Monday",
-    "dayNames.tuesday": "Tuesday",
-    "dayNames.wednesday": "Wednesday",
-    "dayNames.thursday": "Thursday",
-    "dayNames.friday": "Friday",
-    "dayNames.saturday": "Saturday"
+    "dayNames": {
+      "sunday": "Sunday",
+      "monday": "Monday",
+      "tuesday": "Tuesday",
+      "wednesday": "Wednesday",
+      "thursday": "Thursday",
+      "friday": "Friday",
+      "saturday": "Saturday"
+    }
   }
 }

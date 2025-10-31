@@ -1,9 +1,9 @@
 import { Zap } from 'lucide-react';
-import { getTranslations } from 'next-intl/server';
+import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SignUpForm } from '@/components/auth/SignUpForm';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function SignUpPage() {
@@ -13,54 +13,48 @@ export default async function SignUpPage() {
     redirect('/dashboard');
   }
   const t = await getTranslations('Auth');
+  const locale = await getLocale();
+  const isRTL = locale === 'he';
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-orange-50">
-      <div className="container mx-auto grid items-center gap-12 px-6 py-12 lg:grid-cols-2">
-        <div className="hidden lg:block">
-          <Link href="/" className="mb-6 flex items-center gap-3">
-            <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
-              <Zap className="h-8 w-8 text-white" />
+    <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* Header */}
+      <header className="container mx-auto px-6 py-6">
+        <div className="flex items-center justify-between">
+          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <span className="text-2xl font-bold text-gray-900">Hello Brand</span>
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500 to-orange-400">
+              <Zap className="h-6 w-6 text-white" />
             </div>
-            <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">
-              Hello Brand
-            </span>
-          </Link>
-          <h1 className="mb-4 text-5xl leading-tight font-bold">
-            {t('signup_title')}
-          </h1>
-          <p className="max-w-xl text-lg text-gray-600">
-            {t('signup_subtitle')}
-          </p>
-        </div>
-        <div className="w-full max-w-md justify-self-center">
-          <div className="mb-8 flex justify-center lg:hidden">
-            <Link href="/" className="flex items-center gap-3">
-              <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
-                <Zap className="h-8 w-8 text-white" />
-              </div>
-              <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">
-                Hello Brand
-              </span>
-            </Link>
           </div>
-          <Card className="border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
-            <CardHeader className="space-y-2 text-center">
-              <CardTitle className="text-3xl">{t('signup_title')}</CardTitle>
-              <CardDescription className="text-base">
-                {t('signup_subtitle')}
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <SignUpForm />
-            </CardContent>
-          </Card>
-          <p className="mt-8 text-center text-sm text-gray-500">
-            {t('signup_prompt_signin')}
-            {' '}
-            <Link href="/sign-in" className="text-pink-600 hover:underline">
-              {t('link_signin')}
-            </Link>
-          </p>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="bg-white">
+        <div className="container mx-auto px-6 py-12">
+          <div className="mx-auto max-w-md">
+            <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <CardHeader className="pb-4 text-center">
+                <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
+                  {t('signup_title')}
+                </CardTitle>
+                <p className="text-base text-gray-700">
+                  {t('signup_subtitle')}
+                </p>
+              </CardHeader>
+              <CardContent>
+                <SignUpForm />
+              </CardContent>
+            </Card>
+            <p className="mt-8 text-center text-sm text-gray-600">
+              {t('signup_prompt_signin')}
+              {' '}
+              <Link href="/sign-in" className="font-medium text-pink-600 hover:underline">
+                {t('link_signin')}
+              </Link>
+            </p>
+          </div>
         </div>
       </div>
     </div>
