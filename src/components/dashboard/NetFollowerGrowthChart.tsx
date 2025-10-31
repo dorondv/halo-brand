@@ -5,7 +5,9 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 
 type DataPoint = { date: string; growth: number };
 
-export function NetFollowerGrowthChart({ data = [] }: { data?: DataPoint[] }) {
+const EMPTY_DATA: DataPoint[] = [];
+
+export function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),
@@ -33,8 +35,8 @@ export function NetFollowerGrowthChart({ data = [] }: { data?: DataPoint[] }) {
             formatter={value => [new Intl.NumberFormat('he-IL').format(Number(value)), '']}
           />
           <Bar dataKey="growth" radius={[4, 4, 0, 0]}>
-            {formattedData.map((entry, index) => (
-              <Cell key={`cell-${index}`} fill={entry.growth >= 0 ? '#F50A81' : '#9CA3AF'} />
+            {formattedData.map(entry => (
+              <Cell key={`cell-${entry.date}-${entry.growth}`} fill={entry.growth >= 0 ? '#F50A81' : '#9CA3AF'} />
             ))}
           </Bar>
         </BarChart>

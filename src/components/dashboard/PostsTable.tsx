@@ -21,6 +21,8 @@ type PostsTableProps = {
   posts?: PostRow[];
 };
 
+const EMPTY_POSTS: PostRow[] = [];
+
 const PlatformIcon = ({ platform, className }: { platform: string; className?: string }) => {
   const platformLower = platform.toLowerCase();
   const iconClass = className || 'h-5 w-5';
@@ -92,7 +94,7 @@ const getScoreColor = (score: number) => {
   return 'bg-gray-100 text-gray-800';
 };
 
-export function PostsTable({ posts = [] }: PostsTableProps) {
+export function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const t = useTranslations('DashboardPage');
   const localeCode = useLocale();
   const dfLocale = localeCode === 'he' ? dfHe : dfEnUS;
@@ -239,7 +241,7 @@ export function PostsTable({ posts = [] }: PostsTableProps) {
               </tr>
             </thead>
             <tbody>
-              {sortedPosts.map((post, index) => {
+              {sortedPosts.map((post) => {
                 const postDate = new Date(post.date);
                 const dayName = format(postDate, 'EEEE', { locale: dfLocale });
                 const dateStr = format(postDate, 'dd/MM/yyyy');
@@ -248,7 +250,7 @@ export function PostsTable({ posts = [] }: PostsTableProps) {
                 const platformColor = platformColors[platformLower] || 'text-gray-600';
 
                 return (
-                  <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={`post-${post.date}-${post.platform}-${post.engagement}-${post.postContent.slice(0, 20)}`} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-4 text-right">
                       <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
                         {post.score}

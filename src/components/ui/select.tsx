@@ -29,8 +29,13 @@ export function Select({ children, value, onValueChange }: { children: React.Rea
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, [open]);
 
+  const contextValue = React.useMemo(
+    () => ({ value, onValueChange, open, setOpen }),
+    [value, onValueChange, open],
+  );
+
   return (
-    <SelectContext value={{ value, onValueChange, open, setOpen }}>
+    <SelectContext value={contextValue}>
       <div className="relative" ref={containerRef}>{children}</div>
     </SelectContext>
   );

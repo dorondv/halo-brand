@@ -13,7 +13,9 @@ import {
 
 type DataPoint = { date: string; rate: number };
 
-export function EngagementRateChart({ data = [] }: { data?: DataPoint[] }) {
+const EMPTY_DATA: DataPoint[] = [];
+
+export function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),

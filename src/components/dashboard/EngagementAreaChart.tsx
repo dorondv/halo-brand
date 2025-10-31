@@ -5,7 +5,9 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 
 type DataPoint = { date: string; engagement: number };
 
-export function EngagementAreaChart({ data = [] }: { data?: DataPoint[] }) {
+const EMPTY_DATA: DataPoint[] = [];
+
+export function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),

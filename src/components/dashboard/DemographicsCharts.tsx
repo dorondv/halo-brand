@@ -11,6 +11,10 @@ type AgeData = { name: string; value: number };
 const pinkShades = ['#F50A81', '#F973A8', '#FCB5D8', '#FECFE8', '#FFF0F8'];
 const grayShade = '#9CA3AF';
 
+const EMPTY_COUNTRIES: CountryData[] = [];
+const EMPTY_GENDERS: GenderData[] = [];
+const EMPTY_AGES: AgeData[] = [];
+
 type DemographicsChartsProps = {
   countries?: CountryData[];
   genders?: GenderData[];
@@ -47,9 +51,9 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: an
 };
 
 export function DemographicsCharts({
-  countries = [],
-  genders = [],
-  ages = [],
+  countries = EMPTY_COUNTRIES,
+  genders = EMPTY_GENDERS,
+  ages = EMPTY_AGES,
   countriesTitle = 'Countries Mix',
   genderTitle = 'Gender Mix',
   ageTitle = 'Age Mix',
@@ -79,9 +83,9 @@ export function DemographicsCharts({
                 fill="#8884d8"
                 dataKey="value"
               >
-                {countries.map((_entry, index) => (
+                {countries.map((entry, index) => (
                   <Cell
-                    key={`cell-${index}`}
+                    key={`cell-countries-${entry.name}-${entry.value}`}
                     fill={index < pinkShades.length ? pinkShades[index] : grayShade}
                   />
                 ))}
@@ -135,9 +139,9 @@ export function DemographicsCharts({
                 fill="#8884d8"
                 dataKey="value"
               >
-                {genders.map((_entry, index) => (
+                {genders.map((entry, index) => (
                   <Cell
-                    key={`cell-${index}`}
+                    key={`cell-genders-${entry.name}-${entry.value}`}
                     fill={index === 0 ? pinkShades[0] : grayShade}
                   />
                 ))}
@@ -190,9 +194,9 @@ export function DemographicsCharts({
                 fill="#8884d8"
                 dataKey="value"
               >
-                {ages.map((_entry, index) => (
+                {ages.map((entry, index) => (
                   <Cell
-                    key={`cell-${index}`}
+                    key={`cell-ages-${entry.name}-${entry.value}`}
                     fill={index < pinkShades.length ? pinkShades[index] : grayShade}
                   />
                 ))}

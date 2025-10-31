@@ -87,7 +87,9 @@ export function BrandSelector() {
   useEffect(() => {
     // Get selected brand from URL params
     const brandParam = searchParams.get('brand');
-    setSelectedBrandId(brandParam || 'all');
+    const newBrandId = brandParam || 'all';
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setSelectedBrandId(prev => prev !== newBrandId ? newBrandId : prev);
   }, [searchParams]);
 
   const handleBrandChange = (brandId: string) => {

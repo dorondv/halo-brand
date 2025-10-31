@@ -35,7 +35,7 @@ export function DateRangePicker() {
   const toParam = searchParams.get('to');
 
   // Calculate date range based on option
-  const getDateRange = (range: DateRangeOption): DateRange => {
+  const getDateRange = React.useCallback((range: DateRangeOption): DateRange => {
     const today = new Date();
     today.setHours(23, 59, 59, 999);
 
@@ -61,7 +61,7 @@ export function DateRangePicker() {
       default:
         return { from: subDays(today, 6), to: today };
     }
-  };
+  }, [fromParam, toParam]);
 
   const [dateRange, setDateRange] = React.useState<DateRange>(() => getDateRange(currentRange));
   const [showCustomCalendar, setShowCustomCalendar] = React.useState(false);
@@ -71,9 +71,25 @@ export function DateRangePicker() {
   // Update date range when params change
   React.useEffect(() => {
     const newRange = getDateRange(currentRange);
-    setDateRange(newRange);
-    setShowCustomCalendar(currentRange === 'custom');
-  }, [currentRange, fromParam, toParam]);
+    const shouldShowCustom = currentRange === 'custom';
+
+    // Only update if values actually changed
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setDateRange((prevRange) => {
+      const prevFrom = prevRange?.from?.getTime();
+      const prevTo = prevRange?.to?.getTime();
+      const newFrom = newRange?.from?.getTime();
+      const newTo = newRange?.to?.getTime();
+
+      if (prevFrom !== newFrom || prevTo !== newTo) {
+        return newRange;
+      }
+      return prevRange;
+    });
+
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setShowCustomCalendar(prev => prev !== shouldShowCustom ? shouldShowCustom : prev);
+  }, [currentRange, fromParam, toParam, getDateRange]);
 
   const updateURL = (range: DateRangeOption, granularity: GranularityOption, customRange?: DateRange) => {
     const params = new URLSearchParams(searchParams.toString());

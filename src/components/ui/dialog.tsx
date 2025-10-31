@@ -15,9 +15,12 @@ const DialogContext = React.createContext<DialogContextValue | null>(null);
 export function Dialog({ children, open, onOpenChange }: { children: React.ReactNode; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [mounted, setMounted] = React.useState(false);
 
-  React.useEffect(() => {
-    setMounted(true);
-  }, []);
+  React.useLayoutEffect(() => {
+    if (!mounted) {
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setMounted(true);
+    }
+  }, [mounted]);
 
   React.useEffect(() => {
     if (open) {
