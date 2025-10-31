@@ -94,7 +94,7 @@ const getScoreColor = (score: number) => {
   return 'bg-gray-100 text-gray-800';
 };
 
-export function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
+function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const t = useTranslations('DashboardPage');
   const localeCode = useLocale();
   const dfLocale = localeCode === 'he' ? dfHe : dfEnUS;

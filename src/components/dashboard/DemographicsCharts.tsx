@@ -50,7 +50,7 @@ const CustomLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent }: an
   );
 };
 
-export function DemographicsCharts({
+function DemographicsCharts({
   countries = EMPTY_COUNTRIES,
   genders = EMPTY_GENDERS,
   ages = EMPTY_AGES,

@@ -22,7 +22,7 @@ const sampleData: DataPoint[] = [
   { date: 'Jan 30', followers: 15790 },
 ];
 
-export function FollowersTrendChart({
+function FollowersTrendChart({
   data = sampleData,
 }: {
   data?: DataPoint[];

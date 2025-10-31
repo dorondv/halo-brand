@@ -24,19 +24,7 @@ export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLDivE
   );
 }
 
-export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return (
-    <p className={['text-sm text-gray-500', className].filter(Boolean).join(' ')} {...props} />
-  );
-}
-
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return (
-    <div className={['p-4 pt-0', className].filter(Boolean).join(' ')} {...props} />
-  );
-}
-
-export function CardFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div className={['p-4 pt-0', className].filter(Boolean).join(' ')} {...props} />
   );

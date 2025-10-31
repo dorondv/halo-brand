@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { cn } from '@/libs/cn';
 
-export type InputProps = {} & React.InputHTMLAttributes<HTMLInputElement>;
+type InputProps = {} & React.InputHTMLAttributes<HTMLInputElement>;
 
 const Input = ({ ref, className, type, ...props }: InputProps & { ref?: React.RefObject<HTMLInputElement | null> }) => {
   return (

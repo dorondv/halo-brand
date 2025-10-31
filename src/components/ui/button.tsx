@@ -7,7 +7,7 @@ import { cn } from '@/libs/cn';
 
 import { buttonVariants } from './button-variants';
 
-export type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & VariantProps<typeof buttonVariants>;
 
 const Button = (
   { ref, className, variant, size, type = 'button', ...props }: ButtonProps & { ref?: React.RefObject<HTMLButtonElement | null> },

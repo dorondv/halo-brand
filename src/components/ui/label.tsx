@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { cn } from '@/libs/cn';
 
-export type LabelProps = { } & React.LabelHTMLAttributes<HTMLLabelElement>;
+type LabelProps = { } & React.LabelHTMLAttributes<HTMLLabelElement>;
 
 /* eslint-disable jsx-a11y/label-has-associated-control */
 const Label = ({ ref, className, ...props }: LabelProps & { ref?: React.RefObject<HTMLLabelElement | null> }) => (

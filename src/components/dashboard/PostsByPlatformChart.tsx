@@ -6,7 +6,7 @@ type DataPoint = { platform: string; posts: number };
 
 const EMPTY_DATA: DataPoint[] = [];
 
-export function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
+function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const pinkShades = ['#F50A81', '#F973A8', '#FCB5D8', '#FECFE8', '#FFDDF2', '#FFF0F8', '#FFF5FB'];
 
   return (

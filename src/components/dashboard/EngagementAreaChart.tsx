@@ -7,7 +7,7 @@ type DataPoint = { date: string; engagement: number };
 
 const EMPTY_DATA: DataPoint[] = [];
 
-export function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
+function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),

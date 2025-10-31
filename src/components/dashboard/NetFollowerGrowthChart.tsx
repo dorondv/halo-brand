@@ -7,7 +7,7 @@ type DataPoint = { date: string; growth: number };
 
 const EMPTY_DATA: DataPoint[] = [];
 
-export function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
+function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),

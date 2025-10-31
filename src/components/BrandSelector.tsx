@@ -268,5 +268,3 @@ export function BrandSelector() {
     </>
   );
 }
-
-export default BrandSelector;

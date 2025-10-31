@@ -15,7 +15,7 @@ const sampleData: DataPoint[] = [
   { date: 'Jan 30', impressions: 29000 },
 ];
 
-export function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[] }) {
+function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[] }) {
   const formattedData = data.map(d => ({
     ...d,
     date: d.date.includes('-') ? format(new Date(d.date), 'MMM. dd') : d.date,
