@@ -16,10 +16,10 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
 import React from 'react';
 import { BrandSelector } from '@/components/BrandSelector';
 import { Button } from '@/components/ui/button';
+import { usePathname } from '@/libs/I18nNavigation';
 
 type Props = {
   children: React.ReactNode;
