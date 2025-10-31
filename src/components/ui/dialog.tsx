@@ -39,7 +39,7 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
 
   return createPortal(
     <DialogContext value={{ open, onOpenChange }}>
-      <div className="fixed inset-0 z-[9999] flex items-center justify-center">
+      <div className="fixed inset-0 z-9999 flex items-center justify-center">
         {/* Backdrop/Overlay */}
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -56,7 +56,7 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
           }}
         />
         {/* Dialog content - centered */}
-        <div className="relative z-[9999] w-full max-w-md px-4">
+        <div className="relative z-9999 w-full max-w-md px-4">
           {children}
         </div>
       </div>

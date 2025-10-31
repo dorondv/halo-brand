@@ -22,7 +22,7 @@ export function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] 
   }));
 
   return (
-    <div className="h-80 min-h-[20rem] w-full min-w-0">
+    <div className="h-80 min-h-80 w-full min-w-0">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
