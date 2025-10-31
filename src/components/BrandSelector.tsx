@@ -51,14 +51,33 @@ export function BrandSelector() {
         return;
       }
 
-      // Get user from users table
+      // Get or create user in users table
       const { data: userRecord } = await supabase
         .from('users')
         .select('id')
         .eq('email', session.user.email)
-        .single();
+        .maybeSingle();
 
-      const userId = userRecord?.id || session.user.id;
+      let userId = userRecord?.id;
+
+      // If user doesn't exist in users table, create it
+      if (!userId) {
+        const { data: newUser } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              plan: 'free',
+              is_active: true,
+            },
+          ])
+          .select('id')
+          .single();
+
+        userId = newUser?.id || session.user.id;
+      }
 
       // Fetch brands for this user
       const { data, error } = await supabase
@@ -69,12 +88,13 @@ export function BrandSelector() {
         .order('name');
 
       if (error) {
-        console.error('Error fetching brands:', error);
+        console.error('Error fetching brands:', error.message || error.code || error);
       } else {
         setBrands(data || []);
       }
     } catch (error) {
-      console.error('Error fetching brands:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error fetching brands:', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -121,14 +141,42 @@ export function BrandSelector() {
         return;
       }
 
-      // Get user from users table
+      // Get or create user in users table
       const { data: userRecord } = await supabase
         .from('users')
         .select('id')
         .eq('email', session.user.email)
-        .single();
+        .maybeSingle();
 
-      const userId = userRecord?.id || session.user.id;
+      let userId = userRecord?.id;
+
+      // If user doesn't exist in users table, create it
+      if (!userId) {
+        const { data: newUser, error: createUserError } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              plan: 'free',
+              is_active: true,
+            },
+          ])
+          .select('id')
+          .single();
+
+        if (createUserError) {
+          console.error('Error creating user record:', createUserError.message || createUserError.code || createUserError);
+          throw new Error('Failed to create user record. Please try again.');
+        }
+
+        userId = newUser?.id;
+      }
+
+      if (!userId) {
+        throw new Error('Unable to determine user ID');
+      }
 
       // Create brand
       const { data, error } = await supabase
@@ -146,7 +194,7 @@ export function BrandSelector() {
         .single();
 
       if (error) {
-        console.error('Error creating brand:', error);
+        console.error('Error creating brand:', error.message || error.code || error);
         // Use console.error instead of alert to avoid blocking the UI in tests and satisfy lint rules.
         console.error(t('brand_create_error'));
       } else {
@@ -161,7 +209,8 @@ export function BrandSelector() {
         // alert(t('brand_create_success'));
       }
     } catch (error) {
-      console.error('Error creating brand:', error);
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      console.error('Error creating brand:', errorMessage);
       console.error(t('brand_create_error'));
     } finally {
       setIsCreating(false);
