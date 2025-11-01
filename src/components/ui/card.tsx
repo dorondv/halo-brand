@@ -29,3 +29,9 @@ export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDi
     <div className={['p-4 pt-0', className].filter(Boolean).join(' ')} {...props} />
   );
 }
+
+export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p className={['text-sm text-gray-500 mt-1', className].filter(Boolean).join(' ')} {...props} />
+  );
+}
