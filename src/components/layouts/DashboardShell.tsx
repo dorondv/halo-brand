@@ -16,7 +16,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
-import React from 'react';
+import React, { Suspense } from 'react';
 import { BrandSelector } from '@/components/BrandSelector';
 import { Button } from '@/components/ui/button';
 import { usePathname } from '@/libs/I18nNavigation';
@@ -61,7 +61,9 @@ export function DashboardShell({ children }: Props) {
               <X className="h-6 w-6" />
             </Button>
           </div>
-          <BrandSelector />
+          <Suspense fallback={<div className="h-10" />}>
+            <BrandSelector />
+          </Suspense>
         </div>
         <nav className="space-y-1 px-2">
           {baseNav.map(({ href, key, icon: Icon }) => {
