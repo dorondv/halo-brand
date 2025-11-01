@@ -40,38 +40,42 @@ export default async function MarketingPage() {
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
-          {!session && (
-            <Link
-              href="/sign-in"
-              className="text-gray-900 transition-colors hover:text-pink-600"
-            >
-              {t('already_registered')}
-            </Link>
-          )}
-          {session && (
-            <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-              <span className="text-sm text-gray-600">
-                {t('greeting', { email: session.user.email ?? '' })}
-              </span>
-              <Link
-                href="/dashboard"
-                className={cn(
-                  'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
-                  'text-white font-medium flex items-center gap-2',
-                  'hover:from-pink-600 hover:to-orange-500 transition-all',
-                  isRTL ? 'flex-row-reverse' : '',
-                )}
-              >
-                {t('go_to_dashboard')}
-                {isRTL ? <ArrowLeft className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
-              </Link>
-            </div>
-          )}
-          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
+          <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
             <span className="text-2xl font-bold text-gray-900">Hello Brand</span>
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500 to-orange-400">
               <Zap className="h-6 w-6 text-white" />
             </div>
+          </div>
+          {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
+          <div>
+            {!session && (
+              <Link
+                href="/sign-in"
+                className="text-gray-900 transition-colors hover:text-pink-600"
+              >
+                {t('already_registered')}
+              </Link>
+            )}
+            {session && (
+              <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
+                <span className="text-sm text-gray-600">
+                  {t('greeting', { email: session.user.email ?? '' })}
+                </span>
+                <Link
+                  href="/dashboard"
+                  className={cn(
+                    'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+                    'text-white font-medium flex items-center gap-2',
+                    'hover:from-pink-600 hover:to-orange-500 transition-all',
+                    isRTL ? 'flex-row-reverse' : '',
+                  )}
+                >
+                  {t('go_to_dashboard')}
+                  {isRTL ? <ArrowLeft className="h-4 w-4" /> : <ArrowRight className="h-4 w-4" />}
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </header>
@@ -79,28 +83,9 @@ export default async function MarketingPage() {
       {/* Main Content - White Background */}
       <div className="bg-white">
         <div className="container mx-auto px-6 py-12">
-          <div className={`grid items-start gap-12 lg:grid-cols-2 ${isRTL ? 'lg:grid-cols-[1fr_1fr]' : ''}`}>
-            {/* Left Side - Sign Up Form (RTL: left, LTR: left) */}
-            <div className={isRTL ? 'lg:order-2' : ''}>
-              {!session && (
-                <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
-                  <CardHeader className="pb-4 text-center">
-                    <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
-                      {t('signup_title')}
-                    </CardTitle>
-                    <p className="text-base text-gray-700">
-                      {t('signup_subtitle')}
-                    </p>
-                  </CardHeader>
-                  <CardContent>
-                    <SignUpForm />
-                  </CardContent>
-                </Card>
-              )}
-            </div>
-
-            {/* Right Side - Marketing Content (RTL: right, LTR: right) */}
-            <div className={`space-y-8 ${isRTL ? 'text-right lg:order-1' : 'text-left'}`}>
+          <div className="grid items-start gap-12 lg:grid-cols-2">
+            {/* Marketing Content - Visual left in LTR, visual right in RTL */}
+            <div className={cn('space-y-8', isRTL ? 'text-right' : 'text-left')}>
               <div className="space-y-4">
                 <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl">
                   {t('hero_line1')}
@@ -151,6 +136,25 @@ export default async function MarketingPage() {
                   <div className="text-sm text-gray-600">{t('stat_active_users')}</div>
                 </div>
               </div>
+            </div>
+
+            {/* Sign Up Form - Visual right in LTR, visual left in RTL */}
+            <div>
+              {!session && (
+                <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
+                  <CardHeader className="pb-4 text-center">
+                    <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
+                      {t('signup_title')}
+                    </CardTitle>
+                    <p className="text-base text-gray-700">
+                      {t('signup_subtitle')}
+                    </p>
+                  </CardHeader>
+                  <CardContent>
+                    <SignUpForm />
+                  </CardContent>
+                </Card>
+              )}
             </div>
           </div>
         </div>
