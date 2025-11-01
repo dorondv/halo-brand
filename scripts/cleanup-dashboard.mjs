@@ -1,20 +1,6 @@
-import fs from 'node:fs';
-import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
-// Load .env if present
-const envPath = path.resolve(process.cwd(), '.env');
-if (fs.existsSync(envPath)) {
-  try {
-    const dotenvModule = await import('dotenv');
-    if (dotenvModule && typeof dotenvModule.config === 'function') {
-      dotenvModule.config({ path: envPath });
-    }
-  } catch {
-    // If dotenv isn't installed, ignore
-  }
-}
-
+// Environment variables are loaded by dotenv-cli before this script runs.
 // Accept multiple possible env var names used across projects
 const SUPABASE_URL
   = process.env.SUPABASE_URL
