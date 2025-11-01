@@ -54,6 +54,16 @@ const baseConfig: NextConfig = {
     // Note: This is handled via dynamic imports in middleware.ts
     return config;
   },
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'i.pravatar.cc',
+        port: '',
+        pathname: '/**',
+      },
+    ],
+  },
 };
 
 // Initialize the Next-Intl plugin
