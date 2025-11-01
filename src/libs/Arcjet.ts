@@ -1,4 +1,4 @@
-import arcjet, { fixedWindow, shield, slidingWindow } from '@arcjet/next';
+import arcjet, { detectBot, fixedWindow, shield, slidingWindow } from '@arcjet/next';
 import { Env } from './Env';
 
 // Only initialize Arcjet if API key is configured
@@ -14,6 +14,14 @@ const getArcjetInstance = () => {
       // Shield protects against common attacks (OWASP Top 10)
       shield({
         mode: 'LIVE', // Use 'DRY_RUN' to test without blocking
+      }),
+      // Bot detection - blocks automated bot traffic
+      detectBot({
+        mode: 'LIVE', // Set to 'DRY_RUN' to log without blocking
+        allow: [
+          'CATEGORY:SEARCH_ENGINE', // Allows known search engine bots (Google, Bing, etc.)
+          'CATEGORY:MONITOR', // Allows uptime monitoring services
+        ],
       }),
       // Rate limit: Fixed window of 60 seconds
       fixedWindow({
@@ -44,6 +52,14 @@ const getSignupArcjetInstance = () => {
       // Shield protects against common attacks (OWASP Top 10)
       shield({
         mode: 'LIVE',
+      }),
+      // Enhanced bot detection for signup routes - stricter protection
+      detectBot({
+        mode: 'LIVE', // Blocks detected bots
+        allow: [
+          'CATEGORY:SEARCH_ENGINE', // Allows known search engine bots
+          'CATEGORY:MONITOR', // Allows uptime monitoring services
+        ],
       }),
       // Stricter rate limit for signup: 5 requests per 15 minutes per IP
       fixedWindow({

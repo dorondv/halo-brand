@@ -27,10 +27,17 @@ export async function middleware(req: NextRequest) {
 
     // If request is denied, return the response immediately
     if (decision.isDenied()) {
-      const status = decision.reason.isRateLimit() ? 429 : 403;
-      const message = isSignupRoute && status === 429
-        ? 'Too many signup attempts. Please try again later.'
-        : 'Access denied';
+      const isRateLimit = decision.reason.isRateLimit();
+      const isBot = decision.reason.isBot();
+      const status = isRateLimit ? 429 : 403;
+
+      let message = 'Access denied';
+      if (isSignupRoute && isRateLimit) {
+        message = 'Too many signup attempts. Please try again later.';
+      } else if (isBot) {
+        message = 'Bot detected. Access denied.';
+      }
+
       return new Response(message, { status });
     }
   }
