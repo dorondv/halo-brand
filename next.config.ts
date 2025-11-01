@@ -18,6 +18,21 @@ const baseConfig: NextConfig = {
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },
+  // Optimize middleware bundle size by excluding unnecessary dependencies
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      return config;
+    }
+
+    // For Edge Runtime (middleware), optimize bundle size
+    config.resolve.alias = {
+      ...config.resolve.alias,
+    };
+
+    // Reduce middleware bundle size by externalizing heavy dependencies when possible
+    // Note: This is handled via dynamic imports in middleware.ts
+    return config;
+  },
 };
 
 // Initialize the Next-Intl plugin

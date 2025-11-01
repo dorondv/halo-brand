@@ -1,7 +1,6 @@
 import type { NextRequest } from 'next/server';
 import createMiddleware from 'next-intl/middleware';
 
-import aj, { ajSignup } from './libs/Arcjet';
 import { routing } from './libs/I18nRouting';
 
 // Disable automatic locale detection from browser headers
@@ -12,6 +11,79 @@ const handleI18nRouting = (createMiddleware as any)(routing, {
   localeDetection: false, // Disable automatic browser locale detection
 });
 
+// Lazy load Arcjet only when needed to reduce middleware bundle size
+// Use direct process.env check to avoid bundling heavy Env validation library
+async function getArcjetInstance(isSignup: boolean) {
+  // Only load Arcjet if API key is configured
+  // Using direct env check to reduce bundle size (Env import includes zod + @t3-oss/env-nextjs)
+  const arcjetKey = process.env.ARCJET_KEY;
+  if (!arcjetKey) {
+    return null;
+  }
+
+  // Dynamic import to avoid bundling Arcjet in middleware unless actually used
+  const arcjetModule = await import('@arcjet/next');
+  const { default: arcjet, detectBot, fixedWindow, shield, slidingWindow } = arcjetModule;
+
+  if (isSignup) {
+    // Stricter Arcjet instance for signup routes
+    return arcjet({
+      key: arcjetKey,
+      characteristics: ['ip.src', 'http.request.uri.path'],
+      rules: [
+        shield({
+          mode: 'LIVE',
+        }),
+        detectBot({
+          mode: 'LIVE',
+          allow: [
+            'CATEGORY:SEARCH_ENGINE',
+            'CATEGORY:MONITOR',
+          ],
+        }),
+        fixedWindow({
+          mode: 'LIVE',
+          window: '15m',
+          max: 5,
+        }),
+        slidingWindow({
+          mode: 'LIVE',
+          interval: '1h',
+          max: 10,
+        }),
+      ],
+    });
+  }
+
+  // Standard Arcjet instance for all other routes
+  return arcjet({
+    key: arcjetKey,
+    characteristics: ['ip.src', 'http.request.uri.path'],
+    rules: [
+      shield({
+        mode: 'LIVE',
+      }),
+      detectBot({
+        mode: 'LIVE',
+        allow: [
+          'CATEGORY:SEARCH_ENGINE',
+          'CATEGORY:MONITOR',
+        ],
+      }),
+      fixedWindow({
+        mode: 'LIVE',
+        window: '1m',
+        max: 30,
+      }),
+      slidingWindow({
+        mode: 'LIVE',
+        interval: '1h',
+        max: 1000,
+      }),
+    ],
+  });
+}
+
 export async function middleware(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
@@ -19,8 +91,8 @@ export async function middleware(req: NextRequest) {
   const isSignupRoute = pathname.includes('/sign-up') || pathname.includes('/signup');
 
   // Apply Arcjet protection first (if configured)
-  // Use stricter rules for signup routes
-  const arcjetInstance = isSignupRoute && ajSignup ? ajSignup : aj;
+  // Use dynamic import to reduce bundle size
+  const arcjetInstance = await getArcjetInstance(isSignupRoute);
 
   if (arcjetInstance) {
     const decision = await arcjetInstance.protect(req);
