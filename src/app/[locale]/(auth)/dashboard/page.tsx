@@ -815,6 +815,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               value={formatted(finalTotalFollowers)}
               change={12.5}
               icon={Users}
+              vsLabel={t('vs_last_month')}
             />,
             <MetricCard
               key="impressions"
@@ -822,6 +823,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               value={formatted(finalTotalImpressions)}
               change={18.7}
               icon={Eye}
+              vsLabel={t('vs_last_month')}
             />,
             <MetricCard
               key="engagement"
@@ -829,6 +831,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               value={formatted(finalTotalEngagement)}
               change={5.3}
               icon={Heart}
+              vsLabel={t('vs_last_month')}
             />,
             <MetricCard
               key="posts"
@@ -836,6 +839,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
               value={formatted(finalTotalPosts)}
               change={5.1}
               icon={FileText}
+              vsLabel={t('vs_last_month')}
             />,
           ];
           return (

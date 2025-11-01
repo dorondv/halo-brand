@@ -27,7 +27,7 @@ export function SignUpForm() {
           type="text"
           placeholder={t('full_name_placeholder')}
           required
-          className="h-10 rounded-lg border-gray-300"
+          className="h-12 rounded-md border-gray-300"
         />
       </div>
       <div className="space-y-2">
@@ -40,7 +40,7 @@ export function SignUpForm() {
           type="text"
           placeholder={t('company_brand_placeholder')}
           required
-          className="h-10 rounded-lg border-gray-300"
+          className="h-12 rounded-md border-gray-300"
         />
       </div>
       <div className="space-y-2">
@@ -53,7 +53,7 @@ export function SignUpForm() {
           type="email"
           placeholder={t('email_placeholder')}
           required
-          className="h-10 rounded-lg border-gray-300"
+          className="h-12 rounded-md border-gray-300"
         />
       </div>
       <div className="space-y-2">
@@ -66,7 +66,7 @@ export function SignUpForm() {
           type="password"
           placeholder={t('password_placeholder')}
           required
-          className="h-10 rounded-lg border-gray-300"
+          className="h-12 rounded-md border-gray-300"
         />
       </div>
       {state?.error && <p className="text-sm text-red-500">{state.error}</p>}
@@ -75,7 +75,7 @@ export function SignUpForm() {
         type="submit"
         disabled={isPending}
         className={cn(
-          'w-full rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-6 py-3',
+          'w-full h-12 text-lg rounded-md bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
           'text-white font-medium flex items-center justify-center gap-2',
           'hover:from-pink-600 hover:to-orange-500 transition-all',
           'disabled:opacity-50 disabled:cursor-not-allowed',

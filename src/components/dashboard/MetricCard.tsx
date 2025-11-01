@@ -7,6 +7,7 @@ type MetricCardProps = {
   value: string;
   change: number;
   icon: React.ElementType;
+  vsLabel?: string;
 };
 
 export function MetricCard({
@@ -14,6 +15,7 @@ export function MetricCard({
   value,
   change,
   icon: Icon,
+  vsLabel = 'vs last month',
 }: MetricCardProps): React.ReactElement {
   return (
     <Card className="group relative cursor-pointer rounded-lg border border-pink-200 bg-white shadow-md transition-transform hover:scale-105">
@@ -34,7 +36,7 @@ export function MetricCard({
 
           {/* Comparison Text and Percentage - left-aligned for LTR, right-aligned for RTL */}
           <div className="flex flex-col gap-0.5 text-left rtl:text-right">
-            <span className="text-xs text-gray-400">vs last month</span>
+            <span className="text-xs text-gray-400">{vsLabel}</span>
             <span className="flex items-center gap-1 text-sm font-medium text-pink-600 rtl:flex-row-reverse">
               {change >= 0 ? '+' : ''}
               {change.toFixed(1)}

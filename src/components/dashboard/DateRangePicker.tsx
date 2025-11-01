@@ -67,6 +67,13 @@ export function DateRangePicker() {
   const [showCustomCalendar, setShowCustomCalendar] = React.useState(false);
   const [showRangeOptions, setShowRangeOptions] = React.useState(false);
   const [showGranularityOptions, setShowGranularityOptions] = React.useState(false);
+  const [isMounted, setIsMounted] = React.useState(false);
+
+  // Prevent hydration mismatch by only rendering Popovers after mount
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+    setIsMounted(true);
+  }, []);
 
   // Update date range when params change
   React.useEffect(() => {
@@ -114,7 +121,6 @@ export function DateRangePicker() {
     setShowRangeOptions(false);
     if (range === 'custom') {
       setShowCustomCalendar(true);
-      updateURL('custom', currentGranularity);
     } else {
       setShowCustomCalendar(false);
       updateURL(range, currentGranularity);
@@ -126,6 +132,9 @@ export function DateRangePicker() {
       setDateRange(range);
       updateURL('custom', currentGranularity, range);
       setShowCustomCalendar(false);
+      setShowRangeOptions(false);
+    } else if (range) {
+      setDateRange(range);
     }
   };
 
@@ -161,103 +170,199 @@ export function DateRangePicker() {
 
   // For English: Label, Granularity, DatePicker
   // For Hebrew: DatePicker, Granularity, Label (then flex-row-reverse reverses it)
-  const dateRangeSelector = (
-    <Popover
-      open={showRangeOptions || showCustomCalendar}
-      onOpenChange={(open) => {
-        if (!open) {
-          setShowRangeOptions(false);
-          if (currentRange !== 'custom') {
-            setShowCustomCalendar(false);
-          }
-        }
-      }}
-    >
-      <PopoverTrigger asChild>
+  const dateRangeSelector = isMounted
+    ? (
+        <Popover
+          open={showRangeOptions || showCustomCalendar}
+          onOpenChange={(open) => {
+            if (!open) {
+              setShowRangeOptions(false);
+              if (currentRange !== 'custom') {
+                setShowCustomCalendar(false);
+              }
+            }
+          }}
+        >
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+                isRTL ? 'flex-row-reverse' : '',
+              )}
+              onClick={() => {
+                if (currentRange === 'custom') {
+                  setShowCustomCalendar(true);
+                } else {
+                  setShowRangeOptions(true);
+                }
+              }}
+            >
+              <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <span className="text-gray-700">{formatDateRange(dateRange)}</span>
+                <CalendarIcon className="h-4 w-4 text-gray-500" />
+              </div>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className={cn('w-auto p-0', isRTL ? 'mr-0' : 'ml-0')}
+            align={isRTL ? 'end' : 'start'}
+          >
+            {!showCustomCalendar
+              ? (
+                  <div className="p-2">
+                    {predefinedRanges.map(range => (
+                      <Button
+                        key={range.value}
+                        variant="ghost"
+                        className={cn(
+                          'w-full justify-start mb-1 hover:bg-pink-50',
+                          currentRange === range.value && 'bg-pink-50 text-pink-600',
+                          isRTL && 'text-right',
+                        )}
+                        onClick={() => handleRangeSelect(range.value as DateRangeOption)}
+                      >
+                        {range.label}
+                      </Button>
+                    ))}
+                  </div>
+                )
+              : (
+                  <div className="p-2">
+                    <div className="mb-2 border-b pb-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setShowCustomCalendar(false);
+                          setShowRangeOptions(true);
+                        }}
+                        className={cn(
+                          'w-full text-pink-600 hover:bg-pink-50',
+                          isRTL ? 'flex-row-reverse' : '',
+                        )}
+                      >
+                        {isRTL ? <ArrowRight className="mr-2 h-4 w-4" /> : <ArrowLeft className="mr-2 h-4 w-4" />}
+                        {t('date_range_back_to_options')}
+                      </Button>
+                    </div>
+                    <Calendar
+                      mode="range"
+                      selected={dateRange}
+                      onSelect={handleCustomDateSelect}
+                      numberOfMonths={2}
+                      locale={dfLocale}
+                      dir={isRTL ? 'rtl' : 'ltr'}
+                      className="rounded-md"
+                      classNames={{
+                        months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
+                        month: 'space-y-4',
+                        caption: 'flex justify-center pt-1 relative items-center',
+                        caption_label: 'text-sm font-medium',
+                        nav: 'space-x-1 flex items-center',
+                        nav_button: cn(
+                          'h-8 w-8 bg-transparent p-0 opacity-70 hover:opacity-100 hover:bg-gray-100 rounded-md transition-colors',
+                        ),
+                        nav_button_previous: 'absolute left-2 top-1',
+                        nav_button_next: 'absolute right-2 top-1',
+                        table: 'w-full border-collapse space-y-1',
+                        head_row: 'flex',
+                        head_cell: 'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
+                        row: 'flex w-full mt-2',
+                        cell: cn(
+                          'h-9 w-9 text-center text-sm p-0 relative',
+                          '[&:has([aria-selected].day-range-end)]:rounded-r-md',
+                          '[&:has([aria-selected].day-range-start)]:rounded-l-md',
+                          '[&:has([aria-selected])]:bg-pink-100',
+                          'first:[&:has([aria-selected])]:rounded-l-md',
+                          'last:[&:has([aria-selected])]:rounded-r-md',
+                          'focus-within:relative focus-within:z-20',
+                        ),
+                        day: cn(
+                          'h-9 w-9 p-0 font-normal',
+                          'aria-selected:opacity-100',
+                          'hover:bg-gray-100 hover:text-gray-900',
+                          'focus:bg-gray-100 focus:text-gray-900',
+                        ),
+                        day_range_start: 'rounded-l-md bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold',
+                        day_range_end: 'rounded-r-md bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold',
+                        day_selected: 'bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold rounded-md',
+                        day_today: 'bg-gray-100 text-gray-900 font-semibold',
+                        day_outside: 'text-gray-400 opacity-50',
+                        day_disabled: 'text-gray-300 opacity-30 cursor-not-allowed',
+                        day_range_middle: 'bg-pink-100 text-gray-900 hover:bg-pink-200 aria-selected:bg-pink-100 aria-selected:text-gray-900',
+                        day_hidden: 'invisible',
+                      }}
+                    />
+                  </div>
+                )}
+          </PopoverContent>
+        </Popover>
+      )
+    : (
         <Button
           variant="outline"
           className={cn(
             'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
             isRTL ? 'flex-row-reverse' : '',
           )}
-          onClick={() => {
-            if (currentRange === 'custom') {
-              setShowCustomCalendar(true);
-            } else {
-              setShowRangeOptions(true);
-            }
-          }}
+          disabled
         >
           <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <span className="text-gray-700">{formatDateRange(dateRange)}</span>
             <CalendarIcon className="h-4 w-4 text-gray-500" />
           </div>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className={cn('w-auto p-0', isRTL ? 'mr-0' : 'ml-0')}
-        align={isRTL ? 'end' : 'start'}
-      >
-        {showCustomCalendar
-          ? (
-              <div className="p-4">
-                <Button
-                  variant="ghost"
-                  className={cn(
-                    'mb-4 w-full justify-start text-sm text-gray-600 hover:text-gray-900',
-                    isRTL ? 'flex-row-reverse' : '',
-                  )}
-                  onClick={() => {
-                    setShowCustomCalendar(false);
-                    setShowRangeOptions(true);
-                  }}
-                >
-                  {isRTL ? <ArrowRight className="mr-2 h-4 w-4" /> : <ArrowLeft className="mr-2 h-4 w-4" />}
-                  {t('date_range_back_to_options')}
-                </Button>
-                <Calendar
-                  initialFocus
-                  mode="range"
-                  defaultMonth={dateRange?.from}
-                  selected={dateRange}
-                  onSelect={handleCustomDateSelect}
-                  numberOfMonths={2}
-                  locale={dfLocale}
-                  dir={isRTL ? 'rtl' : 'ltr'}
-                />
-              </div>
-            )
-          : (
-              <div className="p-2">
-                {predefinedRanges.map(range => (
-                  <button
-                    key={range.value}
-                    type="button"
-                    className={cn(
-                      'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
-                      currentRange === range.value && 'bg-pink-50 text-pink-600',
-                      isRTL && 'text-right',
-                    )}
-                    onClick={() => handleRangeSelect(range.value as DateRangeOption)}
-                  >
-                    {range.label}
-                  </button>
-                ))}
-              </div>
-            )}
-      </PopoverContent>
-    </Popover>
-  );
+      );
 
-  const granularitySelector = (
-    <Popover open={showGranularityOptions} onOpenChange={setShowGranularityOptions}>
-      <PopoverTrigger asChild>
+  const granularitySelector = isMounted
+    ? (
+        <Popover open={showGranularityOptions} onOpenChange={setShowGranularityOptions}>
+          <PopoverTrigger asChild>
+            <Button
+              variant="outline"
+              className={cn(
+                'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+                isRTL ? 'flex-row-reverse' : '',
+              )}
+            >
+              <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                <span className="text-gray-700">
+                  {granularityOptions.find(g => g.value === currentGranularity)?.label}
+                </span>
+                <ChevronDown className="h-4 w-4 text-gray-500" />
+              </div>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent
+            className={cn('w-auto p-2', isRTL ? 'mr-0' : 'ml-0')}
+            align={isRTL ? 'end' : 'start'}
+          >
+            {granularityOptions.map(option => (
+              <button
+                key={option.value}
+                type="button"
+                className={cn(
+                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
+                  currentGranularity === option.value && 'bg-pink-50 text-pink-600',
+                  isRTL && 'text-right',
+                )}
+                onClick={() => handleGranularitySelect(option.value as GranularityOption)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </PopoverContent>
+        </Popover>
+      )
+    : (
         <Button
           variant="outline"
           className={cn(
             'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
             isRTL ? 'flex-row-reverse' : '',
           )}
+          disabled
         >
           <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
             <span className="text-gray-700">
@@ -266,28 +371,7 @@ export function DateRangePicker() {
             <ChevronDown className="h-4 w-4 text-gray-500" />
           </div>
         </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className={cn('w-auto p-2', isRTL ? 'mr-0' : 'ml-0')}
-        align={isRTL ? 'end' : 'start'}
-      >
-        {granularityOptions.map(option => (
-          <button
-            key={option.value}
-            type="button"
-            className={cn(
-              'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
-              currentGranularity === option.value && 'bg-pink-50 text-pink-600',
-              isRTL && 'text-right',
-            )}
-            onClick={() => handleGranularitySelect(option.value as GranularityOption)}
-          >
-            {option.label}
-          </button>
-        ))}
-      </PopoverContent>
-    </Popover>
-  );
+      );
 
   const label = <span className="text-sm text-gray-700">{t('date_range_display_by')}</span>;
 

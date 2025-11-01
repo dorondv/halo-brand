@@ -1,68 +1,9 @@
 {
-  "RootLayout": {
-    "home_link": "בית",
-    "about_link": "אודות",
-    "portfolio_link": "פורטפוליו",
-    "sign_in_link": "התחברות",
-    "sign_up_link": "הרשמה"
-  },
   "BaseTemplate": {
     "description": "קוד התחלתי לפרויקט Next.js עם Tailwind CSS",
     "made_with": "נבנה עם <author></author>."
   },
-  "Index": {
-    "meta_title": "מצגת Next.js",
-    "meta_description": "Next.js Boilerplate הוא קוד התחלתי מושלם לפרויקט שלך.",
-    "sponsors_title": "נותני חסות"
-  },
-
-  "About": {
-    "meta_title": "אודות",
-    "meta_description": "תיאור דף אודות",
-    "about_paragraph": "ברוכים הבאים לדף האודות! אנחנו צוות שמפתח תוכנה מעולה.",
-    "translation_powered_by": "תרגום נתמך על ידי"
-  },
-  "Portfolio": {
-    "meta_title": "פורטפוליו",
-    "meta_description": "ברוכים הבאים לדף הפורטפוליו שלי!",
-    "presentation": "כאן תמצאו אוסף של עבודות והישגים שלי.",
-    "portfolio_name": "פורטפוליו {name}",
-    "error_reporting_powered_by": "דיווח שגיאות נתמך על ידי",
-    "coverage_powered_by": "כיסוי קוד נתמך על ידי"
-  },
-  "PortfolioSlug": {
-    "meta_title": "פורטפוליו {slug}",
-    "meta_description": "תיאור פורטפוליו {slug}",
-    "header": "פורטפוליו {slug}",
-    "content": "תיאור פרויקט לדוגמה",
-    "code_review_powered_by": "סקירת קוד נתמכת על ידי"
-  },
-  "SignIn": {
-    "meta_title": "התחברות",
-    "meta_description": "התחבר/י לחשבון שלך בקלות."
-  },
-  "SignUp": {
-    "meta_title": "הרשמה",
-    "meta_description": "הירשמ/י בקלות ובמהירות."
-  },
-  "Dashboard": {
-    "meta_title": "דשבורד",
-    "hello_message": "שלום {email}!",
-    "alternative_message": "רוצה לבנות SaaS מהר יותר? נסה <url></url>."
-  },
-  "UserProfile": {
-    "meta_title": "פרופיל משתמש"
-  },
-  "DashboardLayout": {
-    "dashboard_link": "דשבורד",
-    "user_profile_link": "ניהול החשבון",
-    "sign_out": "התנתקות"
-  },
-  "Sponsors": {
-    "title": "נותני חסות"
-  },
   "Common": {
-    "brand_selector_label": "בחר מותג",
     "brand_selector_all": "כל המותגים",
     "brand_selector_placeholder": "בחר מותג",
     "brand_add_button": "הוסף מותג",
@@ -72,7 +13,6 @@
     "brand_create_modal_placeholder": "שם המותג שלך",
     "brand_create_button": "צור מותג",
     "brand_create_cancel": "ביטול",
-    "brand_create_success": "המותג נוצר בהצלחה",
     "brand_create_error": "שגיאה ביצירת המותג"
   },
   "Nav": {
@@ -103,7 +43,7 @@
     "chart_gender_mix": "תמהיל מגדרי",
     "chart_age_mix": "תמהיל גילאים",
     "all_platforms": "כל הפלטפורמות",
-    "vs_last_month": "vs last month",
+    "vs_last_month": "לעומת החודש הקודם",
     "posts_details_title": "פירוט פוסטים",
     "posts_details_description": "כל הפוסטים בטווח התאריכים שנבחר. ניתן למיין את העמודות בלחיצה על הכותרת.",
     "posts_table_score": "ציון",
@@ -189,36 +129,9 @@
     "link_signup": "הרשמה",
     "signin_cta": "התחברות",
     "signin_pending": "מתחבר...",
-    "signup_cta": "הרשמה",
     "signup_pending": "נרשם..."
   },
-  "CalendarPage": {
-    "title": "לוח תוכן",
-    "description": "תיאור לוח התוכן",
-    "monthView": "חודשי",
-    "yearView": "שנתי",
-    "hideEvents": "הסתר אירועים",
-    "showEvents": "הצג אירועים",
-    "schedulePost": "תזמן פוסט",
-    "legendTitle": "מקרא וסינון אירועים",
-    "selectDate": "בחר תאריך",
-    "yourPosts": "הפוסטים שלך",
-    "platforms": "פלטפורמות",
-    "noScheduledPosts": "אין פוסטים מתוזמנים",
-    "schedulePostButton": "תזמן פוסט",
-    "clickToSeeEvents": "לחץ על תאריך כדי לראות אירועים",
-    "importantEvents": "אירועים חשובים",
-    "thisMonth": "החודש",
-    "thisYear": "השנה",
-    "noSpecialEvents": "אין אירועים מיוחדים",
-    "dayNames": {
-      "sunday": "ראשון",
-      "monday": "שני",
-      "tuesday": "שלישי",
-      "wednesday": "רביעי",
-      "thursday": "חמישי",
-      "friday": "שישי",
-      "saturday": "שבת"
-    }
+  "DashboardLayout": {
+    "sign_out": "התנתקות"
   }
 }

@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SignUpForm } from '@/components/auth/SignUpForm';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
@@ -17,44 +18,47 @@ export default async function SignUpPage() {
   const isRTL = locale === 'he';
 
   return (
-    <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="absolute inset-0 min-h-screen w-screen bg-gradient-to-br from-pink-50 via-white to-orange-50" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* Locale Switcher - Top Right */}
+      <div className={`absolute top-6 z-10 ${isRTL ? 'left-6' : 'right-6'}`}>
+        <LocaleSwitcher />
+      </div>
+
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-center">
           <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="text-2xl font-bold text-gray-900">Hello Brand</span>
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-gradient-to-br from-pink-500 to-orange-400">
-              <Zap className="h-6 w-6 text-white" />
+            <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">Hello Brand</span>
+            <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
+              <Zap className="h-8 w-8 text-white" />
             </div>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="bg-white">
-        <div className="container mx-auto px-6 py-12">
-          <div className="mx-auto max-w-md">
-            <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader className="pb-4 text-center">
-                <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
-                  {t('signup_title')}
-                </CardTitle>
-                <p className="text-base text-gray-700">
-                  {t('signup_subtitle')}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <SignUpForm />
-              </CardContent>
-            </Card>
-            <p className="mt-8 text-center text-sm text-gray-600">
-              {t('signup_prompt_signin')}
-              {' '}
-              <Link href="/sign-in" className="font-medium text-pink-600 hover:underline">
-                {t('link_signin')}
-              </Link>
-            </p>
-          </div>
+      <div className="container mx-auto px-6 py-12">
+        <div className="mx-auto max-w-md">
+          <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
+            <CardHeader className="pb-4 text-center">
+              <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
+                {t('signup_title')}
+              </CardTitle>
+              <p className="text-base text-gray-700">
+                {t('signup_subtitle')}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <SignUpForm />
+            </CardContent>
+          </Card>
+          <p className="mt-8 text-center text-sm text-gray-600">
+            {t('signup_prompt_signin')}
+            {' '}
+            <Link href="/sign-in" className="font-medium text-pink-600 hover:underline">
+              {t('link_signin')}
+            </Link>
+          </p>
         </div>
       </div>
     </div>
