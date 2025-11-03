@@ -10,7 +10,7 @@ function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const pinkShades = ['#FF0083', '#FF3399', '#FF66B3', '#FF99CC', '#FFCCE6', '#FFE6F2', '#FFF0F8'];
 
   return (
-    <div className="h-80 min-h-80 w-full min-w-0">
+    <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
