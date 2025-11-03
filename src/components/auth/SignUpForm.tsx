@@ -31,19 +31,6 @@ export function SignUpForm() {
         />
       </div>
       <div className="space-y-2">
-        <Label htmlFor="companyName" className="text-sm font-medium text-gray-900">
-          {t('company_brand_label')}
-        </Label>
-        <Input
-          id="companyName"
-          name="companyName"
-          type="text"
-          placeholder={t('company_brand_placeholder')}
-          required
-          className="h-12 rounded-md border-gray-300"
-        />
-      </div>
-      <div className="space-y-2">
         <Label htmlFor="email" className="text-sm font-medium text-gray-900">
           {t('email_label')}
         </Label>

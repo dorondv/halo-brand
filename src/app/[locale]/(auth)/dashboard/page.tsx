@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, subDays } from 'date-fns';
 import {
   Eye,
@@ -20,6 +21,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
 import { MetricCardsClient } from './MetricCardsClient';
+
+export const metadata: Metadata = {
+  title: 'Halo Brand - Dashboard',
+  description: 'Dashboard for social media analytics',
+};
 
 type DashboardProps = {
   searchParams: Promise<{

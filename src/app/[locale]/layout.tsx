@@ -7,6 +7,10 @@ import { routing } from '@/libs/I18nRouting';
 import '@/styles/global.css';
 
 export const metadata: Metadata = {
+  title: {
+    default: 'Halo Brand',
+    template: '%s | Halo Brand',
+  },
   icons: [
     {
       rel: 'apple-touch-icon',

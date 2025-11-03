@@ -22,8 +22,11 @@ export function MetricCard({
 }: MetricCardProps): React.ReactElement {
   return (
     <Card className={cn(
-      'group relative cursor-pointer rounded-lg border bg-white shadow-md transition-transform hover:scale-105',
-      isSelected ? 'border-[#FF0083] border-2' : 'border-pink-200',
+      'group relative cursor-pointer rounded-lg bg-white shadow-md transition-transform hover:scale-105',
+      // Override base Card border styles when selected
+      isSelected
+        ? '!border-2 !border-[#FF0083] ring-2 ring-pink-200 shadow-lg'
+        : 'border border-pink-200',
     )}
     >
       <CardContent className="p-4">

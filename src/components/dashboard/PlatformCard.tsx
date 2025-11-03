@@ -74,8 +74,11 @@ export function PlatformCard({
   return (
     <Card
       className={cn(
-        'border bg-white shadow-md rounded-lg transition-all cursor-pointer',
-        isSelected ? 'border-[#FF0083] border-2' : 'border-gray-200',
+        'bg-white shadow-md rounded-lg transition-all cursor-pointer',
+        // Override base Card border styles when selected
+        isSelected
+          ? '!border-2 !border-[#FF0083] ring-2 ring-pink-200 shadow-lg'
+          : 'border border-gray-200',
       )}
     >
       <CardContent className="flex flex-col items-center gap-3 p-4">
