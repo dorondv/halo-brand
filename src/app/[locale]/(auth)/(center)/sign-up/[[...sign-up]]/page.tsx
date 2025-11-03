@@ -1,10 +1,10 @@
-import { Zap } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Logo } from '@/components/ui/Logo';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function SignUpPage() {
@@ -27,11 +27,11 @@ export default async function SignUpPage() {
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-center">
-          <div className={`flex items-center ${isRTL ? 'flex-row-reverse gap-4' : 'gap-3'}`}>
-            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold text-transparent">Halo Brand</span>
-            <div className="rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-2">
-              <Zap className="h-8 w-8 text-white" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-1">
+              <Logo width={140} height={35} className="text-white" />
             </div>
+            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold whitespace-nowrap text-transparent">Halo Brand</span>
           </div>
         </div>
       </header>

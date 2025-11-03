@@ -12,7 +12,6 @@ import {
   Settings,
   Tags,
   X,
-  Zap,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
@@ -20,6 +19,7 @@ import React, { Suspense } from 'react';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
 import { Button } from '@/components/ui/button';
+import { Logo } from '@/components/ui/Logo';
 import { usePathname } from '@/libs/I18nNavigation';
 
 type Props = {
@@ -52,11 +52,11 @@ export function DashboardShell({ children }: Props) {
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
           <div className="flex items-center justify-between">
-            <div className={`flex items-center ${locale === 'he' ? 'gap-4' : 'space-x-2 rtl:space-x-reverse'}`}>
-              <div className="rounded-lg bg-[#FF0083] p-2">
-                <Zap className="h-6 w-6 text-white" />
+            <div className="flex flex-col items-center gap-2">
+              <div className="flex-shrink-0 rounded-lg bg-[#FF0083] p-1">
+                <Logo width={120} height={30} className="text-white" />
               </div>
-              <span className="text-xl font-bold">Halo Brand</span>
+              <span className="text-xl font-bold whitespace-nowrap">Halo Brand</span>
             </div>
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
               <X className="h-6 w-6" />

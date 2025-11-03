@@ -1,9 +1,10 @@
-import { ArrowLeft, ArrowRight, Calendar, Check, Sparkles, TrendingUp, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, Check, Sparkles, TrendingUp, Users } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
@@ -42,11 +43,11 @@ export default async function MarketingPage() {
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className={cn('flex items-center', isRTL ? 'flex-row-reverse gap-4' : 'gap-3')}>
-            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold text-transparent">Halo Brand</span>
-            <div className="rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-2">
-              <Zap className="h-8 w-8 text-white" />
+          <div className="flex flex-col items-center gap-2">
+            <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-1">
+              <Logo width={140} height={35} className="text-white" />
             </div>
+            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold whitespace-nowrap text-transparent">Halo Brand</span>
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>
