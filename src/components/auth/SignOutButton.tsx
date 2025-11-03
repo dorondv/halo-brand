@@ -15,9 +15,9 @@ export function SignOutButton() {
       <button
         type="submit"
         className={cn(
-          'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+          'rounded-lg bg-gradient-to-r from-[#FF0083] to-[#FF3399] px-4 py-2',
           'text-white font-medium flex items-center gap-2',
-          'hover:from-pink-600 hover:to-orange-500 transition-all',
+          'hover:from-[#FF0083] hover:to-[#FF0083] transition-all',
           isRTL ? 'flex-row-reverse' : '',
         )}
       >

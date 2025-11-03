@@ -1,7 +1,7 @@
 'use client';
 
 import type { DateRange } from 'react-day-picker';
-import { endOfMonth, format, startOfMonth, subDays } from 'date-fns';
+import { endOfMonth, format, startOfMonth, startOfYear, subDays } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
 import { ArrowLeft, ArrowRight, CalendarIcon, ChevronDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -16,7 +16,7 @@ import {
 } from '@/components/ui/popover';
 import { cn } from '@/libs/cn';
 
-type DateRangeOption = 'last7' | 'last14' | 'last28' | 'lastMonth' | 'custom';
+type DateRangeOption = 'last7' | 'last14' | 'last28' | 'lastMonth' | 'currentMonth' | 'currentYear' | 'custom';
 type GranularityOption = 'day' | 'week' | 'month' | 'year';
 
 export function DateRangePicker() {
@@ -49,6 +49,12 @@ export function DateRangePicker() {
       case 'lastMonth': {
         const lastMonth = subDays(startOfMonth(today), 1);
         return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+      }
+      case 'currentMonth': {
+        return { from: startOfMonth(today), to: today };
+      }
+      case 'currentYear': {
+        return { from: startOfYear(today), to: today };
       }
       case 'custom':
         if (fromParam && toParam) {
@@ -158,6 +164,8 @@ export function DateRangePicker() {
     { value: 'last14', label: t('date_range_last_14_days') },
     { value: 'last28', label: t('date_range_last_28_days') },
     { value: 'lastMonth', label: t('date_range_last_month') },
+    { value: 'currentMonth', label: t('date_range_current_month') },
+    { value: 'currentYear', label: t('date_range_current_year') },
     { value: 'custom', label: t('date_range_custom') },
   ];
 
@@ -217,7 +225,7 @@ export function DateRangePicker() {
                         variant="ghost"
                         className={cn(
                           'w-full justify-start mb-1 hover:bg-pink-50',
-                          currentRange === range.value && 'bg-pink-50 text-pink-600',
+                          currentRange === range.value && 'bg-pink-50 text-[#FF0083]',
                           isRTL && 'text-right',
                         )}
                         onClick={() => handleRangeSelect(range.value as DateRangeOption)}
@@ -238,7 +246,7 @@ export function DateRangePicker() {
                           setShowRangeOptions(true);
                         }}
                         className={cn(
-                          'w-full text-pink-600 hover:bg-pink-50',
+                          'w-full text-[#FF0083] hover:bg-pink-50',
                           isRTL ? 'flex-row-reverse' : '',
                         )}
                       >
@@ -284,9 +292,9 @@ export function DateRangePicker() {
                           'hover:bg-gray-100 hover:text-gray-900',
                           'focus:bg-gray-100 focus:text-gray-900',
                         ),
-                        day_range_start: 'rounded-l-md bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold',
-                        day_range_end: 'rounded-r-md bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold',
-                        day_selected: 'bg-pink-500 text-white hover:bg-pink-600 focus:bg-pink-600 font-semibold rounded-md',
+                        day_range_start: 'rounded-l-md bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold',
+                        day_range_end: 'rounded-r-md bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold',
+                        day_selected: 'bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold rounded-md',
                         day_today: 'bg-gray-100 text-gray-900 font-semibold',
                         day_outside: 'text-gray-400 opacity-50',
                         day_disabled: 'text-gray-300 opacity-30 cursor-not-allowed',
@@ -344,7 +352,7 @@ export function DateRangePicker() {
                 type="button"
                 className={cn(
                   'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
-                  currentGranularity === option.value && 'bg-pink-50 text-pink-600',
+                  currentGranularity === option.value && 'bg-pink-50 text-[#FF0083]',
                   isRTL && 'text-right',
                 )}
                 onClick={() => handleGranularitySelect(option.value as GranularityOption)}

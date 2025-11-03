@@ -17,6 +17,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import React, { Suspense } from 'react';
+import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
 import { Button } from '@/components/ui/button';
 import { usePathname } from '@/libs/I18nNavigation';
@@ -51,11 +52,11 @@ export function DashboardShell({ children }: Props) {
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
           <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-2 rtl:space-x-reverse">
-              <div className="rounded-lg bg-pink-500 p-2">
+            <div className={`flex items-center ${locale === 'he' ? 'gap-4' : 'space-x-2 rtl:space-x-reverse'}`}>
+              <div className="rounded-lg bg-[#FF0083] p-2">
                 <Zap className="h-6 w-6 text-white" />
               </div>
-              <span className="text-xl font-bold">Hello Brand</span>
+              <span className="text-xl font-bold">Halo Brand</span>
             </div>
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
               <X className="h-6 w-6" />
@@ -73,13 +74,16 @@ export function DashboardShell({ children }: Props) {
                 key={href}
                 href={href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center space-x-2 rounded-lg px-4 py-3 transition-colors duration-200 rtl:space-x-reverse ${active ? 'bg-pink-500 text-white' : 'hover:bg-gray-200'}`}
+                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'bg-[#FF0083] text-white' : 'hover:bg-gray-200'}`}
               >
-                <Icon className="h-5 w-5" />
+                <Icon className="h-5 w-5 flex-shrink-0" />
                 <span>{t(key)}</span>
               </Link>
             );
           })}
+          <div className="pt-4">
+            <SignOutButton />
+          </div>
         </nav>
       </aside>
 

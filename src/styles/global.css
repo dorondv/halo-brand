@@ -1,3 +1,9 @@
 @layer theme, base, components, utilities;
 
 @import 'tailwindcss';
+
+@theme {
+  --color-pink-brand: #ff0083;
+  --color-pink-brand-light: #ff3399;
+  --color-pink-brand-lighter: #ff66b3;
+}

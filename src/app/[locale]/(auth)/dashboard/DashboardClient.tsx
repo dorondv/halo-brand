@@ -7,16 +7,18 @@ import { PlatformCard } from '@/components/dashboard/PlatformCard';
 
 type Platform = {
   platform: string;
-  followers: number;
+  value: number;
   change: number;
+  metric: string;
 };
 
 type DashboardClientProps = {
   platformData: Platform[];
   selectedPlatform: string | null;
+  selectedMetric: string;
 };
 
-function PlatformCardsContent({ platformData, selectedPlatform }: DashboardClientProps) {
+function PlatformCardsContent({ platformData, selectedPlatform }: Omit<DashboardClientProps, 'selectedMetric'>) {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -51,7 +53,7 @@ function PlatformCardsContent({ platformData, selectedPlatform }: DashboardClien
           >
             <PlatformCard
               platform={platform.platform}
-              followers={platform.followers}
+              value={platform.value}
               change={platform.change}
               isSelected={isSelected}
               displayName={platform.platform === 'all' ? t('all_platforms') : undefined}
@@ -63,7 +65,7 @@ function PlatformCardsContent({ platformData, selectedPlatform }: DashboardClien
   );
 }
 
-export function PlatformCards({ platformData, selectedPlatform }: DashboardClientProps) {
+export function PlatformCards({ platformData, selectedPlatform, selectedMetric: _selectedMetric }: DashboardClientProps) {
   return (
     <Suspense fallback={<div>Loading...</div>}>
       <PlatformCardsContent platformData={platformData} selectedPlatform={selectedPlatform} />

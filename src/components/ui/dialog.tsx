@@ -121,7 +121,7 @@ export function DialogClose({ className, ...props }: React.ButtonHTMLAttributes<
       type="button"
       onClick={() => ctx.onOpenChange(false)}
       className={cn(
-        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500',
+        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-[#FF0083]',
         className,
       )}
       {...props}

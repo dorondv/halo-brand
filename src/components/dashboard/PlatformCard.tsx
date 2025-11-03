@@ -5,7 +5,7 @@ import { cn } from '@/libs/cn';
 
 type PlatformCardProps = {
   platform: string;
-  followers: number;
+  value: number;
   change: number;
   icon?: React.ElementType;
   isSelected?: boolean;
@@ -60,7 +60,7 @@ const platformDisplayNames: Record<string, string> = {
 
 export function PlatformCard({
   platform,
-  followers,
+  value,
   change,
   icon,
   isSelected = false,
@@ -68,33 +68,33 @@ export function PlatformCard({
 }: PlatformCardProps): React.ReactElement {
   const platformLower = platform.toLowerCase();
   const Icon = (icon || platformIcons[platformLower] || platformIcons.all) as React.ElementType;
-  const formatted = new Intl.NumberFormat('en-US').format(followers);
+  const formatted = new Intl.NumberFormat('en-US').format(value);
   const displayName = propDisplayName || platformDisplayNames[platformLower] || platform;
 
   return (
     <Card
       className={cn(
         'border bg-white shadow-md rounded-lg transition-all cursor-pointer',
-        isSelected ? 'border-pink-500 border-2' : 'border-gray-200',
+        isSelected ? 'border-[#FF0083] border-2' : 'border-gray-200',
       )}
     >
       <CardContent className="flex flex-col items-center gap-3 p-4">
         {/* Icon in pink circular background */}
-        <div className="flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-pink-100">
-          <Icon className="h-6 w-6 text-pink-600" />
+        <div className="mt-2 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-pink-100">
+          <Icon className="h-6 w-6 text-[#FF0083]" />
         </div>
 
         {/* Platform name */}
-        <p className="text-center text-sm font-medium text-gray-700">
+        <p className="text-center text-base font-medium text-gray-700">
           {displayName}
         </p>
 
         {/* Value */}
-        <p className="text-lg font-semibold text-gray-900">{formatted}</p>
+        <p className="text-xl font-semibold text-gray-900">{formatted}</p>
 
         {/* Percentage change */}
         <div className="flex items-center gap-1">
-          <span className="flex items-center gap-1 text-xs font-medium text-pink-600">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#FF0083]">
             <TrendingUp className="h-3 w-3" />
             {change >= 0 ? '+' : ''}
             {change.toFixed(1)}

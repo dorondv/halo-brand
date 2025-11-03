@@ -37,14 +37,14 @@ export default async function MarketingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-orange-50" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
-            <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">Hello Brand</span>
-            <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
+          <div className={cn('flex items-center', isRTL ? 'flex-row-reverse gap-4' : 'gap-3')}>
+            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold text-transparent">Halo Brand</span>
+            <div className="rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-2">
               <Zap className="h-8 w-8 text-white" />
             </div>
           </div>
@@ -55,7 +55,7 @@ export default async function MarketingPage() {
                 <LocaleSwitcher />
                 <Link
                   href="/sign-in"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-pink-600 focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-[#FF0083] focus-visible:ring-2 focus-visible:ring-[#FF0083] focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
                 >
                   {t('already_registered')}
                 </Link>
@@ -71,9 +71,9 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+                            'rounded-lg bg-gradient-to-r from-[#FF0083] to-[#FF3399] px-4 py-2',
                             'text-white font-medium flex items-center gap-2 flex-row-reverse',
-                            'hover:from-pink-600 hover:to-orange-500 transition-all',
+                            'hover:from-[#FF0083] hover:to-[#FF0083] transition-all',
                           )}
                         >
                           {t('go_to_dashboard')}
@@ -96,9 +96,9 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+                            'rounded-lg bg-gradient-to-r from-[#FF0083] to-[#FF3399] px-4 py-2',
                             'text-white font-medium flex items-center gap-2',
-                            'hover:from-pink-600 hover:to-orange-500 transition-all',
+                            'hover:from-[#FF0083] hover:to-[#FF0083] transition-all',
                           )}
                         >
                           {t('go_to_dashboard')}
@@ -121,7 +121,7 @@ export default async function MarketingPage() {
               <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl">
                 {t('hero_line1')}
                 {' '}
-                <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-transparent">
                   {t('hero_line2_highlight')}
                 </span>
                 {' '}
@@ -140,7 +140,7 @@ export default async function MarketingPage() {
                   className="flex items-start gap-3 rounded-xl border border-pink-100 bg-white/50 p-4"
                 >
                   <div className="rounded-lg bg-pink-100 p-2">
-                    <feature.icon className="h-5 w-5 text-pink-600" />
+                    <feature.icon className="h-5 w-5 text-[#FF0083]" />
                   </div>
                   <div className={isRTL ? 'text-right' : 'text-left'}>
                     <h3 className="font-semibold text-gray-800">{feature.title}</h3>
@@ -190,7 +190,7 @@ export default async function MarketingPage() {
 
       {/* Benefits Section - Gradient Background */}
       <div className="container mx-auto px-6 py-12">
-        <div className="rounded-3xl bg-gradient-to-br from-pink-500 to-orange-400 p-12 text-white">
+        <div className="rounded-3xl bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-12 text-white">
           <div className="mx-auto max-w-3xl space-y-6 text-center">
             <h2 className="text-4xl font-bold">
               {t('benefits_title')}
