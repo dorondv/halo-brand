@@ -16,7 +16,7 @@ export function SignOutButton() {
         type="submit"
         className={cn(
           'flex w-full items-center rounded-lg px-4 py-3 text-gray-700',
-          'transition-colors duration-200 hover:bg-gray-100',
+          'transition-colors duration-200 hover:bg-gray-100 cursor-pointer',
           isRTL ? 'gap-4' : 'gap-2',
         )}
       >
