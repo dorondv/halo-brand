@@ -15,14 +15,13 @@ export function SignOutButton() {
       <button
         type="submit"
         className={cn(
-          'rounded-lg bg-gradient-to-r from-[#FF0083] to-[#FF3399] px-4 py-2',
-          'text-white font-medium flex items-center gap-2',
-          'hover:from-[#FF0083] hover:to-[#FF0083] transition-all',
-          isRTL ? 'flex-row-reverse' : '',
+          'flex w-full items-center rounded-lg px-4 py-3 text-gray-700',
+          'transition-colors duration-200 hover:bg-gray-100',
+          isRTL ? 'gap-4' : 'gap-2',
         )}
       >
-        <LogOut className="h-4 w-4" />
-        {t('sign_out')}
+        <LogOut className="h-5 w-5 shrink-0" />
+        <span>{t('sign_out')}</span>
       </button>
     </form>
   );

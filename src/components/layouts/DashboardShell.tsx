@@ -71,7 +71,7 @@ export function DashboardShell({ children }: Props) {
                 key={href}
                 href={href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'font-semibold text-[#FF0083]' : 'text-gray-700 hover:bg-gray-200'}`}
+                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'bg-white font-semibold text-[#FF0083]' : 'text-gray-700 hover:bg-gray-100'}`}
               >
                 <Icon className="h-5 w-5 shrink-0" />
                 <span>{t(key)}</span>
