@@ -26,8 +26,24 @@ const sentryOptions: Sentry.NodeOptions | Sentry.EdgeOptions = {
 
 export async function register() {
   if (process.env.NEXT_RUNTIME === 'nodejs') {
-    // Run DB migrations
-    await import('./utils/DBMigration');
+    // Only run DB migrations in development or if explicitly enabled
+    // In production (Vercel), migrations should be run manually or during build
+    const shouldRunMigrations
+      = process.env.NODE_ENV === 'development'
+        || process.env.RUN_MIGRATIONS === 'true';
+
+    if (shouldRunMigrations) {
+      try {
+        const { runMigrations } = await import('./utils/DBMigration');
+        await runMigrations();
+      } catch (error) {
+        // Log migration errors but don't crash the app
+        // In production, this is expected - migrations should be run separately
+        if (process.env.NODE_ENV === 'development') {
+          console.error('Migration error:', error);
+        }
+      }
+    }
   }
 
   if (!process.env.NEXT_PUBLIC_SENTRY_DISABLED) {
