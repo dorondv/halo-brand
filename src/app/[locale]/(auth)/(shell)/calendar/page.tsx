@@ -29,6 +29,10 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
+// Force dynamic rendering - this page requires authentication
+
+export const dynamic = 'force-dynamic';
+
 // Important dates data - abbreviated for demo (you can add more)
 const importantDates: Record<
   string,

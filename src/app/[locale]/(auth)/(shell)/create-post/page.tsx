@@ -12,6 +12,10 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 
+// Force dynamic rendering - this page requires authentication
+
+export const dynamic = 'force-dynamic';
+
 type Platform = 'instagram' | 'x' | 'twitter' | 'facebook' | 'linkedin' | 'youtube' | 'tiktok' | 'threads';
 
 type Account = {

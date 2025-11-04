@@ -15,6 +15,10 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 
+// Force dynamic rendering - this page requires authentication
+
+export const dynamic = 'force-dynamic';
+
 const countries = [
   { value: 'il', name: 'ישראל' },
   { value: 'us', name: 'ארצות הברית' },

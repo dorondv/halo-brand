@@ -27,6 +27,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
+// Force dynamic rendering - this page requires authentication
+
+export const dynamic = 'force-dynamic';
+
 // Custom icon components
 const XIconComponent = (props: React.SVGProps<SVGSVGElement>) => (
   <svg
