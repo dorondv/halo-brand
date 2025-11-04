@@ -1,6 +1,7 @@
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { Suspense } from 'react';
 import { SignInForm } from '@/components/auth/SignInForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -46,7 +47,9 @@ export default async function SignInPage() {
               </p>
             </CardHeader>
             <CardContent>
-              <SignInForm />
+              <Suspense fallback={<div className="h-64" />}>
+                <SignInForm />
+              </Suspense>
             </CardContent>
           </Card>
           <p className="mt-8 text-center text-sm text-gray-600">

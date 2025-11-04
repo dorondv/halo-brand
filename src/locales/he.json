@@ -25,7 +25,8 @@
     "connections": "חיבורים",
     "settings": "הגדרות",
     "support": "תמיכה",
-    "pricing": "תוכניות"
+    "pricing": "תוכניות",
+    "hello_greeting": "שלום {name}"
   },
   "DashboardPage": {
     "title": "דשבורד",
@@ -131,7 +132,11 @@
     "link_signup": "הרשמה",
     "signin_cta": "התחברות",
     "signin_pending": "מתחבר...",
-    "signup_pending": "נרשם..."
+    "signup_pending": "נרשם...",
+    "oauth_google": "המשך עם Google",
+    "oauth_facebook": "המשך עם Facebook",
+    "oauth_loading": "מתחבר...",
+    "oauth_divider": "או"
   },
   "DashboardLayout": {
     "sign_out": "התנתקות"

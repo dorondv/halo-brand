@@ -25,7 +25,8 @@
     "connections": "Connections",
     "settings": "Settings",
     "support": "Support",
-    "pricing": "Pricing"
+    "pricing": "Pricing",
+    "hello_greeting": "Hello {name}"
   },
   "DashboardPage": {
     "title": "Dashboard",
@@ -131,7 +132,11 @@
     "link_signup": "Sign up",
     "signin_cta": "Sign In",
     "signin_pending": "Signing In...",
-    "signup_pending": "Signing Up..."
+    "signup_pending": "Signing Up...",
+    "oauth_google": "Continue with Google",
+    "oauth_facebook": "Continue with Facebook",
+    "oauth_loading": "Connecting...",
+    "oauth_divider": "or"
   },
   "DashboardLayout": {
     "sign_out": "Sign out"

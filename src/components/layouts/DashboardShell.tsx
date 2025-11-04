@@ -21,6 +21,7 @@ import { BrandSelector } from '@/components/BrandSelector';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
 import { usePathname } from '@/libs/I18nNavigation';
+import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 type Props = {
   children: React.ReactNode;
@@ -42,9 +43,32 @@ const baseNav = [
 export function DashboardShell({ children }: Props) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
+  const [userName, setUserName] = React.useState<string | null>(null);
   const t = useTranslations('Nav');
   const locale = useLocale();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
+
+  React.useEffect(() => {
+    const fetchUser = async () => {
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          // Try to get name from user_metadata, fallback to email username
+          const name
+            = session.user.user_metadata?.full_name
+              || session.user.user_metadata?.name
+              || session.user.email?.split('@')[0]
+              || 'User';
+          setUserName(name);
+        }
+      } catch (error) {
+        console.error('Error fetching user:', error);
+      }
+    };
+
+    fetchUser();
+  }, []);
 
   return (
     <div dir={dir} className="flex min-h-screen w-full bg-gray-100 font-sans">
@@ -87,9 +111,16 @@ export function DashboardShell({ children }: Props) {
       {/* Main */}
       <div className="flex flex-1 flex-col">
         <header className="flex items-center justify-between bg-white p-4 shadow-sm">
-          <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
-            <Menu className="h-6 w-6" />
-          </Button>
+          <div className="flex items-center gap-4">
+            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+              <Menu className="h-6 w-6" />
+            </Button>
+            {userName && (
+              <h1 className="text-lg font-semibold text-gray-800">
+                {t('hello_greeting', { name: userName })}
+              </h1>
+            )}
+          </div>
           <div className="flex-1" />
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
