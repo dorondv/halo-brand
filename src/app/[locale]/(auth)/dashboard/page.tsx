@@ -746,10 +746,34 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return followers > 0 || posts > 0;
   });
 
-  // Build platform data for connected platforms only
-  // Note: "all" platform card should always show total for selected metric
-  // For LTR: All, YouTube, Facebook, LinkedIn, TikTok, X, Instagram
-  // For RTL: All, Instagram, X, TikTok, LinkedIn, Facebook, YouTube (reversed order of platforms)
+  // Pre-calculate ALL metrics for ALL platforms for instant client-side switching
+  type MetricType = 'followers' | 'impressions' | 'engagement' | 'posts';
+  const allMetrics: MetricType[] = ['followers', 'impressions', 'engagement', 'posts'];
+
+  const platformDataWithAllMetrics = connectedPlatforms.map(({ platform }) => {
+    const metrics: Record<MetricType, { value: number; change: number }> = {} as any;
+    allMetrics.forEach((metric) => {
+      metrics[metric] = {
+        value: getPlatformMetric(platform, metric),
+        change: getPlatformChange(platform, metric),
+      };
+    });
+    return {
+      platform,
+      metrics,
+    };
+  });
+
+  // Also pre-calculate "all" platform metrics
+  const allPlatformMetrics: Record<MetricType, { value: number; change: number }> = {} as any;
+  allMetrics.forEach((metric) => {
+    allPlatformMetrics[metric] = {
+      value: getPlatformMetric('all', metric),
+      change: 0,
+    };
+  });
+
+  // Build current platform data based on selected metric (for backward compatibility)
   const platformCards = connectedPlatforms.map(({ platform }) => ({
     platform,
     value: getPlatformMetric(platform, selectedMetric),
@@ -877,7 +901,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         />
 
         {/* Row 2: Platform Cards */}
-        <PlatformCards platformData={platformData} selectedPlatform={selectedPlatform} selectedMetric={selectedMetric} />
+        <PlatformCards
+          platformData={platformData}
+          platformDataWithAllMetrics={platformDataWithAllMetrics}
+          allPlatformMetrics={allPlatformMetrics}
+          selectedPlatform={selectedPlatform}
+          selectedMetric={selectedMetric}
+          isRTL={isRTL}
+        />
 
         {/* Row 3: Engagement, Impressions, Follower Trend Charts */}
         {/* Order for LTR: Engagement, Impressions, Followers Trend */}

@@ -52,11 +52,8 @@ export function DashboardShell({ children }: Props) {
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
           <div className="flex items-center justify-between">
-            <div className="flex flex-col items-center gap-2">
-              <div className="flex-shrink-0 rounded-lg bg-[#FF0083] p-1">
-                <Logo width={120} height={30} className="text-white" />
-              </div>
-              <span className="text-xl font-bold whitespace-nowrap">Halo Brand</span>
+            <div className="shrink-0 rounded-lg bg-[#FF0083] p-1">
+              <Logo width={120} height={30} className="text-white" />
             </div>
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
               <X className="h-6 w-6" />
@@ -74,9 +71,9 @@ export function DashboardShell({ children }: Props) {
                 key={href}
                 href={href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'bg-[#FF0083] text-white' : 'hover:bg-gray-200'}`}
+                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'font-semibold text-[#FF0083]' : 'text-gray-700 hover:bg-gray-200'}`}
               >
-                <Icon className="h-5 w-5 flex-shrink-0" />
+                <Icon className="h-5 w-5 shrink-0" />
                 <span>{t(key)}</span>
               </Link>
             );

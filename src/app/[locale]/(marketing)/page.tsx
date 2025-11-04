@@ -43,11 +43,8 @@ export default async function MarketingPage() {
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className="flex flex-col items-center gap-2">
-            <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-1">
-              <Logo width={140} height={35} className="text-white" />
-            </div>
-            <span className="bg-gradient-to-r from-[#FF0083] to-[#FF3399] bg-clip-text text-2xl font-bold whitespace-nowrap text-transparent">Halo Brand</span>
+          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-1">
+            <Logo width={140} height={35} className="text-white" />
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>

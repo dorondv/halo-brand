@@ -3,6 +3,7 @@
 import { Eye, FileText, Heart, Users } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { startTransition } from 'react';
 import { MetricCard } from '@/components/dashboard/MetricCard';
 
 type MetricType = 'followers' | 'impressions' | 'engagement' | 'posts';
@@ -37,8 +38,9 @@ export function MetricCardsClient({
     }
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-    router.refresh();
+    startTransition(() => {
+      router.replace(url, { scroll: false });
+    });
   };
 
   return (
