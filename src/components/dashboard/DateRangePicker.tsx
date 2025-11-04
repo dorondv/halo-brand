@@ -1,21 +1,24 @@
 'use client';
 
-import type { DateRange } from 'react-day-picker';
+import type { Range, RangeKeyDict } from 'react-date-range';
 import { endOfMonth, format, startOfMonth, startOfYear, subDays } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
 import { ArrowLeft, ArrowRight, CalendarIcon, ChevronDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import * as React from 'react';
+import { DateRangePicker as ReactDateRangePicker } from 'react-date-range';
 import { Button } from '@/components/ui/button';
-import { Calendar } from '@/components/ui/calendar';
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/libs/cn';
+import 'react-date-range/dist/styles.css'; // main style file
+import 'react-date-range/dist/theme/default.css'; // theme css file
 
+type DateRange = Range;
 type DateRangeOption = 'last7' | 'last14' | 'last28' | 'lastMonth' | 'currentMonth' | 'currentYear' | 'custom';
 type GranularityOption = 'day' | 'week' | 'month' | 'year';
 
@@ -41,35 +44,36 @@ export function DateRangePicker() {
 
     switch (range) {
       case 'last7':
-        return { from: subDays(today, 6), to: today };
+        return { startDate: subDays(today, 6), endDate: today, key: 'selection' };
       case 'last14':
-        return { from: subDays(today, 13), to: today };
+        return { startDate: subDays(today, 13), endDate: today, key: 'selection' };
       case 'last28':
-        return { from: subDays(today, 27), to: today };
+        return { startDate: subDays(today, 27), endDate: today, key: 'selection' };
       case 'lastMonth': {
         const lastMonth = subDays(startOfMonth(today), 1);
-        return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
+        return { startDate: startOfMonth(lastMonth), endDate: endOfMonth(lastMonth), key: 'selection' };
       }
       case 'currentMonth': {
-        return { from: startOfMonth(today), to: today };
+        return { startDate: startOfMonth(today), endDate: today, key: 'selection' };
       }
       case 'currentYear': {
-        return { from: startOfYear(today), to: today };
+        return { startDate: startOfYear(today), endDate: today, key: 'selection' };
       }
       case 'custom':
         if (fromParam && toParam) {
           return {
-            from: new Date(fromParam),
-            to: new Date(toParam),
+            startDate: new Date(fromParam),
+            endDate: new Date(toParam),
+            key: 'selection',
           };
         }
-        return { from: subDays(today, 6), to: today };
+        return { startDate: subDays(today, 6), endDate: today, key: 'selection' };
       default:
-        return { from: subDays(today, 6), to: today };
+        return { startDate: subDays(today, 6), endDate: today, key: 'selection' };
     }
   }, [fromParam, toParam]);
 
-  const [dateRange, setDateRange] = React.useState<DateRange>(() => getDateRange(currentRange));
+  const [dateRange, setDateRange] = React.useState<DateRange[]>(() => [getDateRange(currentRange)]);
   const [showCustomCalendar, setShowCustomCalendar] = React.useState(false);
   const [showRangeOptions, setShowRangeOptions] = React.useState(false);
   const [showGranularityOptions, setShowGranularityOptions] = React.useState(false);
@@ -89,13 +93,13 @@ export function DateRangePicker() {
     // Only update if values actually changed
     // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
     setDateRange((prevRange) => {
-      const prevFrom = prevRange?.from?.getTime();
-      const prevTo = prevRange?.to?.getTime();
-      const newFrom = newRange?.from?.getTime();
-      const newTo = newRange?.to?.getTime();
+      const prevFrom = prevRange[0]?.startDate?.getTime();
+      const prevTo = prevRange[0]?.endDate?.getTime();
+      const newFrom = newRange?.startDate?.getTime();
+      const newTo = newRange?.endDate?.getTime();
 
       if (prevFrom !== newFrom || prevTo !== newTo) {
-        return newRange;
+        return [newRange];
       }
       return prevRange;
     });
@@ -109,9 +113,9 @@ export function DateRangePicker() {
     params.set('range', range);
     params.set('granularity', granularity);
 
-    if (range === 'custom' && customRange?.from && customRange?.to) {
-      params.set('from', format(customRange.from, 'yyyy-MM-dd'));
-      params.set('to', format(customRange.to, 'yyyy-MM-dd'));
+    if (range === 'custom' && customRange?.startDate && customRange?.endDate) {
+      params.set('from', format(customRange.startDate, 'yyyy-MM-dd'));
+      params.set('to', format(customRange.endDate, 'yyyy-MM-dd'));
     } else {
       params.delete('from');
       params.delete('to');
@@ -133,14 +137,19 @@ export function DateRangePicker() {
     }
   };
 
-  const handleCustomDateSelect = (range: DateRange | undefined) => {
-    if (range?.from && range?.to) {
-      setDateRange(range);
-      updateURL('custom', currentGranularity, range);
-      setShowCustomCalendar(false);
-      setShowRangeOptions(false);
-    } else if (range) {
-      setDateRange(range);
+  const handleCustomDateSelect = (rangesByKey: RangeKeyDict) => {
+    const newRange = rangesByKey.selection;
+    if (newRange && newRange.startDate) {
+      // Always update the state to show selection progress
+      setDateRange([newRange]);
+
+      // Only update URL and close when both dates are selected
+      if (newRange.endDate && newRange.startDate !== newRange.endDate) {
+        updateURL('custom', currentGranularity, newRange);
+        setShowCustomCalendar(false);
+        setShowRangeOptions(false);
+      }
+      // If only startDate is selected, keep the calendar open
     }
   };
 
@@ -149,12 +158,12 @@ export function DateRangePicker() {
     updateURL(currentRange, granularity);
   };
 
-  const formatDateRange = (range: DateRange) => {
-    if (!range.from) {
+  const formatDateRange = (range: DateRange[]) => {
+    if (!range[0]?.startDate) {
       return '';
     }
-    const fromStr = format(range.from, 'dd/MM/yy', { locale: dfLocale });
-    const toStr = range.to ? format(range.to, 'dd/MM/yy', { locale: dfLocale }) : fromStr;
+    const fromStr = format(range[0].startDate, 'dd/MM/yy', { locale: dfLocale });
+    const toStr = range[0].endDate ? format(range[0].endDate, 'dd/MM/yy', { locale: dfLocale }) : fromStr;
     // RTL: show from-to, LTR: show to-from (reversed for Hebrew)
     return isRTL ? `${fromStr} - ${toStr}` : `${toStr} - ${fromStr}`;
   };
@@ -183,13 +192,16 @@ export function DateRangePicker() {
         <Popover
           open={showRangeOptions || showCustomCalendar}
           onOpenChange={(open) => {
+            // Only close if user explicitly closes or if range is complete
             if (!open) {
               setShowRangeOptions(false);
-              if (currentRange !== 'custom') {
+              // Don't auto-close custom calendar - let user select range
+              if (currentRange !== 'custom' && !showCustomCalendar) {
                 setShowCustomCalendar(false);
               }
             }
           }}
+          modal={false}
         >
           <PopoverTrigger asChild>
             <Button
@@ -213,8 +225,21 @@ export function DateRangePicker() {
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className={cn('w-auto p-0', isRTL ? 'mr-0' : 'ml-0')}
+            className={cn('w-auto p-0 border-pink-200', isRTL ? 'mr-0' : 'ml-0')}
             align={isRTL ? 'end' : 'start'}
+            onInteractOutside={(e) => {
+              // Prevent closing when clicking on calendar dates or navigation
+              const target = e.target as HTMLElement;
+              if (
+                target.closest('.rdrCalendar')
+                || target.closest('.rdrDay')
+                || target.closest('.rdrMonths')
+                || target.closest('.rdrNextPrevButton')
+                || target.closest('.rdrMonth')
+              ) {
+                e.preventDefault();
+              }
+            }}
           >
             {!showCustomCalendar
               ? (
@@ -237,7 +262,7 @@ export function DateRangePicker() {
                 )
               : (
                   <div className="p-2">
-                    <div className="mb-2 border-b pb-2">
+                    <div className="mb-2 border-b border-pink-200 pb-2">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -254,54 +279,20 @@ export function DateRangePicker() {
                         {t('date_range_back_to_options')}
                       </Button>
                     </div>
-                    <Calendar
-                      mode="range"
-                      selected={dateRange}
-                      onSelect={handleCustomDateSelect}
-                      numberOfMonths={2}
-                      locale={dfLocale}
-                      dir={isRTL ? 'rtl' : 'ltr'}
-                      className="rounded-md"
-                      classNames={{
-                        months: 'flex flex-col sm:flex-row space-y-4 sm:space-x-4 sm:space-y-0',
-                        month: 'space-y-4',
-                        caption: 'flex justify-center pt-1 relative items-center',
-                        caption_label: 'text-sm font-medium',
-                        nav: 'space-x-1 flex items-center',
-                        nav_button: cn(
-                          'h-8 w-8 bg-transparent p-0 opacity-70 hover:opacity-100 hover:bg-gray-100 rounded-md transition-colors',
-                        ),
-                        nav_button_previous: 'absolute left-2 top-1',
-                        nav_button_next: 'absolute right-2 top-1',
-                        table: 'w-full border-collapse space-y-1',
-                        head_row: 'flex',
-                        head_cell: 'text-muted-foreground rounded-md w-9 font-normal text-[0.8rem]',
-                        row: 'flex w-full mt-2',
-                        cell: cn(
-                          'h-9 w-9 text-center text-sm p-0 relative',
-                          '[&:has([aria-selected].day-range-end)]:rounded-r-md',
-                          '[&:has([aria-selected].day-range-start)]:rounded-l-md',
-                          '[&:has([aria-selected])]:bg-pink-100',
-                          'first:[&:has([aria-selected])]:rounded-l-md',
-                          'last:[&:has([aria-selected])]:rounded-r-md',
-                          'focus-within:relative focus-within:z-20',
-                        ),
-                        day: cn(
-                          'h-9 w-9 p-0 font-normal',
-                          'aria-selected:opacity-100',
-                          'hover:bg-gray-100 hover:text-gray-900',
-                          'focus:bg-gray-100 focus:text-gray-900',
-                        ),
-                        day_range_start: 'rounded-l-md bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold',
-                        day_range_end: 'rounded-r-md bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold',
-                        day_selected: 'bg-[#FF0083] text-white hover:bg-[#FF0083] focus:bg-[#FF0083] font-semibold rounded-md',
-                        day_today: 'bg-gray-100 text-gray-900 font-semibold',
-                        day_outside: 'text-gray-400 opacity-50',
-                        day_disabled: 'text-gray-300 opacity-30 cursor-not-allowed',
-                        day_range_middle: 'bg-pink-100 text-gray-900 hover:bg-pink-200 aria-selected:bg-pink-100 aria-selected:text-gray-900',
-                        day_hidden: 'invisible',
-                      }}
-                    />
+                    <div dir={isRTL ? 'rtl' : 'ltr'}>
+                      <ReactDateRangePicker
+                        ranges={dateRange}
+                        onChange={handleCustomDateSelect}
+                        moveRangeOnFirstSelection={false}
+                        months={2}
+                        locale={dfLocale}
+                        rangeColors={['#FF0083']}
+                        weekdayDisplayFormat="EEEEE"
+                        weekStartsOn={isRTL ? 6 : 0} // Sunday is 0, Saturday is 6
+                        showDateDisplay={false}
+                        direction="horizontal"
+                      />
+                    </div>
                   </div>
                 )}
           </PopoverContent>
