@@ -2,6 +2,9 @@ import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+// Force dynamic rendering - this page requires authentication
+export const dynamic = 'force-dynamic';
+
 export default async function AnalyticsPage() {
   const supabase = await createSupabaseServerClient();
   const { data: { user }, error: authError } = await supabase.auth.getUser();

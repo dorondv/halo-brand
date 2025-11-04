@@ -39,6 +39,9 @@ type DashboardProps = {
   }>;
 };
 
+// Force dynamic rendering - this page requires authentication
+export const dynamic = 'force-dynamic';
+
 export default async function Dashboard({ searchParams }: DashboardProps) {
   const params = await searchParams;
   const selectedPlatform = params.platform || null;
