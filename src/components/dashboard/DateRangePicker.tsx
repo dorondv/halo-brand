@@ -250,7 +250,7 @@ export function DateRangePicker() {
                         variant="ghost"
                         className={cn(
                           'w-full justify-start mb-1 hover:bg-pink-50',
-                          currentRange === range.value && 'bg-pink-50 text-[#FF0083]',
+                          currentRange === range.value && 'bg-pink-50 text-pink-600',
                           isRTL && 'text-right',
                         )}
                         onClick={() => handleRangeSelect(range.value as DateRangeOption)}
@@ -271,7 +271,7 @@ export function DateRangePicker() {
                           setShowRangeOptions(true);
                         }}
                         className={cn(
-                          'w-full text-[#FF0083] hover:bg-pink-50',
+                          'w-full text-pink-600 hover:bg-pink-50',
                           isRTL ? 'flex-row-reverse' : '',
                         )}
                       >
@@ -286,7 +286,7 @@ export function DateRangePicker() {
                         moveRangeOnFirstSelection={false}
                         months={2}
                         locale={dfLocale}
-                        rangeColors={['#FF0083']}
+                        rangeColors={['#ec4899']}
                         weekdayDisplayFormat="EEEEE"
                         weekStartsOn={isRTL ? 6 : 0} // Sunday is 0, Saturday is 6
                         showDateDisplay={false}
@@ -343,7 +343,7 @@ export function DateRangePicker() {
                 type="button"
                 className={cn(
                   'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
-                  currentGranularity === option.value && 'bg-pink-50 text-[#FF0083]',
+                  currentGranularity === option.value && 'bg-pink-50 text-pink-600',
                   isRTL && 'text-right',
                 )}
                 onClick={() => handleGranularitySelect(option.value as GranularityOption)}

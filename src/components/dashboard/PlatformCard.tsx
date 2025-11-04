@@ -77,14 +77,14 @@ export function PlatformCard({
         'bg-white shadow-md rounded-lg transition-all cursor-pointer',
         // Override base Card border styles when selected
         isSelected
-          ? '!border-2 !border-[#FF0083] ring-2 ring-pink-200 shadow-lg'
+          ? '!border-2 !border-pink-500 ring-2 ring-pink-100 shadow-lg'
           : 'border border-gray-200',
       )}
     >
       <CardContent className="flex flex-col items-center gap-3 p-4">
         {/* Icon in pink circular background */}
         <div className="mt-2 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-pink-100">
-          <Icon className="h-6 w-6 text-[#FF0083]" />
+          <Icon className="h-6 w-6 text-pink-600" />
         </div>
 
         {/* Platform name */}
@@ -97,7 +97,7 @@ export function PlatformCard({
 
         {/* Percentage change */}
         <div className="flex items-center gap-1">
-          <span className="flex items-center gap-1 text-xs font-medium text-[#FF0083]">
+          <span className="flex items-center gap-1 text-xs font-medium text-pink-600">
             <TrendingUp className="h-3 w-3" />
             {change >= 0 ? '+' : ''}
             {change.toFixed(1)}

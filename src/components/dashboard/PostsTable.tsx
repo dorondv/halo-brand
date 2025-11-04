@@ -175,7 +175,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
     <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <FileText className="h-5 w-5 text-[#FF0083]" />
+          <FileText className="h-5 w-5 text-pink-600" />
           {t('posts_details_title')}
         </CardTitle>
         <p className="mt-2 text-sm text-gray-600">

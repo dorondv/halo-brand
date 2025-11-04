@@ -919,7 +919,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-[#FF0083]" />
+                  <Heart className="h-5 w-5 text-pink-600" />
                   {t('chart_engagement')}
                 </CardTitle>
               </CardHeader>
@@ -930,7 +930,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Eye className="h-5 w-5 text-[#FF0083]" />
+                  <Eye className="h-5 w-5 text-pink-600" />
                   {t('chart_impressions')}
                 </CardTitle>
               </CardHeader>
@@ -941,7 +941,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-[#FF0083]" />
+                  <Users className="h-5 w-5 text-pink-600" />
                   {t('chart_followers_trend')}
                 </CardTitle>
               </CardHeader>
@@ -965,7 +965,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-[#FF0083]" />
+                  <Users className="h-5 w-5 text-pink-600" />
                   {t('chart_net_follower_growth')}
                 </CardTitle>
               </CardHeader>
@@ -976,7 +976,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <FileText className="h-5 w-5 text-[#FF0083]" />
+                  <FileText className="h-5 w-5 text-pink-600" />
                   {t('chart_posts_by_platform')}
                 </CardTitle>
               </CardHeader>
@@ -987,7 +987,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-[#FF0083]" />
+                  <Heart className="h-5 w-5 text-pink-600" />
                   {t('chart_engagement_rate')}
                 </CardTitle>
               </CardHeader>

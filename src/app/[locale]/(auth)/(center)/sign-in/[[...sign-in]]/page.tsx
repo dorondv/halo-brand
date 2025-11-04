@@ -27,7 +27,7 @@ export default async function SignInPage() {
       {/* Header */}
       <header className="container mx-auto px-6 pt-6 pb-2">
         <div className="flex items-center justify-center">
-          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-[#FF0083] to-[#FF3399] p-1">
+          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
             <Logo width={140} height={35} className="text-white" />
           </div>
         </div>
@@ -52,7 +52,7 @@ export default async function SignInPage() {
           <p className="mt-8 text-center text-sm text-gray-600">
             {t('signin_prompt_signup')}
             {' '}
-            <Link href="/sign-up" className="font-medium text-[#FF0083] hover:underline">
+            <Link href="/sign-up" className="font-medium text-pink-600 hover:underline">
               {t('link_signup')}
             </Link>
           </p>

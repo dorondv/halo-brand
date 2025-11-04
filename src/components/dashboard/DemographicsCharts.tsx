@@ -65,7 +65,7 @@ function DemographicsCharts({
     <Card key="countries" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Globe className="h-5 w-5 text-[#FF0083]" />
+          <Globe className="h-5 w-5 text-pink-600" />
           {countriesTitle}
         </CardTitle>
       </CardHeader>
@@ -120,7 +120,7 @@ function DemographicsCharts({
     <Card key="gender" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Users className="h-5 w-5 text-[#FF0083]" />
+          <Users className="h-5 w-5 text-pink-600" />
           {genderTitle}
         </CardTitle>
       </CardHeader>
@@ -175,7 +175,7 @@ function DemographicsCharts({
     <Card key="age" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Users className="h-5 w-5 text-[#FF0083]" />
+          <Users className="h-5 w-5 text-pink-600" />
           {ageTitle}
         </CardTitle>
       </CardHeader>

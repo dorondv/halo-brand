@@ -48,9 +48,9 @@ export function SignInForm() {
         type="submit"
         disabled={isPending}
         className={cn(
-          'w-full h-12 text-lg rounded-md bg-gradient-to-r from-[#FF0083] to-[#FF3399] px-4 py-2',
+          'w-full h-12 text-lg rounded-md bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
           'text-white font-medium flex items-center justify-center gap-2',
-          'hover:from-[#FF0083] hover:to-[#FF0083] transition-all',
+          'hover:from-pink-600 hover:to-pink-600 transition-all',
           'disabled:opacity-50 disabled:cursor-not-allowed',
           isRTL ? 'flex-row-reverse' : '',
         )}

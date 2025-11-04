@@ -3,9 +3,9 @@
 @import 'tailwindcss';
 
 @theme {
-  --color-pink-brand: #ff0083;
-  --color-pink-brand-light: #ff3399;
-  --color-pink-brand-lighter: #ff66b3;
+  --color-pink-brand: #ec4899;
+  --color-pink-brand-light: #f472b6;
+  --color-pink-brand-lighter: #f9a8d4;
 }
 
 /* react-date-range custom styling */
@@ -85,7 +85,7 @@
 /* Selected range - start and end edges */
 .rdrStartEdge .rdrDayNumberSpan,
 .rdrEndEdge .rdrDayNumberSpan {
-  background-color: #ff0083 !important;
+  background-color: #ec4899 !important;
   color: white !important;
   border-radius: 0.5rem !important;
   font-weight: 600;
@@ -93,18 +93,18 @@
 
 .rdrStartEdge,
 .rdrEndEdge {
-  background-color: #ff0083 !important;
+  background-color: #ec4899 !important;
 }
 
 .rdrStartEdge .rdrDayNumber,
 .rdrEndEdge .rdrDayNumber {
-  background-color: #ff0083 !important;
+  background-color: #ec4899 !important;
 }
 
 /* Selected range - middle dates */
 .rdrInRange .rdrDayNumberSpan {
-  background-color: #fff5fb !important;
-  color: #ff0083 !important;
+  background-color: #fdf2f8 !important;
+  color: #ec4899 !important;
 }
 
 .rdrInRange {
@@ -129,8 +129,8 @@
 }
 
 .rdrDayToday.rdrInRange .rdrDayNumberSpan {
-  background-color: #fff5fb !important;
-  color: #ff0083 !important;
+  background-color: #fdf2f8 !important;
+  color: #ec4899 !important;
 }
 
 /* Hide default navigation buttons */
