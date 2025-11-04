@@ -16,7 +16,7 @@ function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
           <XAxis dataKey="platform" stroke="#6b7280" fontSize={12} />
           <YAxis
-            stroke="#FF0083"
+            stroke="#6b7280"
             fontSize={12}
             tickMargin={10}
             width={70}
