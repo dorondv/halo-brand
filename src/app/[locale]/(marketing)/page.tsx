@@ -13,7 +13,7 @@ export default async function MarketingPage() {
   const locale = await getLocale();
   const isRTL = locale === 'he';
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
   const features = [
     {
       icon: Calendar,
@@ -48,7 +48,7 @@ export default async function MarketingPage() {
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>
-            {!session && (
+            {!user && (
               <>
                 <LocaleSwitcher />
                 <Link
@@ -59,7 +59,7 @@ export default async function MarketingPage() {
                 </Link>
               </>
             )}
-            {session && (
+            {user && (
               <>
                 {isRTL
                   ? (
@@ -78,7 +78,7 @@ export default async function MarketingPage() {
                           <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <span className="text-sm text-gray-600">
-                          {t('greeting', { email: session.user.email ?? '' })}
+                          {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <LocaleSwitcher />
                       </>
@@ -89,7 +89,7 @@ export default async function MarketingPage() {
                       <>
                         <LocaleSwitcher />
                         <span className="text-sm text-gray-600">
-                          {t('greeting', { email: session.user.email ?? '' })}
+                          {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <Link
                           href="/dashboard"
@@ -167,7 +167,7 @@ export default async function MarketingPage() {
 
           {/* Sign Up Form - Visual right in LTR, visual left in RTL */}
           <div>
-            {!session && (
+            {!user && (
               <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
                 <CardHeader className="pb-4 text-center">
                   <CardTitle className="mb-2 text-3xl font-bold text-gray-900">

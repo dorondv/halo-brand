@@ -46,8 +46,8 @@ export function BrandSelector() {
   const fetchBrands = async () => {
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
         return;
       }
 
@@ -55,7 +55,7 @@ export function BrandSelector() {
       const { data: userRecord } = await supabase
         .from('users')
         .select('id')
-        .eq('email', session.user.email)
+        .eq('email', user.email)
         .maybeSingle();
 
       let userId = userRecord?.id;
@@ -66,9 +66,9 @@ export function BrandSelector() {
           .from('users')
           .insert([
             {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              id: user.id,
+              email: user.email || '',
+              name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
               plan: 'free',
               is_active: true,
             },
@@ -76,7 +76,7 @@ export function BrandSelector() {
           .select('id')
           .single();
 
-        userId = newUser?.id || session.user.id;
+        userId = newUser?.id || user.id;
       }
 
       // Fetch brands for this user
@@ -134,9 +134,9 @@ export function BrandSelector() {
     setIsCreating(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        console.error('No session found');
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        console.error('No user found');
         setIsCreating(false);
         return;
       }
@@ -145,7 +145,7 @@ export function BrandSelector() {
       const { data: userRecord } = await supabase
         .from('users')
         .select('id')
-        .eq('email', session.user.email)
+        .eq('email', user.email)
         .maybeSingle();
 
       let userId = userRecord?.id;
@@ -156,9 +156,9 @@ export function BrandSelector() {
           .from('users')
           .insert([
             {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              id: user.id,
+              email: user.email || '',
+              name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
               plan: 'free',
               is_active: true,
             },

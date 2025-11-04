@@ -19,9 +19,9 @@ export async function GET() {
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();
 
-  // require authenticated session
-  const { data: { session } } = await supabase.auth.getSession();
-  if (!session) {
+  // require authenticated user
+  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  if (authError || !user) {
     return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
   }
 
@@ -44,7 +44,7 @@ export async function POST(request: Request) {
   const payload = parse.data;
   const { data: inserted, error } = await supabase.from('posts').insert([
     {
-      user_id: session.user?.id,
+      user_id: user.id,
       content: payload.content ?? '',
       image_url: payload.image_url ?? null,
       ai_caption: payload.ai_caption ?? null,

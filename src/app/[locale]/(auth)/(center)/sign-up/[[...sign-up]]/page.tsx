@@ -9,8 +9,8 @@ import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function SignUpPage() {
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
     redirect('/dashboard');
   }
   const t = await getTranslations('Auth');

@@ -55,10 +55,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const isRTL = locale === 'he';
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (authError || !user) {
     redirect('/sign-in');
   }
 
@@ -66,11 +67,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const { data: userRecord } = await supabase
     .from('users')
     .select('id')
-    .eq('email', session.user.email)
+    .eq('email', user.email)
     .single();
 
   // If user doesn't exist in users table, use auth user ID directly
-  const userId = userRecord?.id || session.user.id;
+  const userId = userRecord?.id || user.id;
 
   // Build query for posts with optional brand filter
   let postsQuery = supabase
