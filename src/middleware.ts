@@ -16,8 +16,22 @@ const handleI18nRouting = (createMiddleware as any)(routing, {
 // Arcjet protection moved to server actions to reduce middleware bundle size
 // This keeps the Edge Function under Vercel's 1 MB limit
 export async function middleware(req: NextRequest) {
-  // Handle i18n routing
-  return handleI18nRouting(req);
+  const pathname = req.nextUrl.pathname;
+
+  // Skip i18n routing for API routes - they should work without locale prefixes
+  if (pathname.startsWith('/api/')) {
+    // Arcjet protection is handled in API routes themselves
+    // Return early without i18n routing for API routes
+    return NextResponse.next();
+  }
+
+  // Arcjet protection for pages is handled per-route in API handlers
+  // Middleware only handles i18n routing to keep bundle size small
+
+  // Continue with i18n routing
+  const res = handleI18nRouting(req);
+
+  return res;
 }
 
 export const config = {
