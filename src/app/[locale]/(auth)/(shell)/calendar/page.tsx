@@ -23,11 +23,13 @@ import {
   Plus,
   Sparkles,
 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/libs/cn';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -87,51 +89,51 @@ const importantDates: Record<
   '2025-05-09': { type: 'jewish', name: 'יום העצמאות', category: 'ישראלי' },
 };
 
-const getCategoryConfig = (type: string) => {
+const getCategoryConfig = (type: string, t: (key: string) => string) => {
   const configs: Record<string, { color: string; name: string; bgColor: string }> = {
     jewish: {
       color: 'bg-blue-100 text-blue-800 border-blue-200',
-      name: 'יהדות וישראל',
+      name: t('category_jewish'),
       bgColor: 'bg-blue-500',
     },
     muslim: {
       color: 'bg-green-100 text-green-800 border-green-200',
-      name: 'איסלאם',
+      name: t('category_muslim'),
       bgColor: 'bg-green-500',
     },
     christian: {
       color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
-      name: 'נצרות',
+      name: t('category_christian'),
       bgColor: 'bg-yellow-500',
     },
     commercial: {
       color: 'bg-pink-100 text-pink-800 border-pink-200',
-      name: 'מסחרי',
+      name: t('category_commercial'),
       bgColor: 'bg-pink-500',
     },
     international: {
       color: 'bg-purple-100 text-purple-800 border-purple-200',
-      name: 'בינלאומי',
+      name: t('category_international'),
       bgColor: 'bg-purple-500',
     },
     sports: {
       color: 'bg-red-100 text-red-800 border-red-200',
-      name: 'ספורט',
+      name: t('category_sports'),
       bgColor: 'bg-red-500',
     },
     civil: {
       color: 'bg-gray-100 text-gray-800 border-gray-200',
-      name: 'אזרחי',
+      name: t('category_civil'),
       bgColor: 'bg-gray-500',
     },
     national: {
       color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
-      name: 'לאומי',
+      name: t('category_national'),
       bgColor: 'bg-indigo-500',
     },
     banking: {
       color: 'bg-amber-100 text-amber-800 border-amber-200',
-      name: 'בנקאות',
+      name: t('category_banking'),
       bgColor: 'bg-amber-500',
     },
   };
@@ -146,6 +148,9 @@ type Post = {
 };
 
 export default function CalendarPage() {
+  const t = useTranslations('Calendar');
+  const locale = useLocale();
+  const isRTL = locale === 'he';
   const [currentDate, setCurrentDate] = useState(() => new Date('2024-11-01'));
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -289,7 +294,15 @@ export default function CalendarPage() {
     const daysInMonth = eachDayOfInterval({ start: monthStart, end: monthEnd });
     const startingDayIndex = getDay(monthStart);
 
-    const dayNames = ['ראשון', 'שני', 'שלישי', 'רביעי', 'חמישי', 'שישי', 'שבת'];
+    const dayNames = [
+      t('day_sunday'),
+      t('day_monday'),
+      t('day_tuesday'),
+      t('day_wednesday'),
+      t('day_thursday'),
+      t('day_friday'),
+      t('day_saturday'),
+    ];
 
     return (
       <>
@@ -312,7 +325,7 @@ export default function CalendarPage() {
             const isTodayDate = isToday(date);
             const hasImportantDate
               = importantDate && showImportantDates && selectedCategories.includes(importantDate.type);
-            const config = importantDate ? getCategoryConfig(importantDate.type) : null;
+            const config = importantDate ? getCategoryConfig(importantDate.type, t as any) : null;
 
             return (
               <motion.div
@@ -413,7 +426,7 @@ export default function CalendarPage() {
               </h3>
               <div className="max-h-32 space-y-2 overflow-y-auto">
                 {monthEvents.slice(0, 5).map((event) => {
-                  const config = getCategoryConfig(event.type);
+                  const config = getCategoryConfig(event.type, t as any);
                   return (
                     <div key={`${event.date.toISOString()}-${event.name}`} className={`rounded px-2 py-1 text-xs ${config?.color || ''}`}>
                       {format(event.date, 'd/M')}
@@ -431,7 +444,7 @@ export default function CalendarPage() {
                   </div>
                 )}
                 {monthEvents.length === 0 && (
-                  <div className="py-2 text-center text-xs text-slate-400">אין אירועים</div>
+                  <div className="py-2 text-center text-xs text-slate-400">{t('no_events')}</div>
                 )}
               </div>
             </motion.div>
@@ -469,21 +482,21 @@ export default function CalendarPage() {
   ];
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-6" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="mx-auto max-w-7xl space-y-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center"
+          className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
-          <div>
+          <div className={isRTL ? 'text-right' : 'text-left'}>
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
-              לוח שנה
+              {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">תיאור לוח השנה</p>
+            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
           </div>
 
-          <div className="flex flex-wrap gap-4">
+          <div className={cn('flex flex-wrap gap-4', isRTL ? 'flex-row-reverse' : '')}>
             <div className="flex overflow-hidden rounded-lg border border-pink-200 bg-white/50">
               <Button
                 variant={viewMode === 'month' ? 'default' : 'ghost'}
@@ -494,8 +507,8 @@ export default function CalendarPage() {
                     : 'hover:bg-pink-50'
                 }`}
               >
-                <Calendar1 className="mr-2 h-4 w-4" />
-                חודשי
+                <Calendar1 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('month_view')}
               </Button>
               <Button
                 variant={viewMode === 'year' ? 'default' : 'ghost'}
@@ -506,8 +519,8 @@ export default function CalendarPage() {
                     : 'hover:bg-pink-50'
                 }`}
               >
-                <Grid3x3 className="mr-2 h-4 w-4" />
-                שנתי
+                <Grid3x3 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('year_view')}
               </Button>
             </div>
 
@@ -516,14 +529,14 @@ export default function CalendarPage() {
               onClick={() => setShowImportantDates(!showImportantDates)}
               className="border-pink-200 bg-white/70 text-pink-700 hover:bg-pink-50"
             >
-              <Sparkles className="mr-2 h-4 w-4" />
-              {showImportantDates ? 'הסתר אירועים' : 'הצג אירועים'}
+              <Sparkles className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+              {showImportantDates ? t('hide_events') : t('show_events')}
             </Button>
 
             <Link href="/create-post">
               <Button className="rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 px-8 py-3 text-white shadow-lg transition-all duration-300 hover:from-pink-600 hover:to-pink-700 hover:shadow-xl">
-                <Plus className="mr-2 h-5 w-5" />
-                תזמן פוסט
+                <Plus className={cn('h-5 w-5', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('schedule_post')}
               </Button>
             </Link>
           </div>
@@ -540,11 +553,11 @@ export default function CalendarPage() {
                       ? format(currentDate, 'MMMM yyyy')
                       : format(currentDate, 'yyyy')}
                   </CardTitle>
-                  <div className="flex gap-2">
+                  <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => navigateTime(-1)}
+                      onClick={() => navigateTime(isRTL ? 1 : -1)}
                       className="hover:bg-blue-50"
                     >
                       <ChevronLeft className="h-4 w-4" />
@@ -552,7 +565,7 @@ export default function CalendarPage() {
                     <Button
                       variant="outline"
                       size="icon"
-                      onClick={() => navigateTime(1)}
+                      onClick={() => navigateTime(isRTL ? -1 : 1)}
                       className="hover:bg-blue-50"
                     >
                       <ChevronRight className="h-4 w-4" />
@@ -563,7 +576,7 @@ export default function CalendarPage() {
               <CardContent className="p-6">
                 {isLoading
                   ? (
-                      <div className="py-8 text-center text-slate-500">טוען...</div>
+                      <div className="py-8 text-center text-slate-500">{t('loading')}</div>
                     )
                   : viewMode === 'month'
                     ? (
@@ -577,16 +590,11 @@ export default function CalendarPage() {
 
             <Card className="mt-6 border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
               <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle>מקרא וסינון אירועים</CardTitle>
+                <div className={cn('flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
+                  <CardTitle>{t('legend_title')}</CardTitle>
                   {viewMode === 'year' && (
                     <div className="text-sm text-slate-600">
-                      סה"כ
-                      {' '}
-                      {totalYearEvents}
-                      {' '}
-                      אירועים ב-
-                      {currentDate.getFullYear()}
+                      {t('total_events_year', { count: totalYearEvents, year: currentDate.getFullYear() })}
                     </div>
                   )}
                 </div>
@@ -594,7 +602,7 @@ export default function CalendarPage() {
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 md:grid-cols-4 lg:grid-cols-5">
                   {legendItems.map((item) => {
-                    const config = getCategoryConfig(item.type);
+                    const config = getCategoryConfig(item.type, t as any);
                     const isSelected = selectedCategories.includes(item.type);
                     const eventCount
                       = viewMode === 'year' ? (yearCategorySummary[item.type] || 0) : null;
@@ -606,9 +614,7 @@ export default function CalendarPage() {
                     return (
                       <div
                         key={item.type}
-                        className={`flex cursor-pointer items-center gap-2 rounded-lg p-2 transition-all duration-300 ${
-                          isSelected ? 'bg-white/70 shadow-sm' : 'opacity-50 hover:opacity-100'
-                        }`}
+                        className={cn('flex cursor-pointer items-center gap-2 rounded-lg p-2 transition-all duration-300', isRTL ? 'flex-row-reverse' : '', isSelected ? 'bg-white/70 shadow-sm' : 'opacity-50 hover:opacity-100')}
                         onClick={() => toggleCategory(item.type)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -626,7 +632,7 @@ export default function CalendarPage() {
                             <span className="text-xs text-slate-400">
                               {eventCount}
                               {' '}
-                              אירועים
+                              {t('events')}
                             </span>
                           )}
                         </div>
@@ -639,14 +645,13 @@ export default function CalendarPage() {
           </div>
 
           <div className="space-y-6">
-            {/* תאריך נבחר - רק בתצוגה חודשית */}
             {viewMode === 'month' && (
               <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
                 <CardHeader>
                   <CardTitle>
                     {selectedDate
                       ? format(selectedDate, 'MMMM d, yyyy')
-                      : 'בחר תאריך'}
+                      : t('select_date')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -654,13 +659,13 @@ export default function CalendarPage() {
                     ? (
                         <div className="space-y-4">
                           {selectedDateImportant && (() => {
-                            const categoryConfig = getCategoryConfig(selectedDateImportant.type);
+                            const categoryConfig = getCategoryConfig(selectedDateImportant.type, t as any);
                             if (!categoryConfig) {
                               return null;
                             }
                             return (
                               <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-                                <div className="mb-2 flex items-center justify-between">
+                                <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                   <Badge className={categoryConfig.color}>
                                     {categoryConfig.name}
                                   </Badge>
@@ -680,7 +685,7 @@ export default function CalendarPage() {
                           {selectedDatePosts.length > 0
                             ? (
                                 <div className="space-y-3">
-                                  <h4 className="font-semibold text-slate-900">הפוסטים שלך</h4>
+                                  <h4 className="font-semibold text-slate-900">{t('your_posts')}</h4>
                                   {selectedDatePosts.map(post => (
                                     <div
                                       key={post.id}
@@ -689,14 +694,14 @@ export default function CalendarPage() {
                                       <p className="mb-2 line-clamp-2 font-medium text-slate-900">
                                         {post.content}
                                       </p>
-                                      <div className="flex items-center justify-between">
+                                      <div className={cn('flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                         <Badge variant="secondary" className="text-xs">
                                           {format(new Date(post.scheduled_time), 'h:mm a')}
                                         </Badge>
                                         <div className="text-xs text-slate-500">
                                           {post.platforms?.length || 0}
                                           {' '}
-                                          פלטפורמות
+                                          {t('platforms')}
                                         </div>
                                       </div>
                                     </div>
@@ -707,10 +712,10 @@ export default function CalendarPage() {
                                 !selectedDateImportant && (
                                   <div className="py-8 text-center text-slate-500">
                                     <CalendarIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                                    <p>אין פוסטים מתוזמנים</p>
+                                    <p>{t('no_scheduled_posts')}</p>
                                     <Link href="/create-post">
                                       <Button className="mt-4 bg-gradient-to-r from-blue-500 to-emerald-500 text-white">
-                                        תזמן פוסט
+                                        {t('schedule_post')}
                                       </Button>
                                     </Link>
                                   </div>
@@ -720,20 +725,19 @@ export default function CalendarPage() {
                       )
                     : (
                         <div className="py-8 text-center text-slate-500">
-                          <p>לחץ על תאריך כדי לראות אירועים</p>
+                          <p>{t('click_date_events')}</p>
                         </div>
                       )}
                 </CardContent>
               </Card>
             )}
 
-            {/* אירועים חשובים החודש */}
             {viewMode === 'month' && (
               <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                     <Sparkles className="h-5 w-5 text-pink-500" />
-                    אירועים חשובים החודש
+                    {t('important_events_month')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
@@ -743,7 +747,7 @@ export default function CalendarPage() {
                           {periodImportantDates
                             .sort((a, b) => a.date.getTime() - b.date.getTime())
                             .map((event) => {
-                              const config = getCategoryConfig(event.type);
+                              const config = getCategoryConfig(event.type, t as any);
                               if (!config) {
                                 return null;
                               }
@@ -761,9 +765,9 @@ export default function CalendarPage() {
                                   role="button"
                                   tabIndex={0}
                                 >
-                                  <div className="flex items-start justify-between gap-2">
+                                  <div className={cn('flex items-start gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                     <div className="flex-1">
-                                      <div className="mb-1 flex items-center gap-2">
+                                      <div className={cn('mb-1 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                                         <Badge className={config.color} variant="secondary">
                                           {format(event.date, 'd')}
                                           /
@@ -785,7 +789,7 @@ export default function CalendarPage() {
                       )
                     : (
                         <div className="py-6 text-center text-sm text-slate-400">
-                          אין אירועים חשובים החודש
+                          {t('no_events_month')}
                         </div>
                       )}
                 </CardContent>
