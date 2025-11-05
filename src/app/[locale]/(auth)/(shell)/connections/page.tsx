@@ -12,6 +12,7 @@ import {
   Play,
   Plus,
 } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -25,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 // Force dynamic rendering - this page requires authentication
@@ -99,61 +101,64 @@ type SocialAccount = {
   last_sync?: string;
 };
 
-const platformConfigs: Record<
+const getPlatformConfigs = (t: (key: string) => string): Record<
   Platform,
   { name: string; icon: React.ComponentType<React.SVGProps<SVGSVGElement>>; color: string; description: string }
-> = {
+> => ({
   instagram: {
     name: 'Instagram',
     icon: Instagram,
     color: 'text-pink-500',
-    description: 'שתף תמונות וסטוריז',
+    description: t('platform_instagram_desc'),
   },
   facebook: {
     name: 'Facebook',
     icon: Facebook,
     color: 'text-blue-600',
-    description: 'התחבר עם קהילות וקבוצות',
+    description: t('platform_facebook_desc'),
   },
   x: {
     name: 'X (Twitter)',
     icon: XIconComponent,
     color: 'text-gray-800',
-    description: 'שתף מחשבות ועדכונים קצרים',
+    description: t('platform_x_desc'),
   },
   twitter: {
     name: 'X (Twitter)',
     icon: XIconComponent,
     color: 'text-gray-800',
-    description: 'שתף מחשבות ועדכונים קצרים',
+    description: t('platform_x_desc'),
   },
   linkedin: {
     name: 'LinkedIn',
     icon: Linkedin,
     color: 'text-sky-700',
-    description: 'התחבר עם אנשי מקצוע',
+    description: t('platform_linkedin_desc'),
   },
   tiktok: {
     name: 'TikTok',
     icon: TikTokIcon,
     color: 'text-black',
-    description: 'צור סרטונים ויראליים',
+    description: t('platform_tiktok_desc'),
   },
   youtube: {
     name: 'YouTube',
     icon: Play,
     color: 'text-red-600',
-    description: 'העלה סרטוני וידאו',
+    description: t('platform_youtube_desc'),
   },
   threads: {
     name: 'Threads',
     icon: ThreadsIcon,
     color: 'text-black',
-    description: 'שתף בקהילת Meta',
+    description: t('platform_threads_desc'),
   },
-};
+});
 
 export default function ConnectionsPage() {
+  const t = useTranslations('Integrations');
+  const locale = useLocale();
+  const isRTL = locale === 'he';
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -165,6 +170,8 @@ export default function ConnectionsPage() {
   const [newBrandName, setNewBrandName] = useState('');
   const [accountToDisconnect, setAccountToDisconnect] = useState<SocialAccount | null>(null);
   const [isConnectingDemo, setIsConnectingDemo] = useState<string | null>(null);
+
+  const platformConfigs = getPlatformConfigs(t as any);
 
   const loadBrands = useCallback(async () => {
     setIsLoading(true);
@@ -621,19 +628,19 @@ export default function ConnectionsPage() {
   const allPlatforms: Platform[] = ['instagram', 'x', 'facebook', 'linkedin', 'youtube', 'tiktok', 'threads'];
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-6" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="mx-auto max-w-7xl space-y-8">
         {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center"
+          className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
-          <div>
+          <div className={isRTL ? 'text-right' : 'text-left'}>
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
-              חיבורים
+              {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">נהל את החיבורים שלך לרשתות החברתיות</p>
+            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
           </div>
         </motion.div>
 
@@ -641,16 +648,16 @@ export default function ConnectionsPage() {
         <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div>
-                <CardTitle>המותגים שלך</CardTitle>
-                <CardDescription>בחר מותג או צור מותג חדש</CardDescription>
+              <div className={cn(isRTL ? 'text-right flex-1' : 'text-left flex-1')}>
+                <CardTitle>{t('your_brands')}</CardTitle>
+                <CardDescription>{t('select_or_create_brand')}</CardDescription>
               </div>
               <Button
                 onClick={() => setIsCreatingBrand(true)}
-                className="bg-gradient-to-r from-pink-500 to-pink-600 text-white"
+                className="shrink-0 bg-gradient-to-r from-pink-500 to-pink-600 text-white"
               >
-                <Plus className="mr-2 h-4 w-4" />
-                מותג חדש
+                <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('new_brand')}
               </Button>
             </div>
           </CardHeader>
@@ -659,28 +666,28 @@ export default function ConnectionsPage() {
               ? (
                   <div className="py-8 text-center">
                     <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-pink-500"></div>
-                    <p className="text-slate-500">טוען מותגים...</p>
+                    <p className="text-slate-500">{t('loading_brands')}</p>
                   </div>
                 )
               : isCreatingBrand
                 ? (
                     <div className="space-y-4 rounded-lg bg-pink-50 p-4">
                       <div>
-                        <Label htmlFor="brandName">שם המותג</Label>
+                        <Label htmlFor="brandName">{t('brand_name')}</Label>
                         <Input
                           id="brandName"
-                          placeholder="הכנס שם המותג"
+                          placeholder={t('brand_name_placeholder')}
                           value={newBrandName}
                           onChange={e => setNewBrandName(e.target.value)}
                         />
                       </div>
-                      <div className="flex gap-2">
+                      <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
                         <Button onClick={handleCreateBrand} className="bg-pink-600 text-white">
-                          <CheckCircle2 className="mr-2 h-4 w-4" />
-                          צור מותג
+                          <CheckCircle2 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                          {t('create_brand')}
                         </Button>
                         <Button variant="outline" onClick={() => setIsCreatingBrand(false)}>
-                          ביטול
+                          {t('cancel')}
                         </Button>
                       </div>
                     </div>
@@ -689,7 +696,7 @@ export default function ConnectionsPage() {
                   ? (
                       <div className="py-8 text-center">
                         <Briefcase className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-                        <p className="mb-4 text-slate-500">אין מותגים. צור מותג חדש כדי להתחיל.</p>
+                        <p className="mb-4 text-slate-500">{t('no_brands')}</p>
                       </div>
                     )
                   : (
@@ -743,13 +750,13 @@ export default function ConnectionsPage() {
         {selectedBrand && (
           <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
             <CardHeader>
-              <CardTitle>
-                חשבונות מקושרים עבור:
+              <CardTitle className={isRTL ? 'text-right' : 'text-left'}>
+                {t('connected_accounts_for')}
                 {' '}
                 <span className="text-pink-600">{selectedBrand.name}</span>
               </CardTitle>
-              <CardDescription>
-                חבר חשבונות דמו לבדיקת האפליקציה או הכנס פרטי חשבונות באופן ידני.
+              <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+                {t('connect_demo_accounts')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -776,16 +783,16 @@ export default function ConnectionsPage() {
                         <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-50">
                           <Icon className={`h-6 w-6 ${config.color}`} />
                         </div>
-                        <div>
+                        <div className={isRTL ? 'text-right' : 'text-left'}>
                           <h3 className="font-semibold text-slate-800">{config.name}</h3>
                           <p className="text-sm text-slate-500">
                             {connectedAccount
-                              ? `${connectedAccount.handle} (${connectedAccount.follower_count?.toLocaleString()} עוקבים)`
-                              : 'לא מחובר'}
+                              ? `${connectedAccount.handle} (${connectedAccount.follower_count?.toLocaleString()} ${t('followers')})`
+                              : t('not_connected')}
                           </p>
                         </div>
                       </div>
-                      <div className="flex gap-2">
+                      <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
                         {connectedAccount
                           ? (
                               <Button
@@ -793,7 +800,7 @@ export default function ConnectionsPage() {
                                 variant="secondary"
                                 size="sm"
                               >
-                                נתק
+                                {t('disconnect')}
                               </Button>
                             )
                           : (
@@ -809,7 +816,7 @@ export default function ConnectionsPage() {
                                         <Loader2 className="h-4 w-4 animate-spin" />
                                       )
                                     : (
-                                        'חבר דמו'
+                                        t('connect_demo')
                                       )}
                                 </Button>
                                 <Button
@@ -817,8 +824,8 @@ export default function ConnectionsPage() {
                                   variant="outline"
                                   size="sm"
                                 >
-                                  <LinkIcon className="mr-2 h-4 w-4" />
-                                  ידני
+                                  <LinkIcon className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {t('manual')}
                                 </Button>
                               </>
                             )}
@@ -833,41 +840,41 @@ export default function ConnectionsPage() {
 
         {/* Manual Connection Dialog */}
         <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
-          <DialogContent>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
             <DialogHeader>
               <DialogTitle>
-                חיבור ידני ל-
+                {t('manual_connection_to')}
                 {selectedPlatform && platformConfigs[selectedPlatform]?.name}
               </DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               <div>
-                <Label htmlFor="handle">שם משתמש/כינוי</Label>
+                <Label htmlFor="handle">{t('username_handle')}</Label>
                 <Input
                   id="handle"
-                  placeholder="@example_account"
+                  placeholder={t('username_placeholder')}
                   value={manualAccountData.handle}
                   onChange={e =>
                     setManualAccountData(prev => ({ ...prev, handle: e.target.value }))}
                 />
               </div>
               <div>
-                <Label htmlFor="displayName">שם תצוגה</Label>
+                <Label htmlFor="displayName">{t('display_name')}</Label>
                 <Input
                   id="displayName"
-                  placeholder="המותג שלי"
+                  placeholder={t('display_name_placeholder')}
                   value={manualAccountData.display_name}
                   onChange={e =>
                     setManualAccountData(prev => ({ ...prev, display_name: e.target.value }))}
                 />
               </div>
             </div>
-            <DialogFooter>
+            <DialogFooter className={cn(isRTL ? 'flex-row-reverse' : '')}>
               <Button variant="outline" onClick={() => setShowManualDialog(false)}>
-                ביטול
+                {t('cancel')}
               </Button>
               <Button onClick={handleManualSubmit} className="bg-pink-600 text-white">
-                חבר חשבון
+                {t('connect_account')}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -878,21 +885,19 @@ export default function ConnectionsPage() {
           open={!!accountToDisconnect}
           onOpenChange={() => setAccountToDisconnect(null)}
         >
-          <DialogContent>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
             <DialogHeader>
-              <DialogTitle>האם אתה בטוח?</DialogTitle>
+              <DialogTitle>{t('are_you_sure')}</DialogTitle>
             </DialogHeader>
             <p className="text-sm text-gray-600">
-              פעולה זו תנתק את החשבון &quot;
-              {accountToDisconnect?.handle}
-              &quot; מהמערכת.
+              {t('disconnect_warning', { handle: accountToDisconnect?.handle || '' })}
             </p>
-            <DialogFooter>
+            <DialogFooter className={cn(isRTL ? 'flex-row-reverse' : '')}>
               <Button variant="outline" onClick={() => setAccountToDisconnect(null)}>
-                ביטול
+                {t('cancel')}
               </Button>
               <Button onClick={handleDisconnect} className="bg-red-600 text-white hover:bg-red-700">
-                כן, נתק את החשבון
+                {t('yes_disconnect')}
               </Button>
             </DialogFooter>
           </DialogContent>

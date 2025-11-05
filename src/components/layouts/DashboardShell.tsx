@@ -34,7 +34,7 @@ const baseNav = [
   { href: '/calendar', key: 'calendar', icon: CalendarIcon },
   { href: '/analytics', key: 'analytics', icon: BarChart3 },
   { href: '/reports', key: 'reports', icon: FileText },
-  { href: '/connections', key: 'connections', icon: Settings },
+  { href: '/connections', key: 'integrations', icon: Settings },
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
