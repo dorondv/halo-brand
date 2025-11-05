@@ -22,7 +22,7 @@
     "calendar": "Calendar",
     "analytics": "Insights & Analytics",
     "reports": "Reports",
-    "integrations": "Integrations",
+    "integrations": "Connections",
     "settings": "Settings",
     "support": "Support",
     "pricing": "Pricing",
@@ -76,7 +76,7 @@
     "calendar": "Calendar",
     "analytics": "Insights & Analytics",
     "reports": "Reports",
-    "integrations": "Integrations",
+    "integrations": "Connections",
     "settings": "Settings",
     "support": "Support",
     "pricing": "Pricing"
@@ -194,7 +194,7 @@
     "category_civil": "Civil"
   },
   "Integrations": {
-    "title": "Integrations",
+    "title": "Connections",
     "subtitle": "Manage your social media connections",
     "your_brands": "Your Brands",
     "select_or_create_brand": "Select a brand or create a new one",
