@@ -7,21 +7,23 @@ type DataPoint = { platform: string; posts: number };
 const EMPTY_DATA: DataPoint[] = [];
 
 function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
-  const pinkShades = ['#F50A81', '#F973A8', '#FCB5D8', '#FECFE8', '#FFDDF2', '#FFF0F8', '#FFF5FB'];
+  const pinkShades = ['#FF0083', '#FF3399', '#FF66B3', '#FF99CC', '#FFCCE6', '#FFE6F2', '#FFF0F8'];
 
   return (
-    <div className="h-80 min-h-80 w-full min-w-0">
+    <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+        <BarChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
           <XAxis dataKey="platform" stroke="#6b7280" fontSize={12} />
           <YAxis
-            stroke="#be185d"
+            stroke="#6b7280"
             fontSize={12}
             tickMargin={10}
+            width={70}
             axisLine={false}
             tickLine={false}
             allowDecimals={false}
+            tickFormatter={value => new Intl.NumberFormat('he-IL').format(value)}
           />
           <Tooltip
             contentStyle={{

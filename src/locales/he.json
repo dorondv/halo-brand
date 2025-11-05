@@ -29,10 +29,10 @@
   },
   "DashboardPage": {
     "title": "דשבורד",
-    "metric_total_followers": "מספר עוקבים",
-    "metric_total_impressions": "מספר חשיפות",
-    "metric_total_engagement": "מספר מעורבות",
-    "metric_total_posts": "מספר פוסטים",
+    "metric_total_followers": "סה\"כ עוקבים",
+    "metric_total_impressions": "סה\"כ חשיפות",
+    "metric_total_engagement": "סה\"כ מעורבות",
+    "metric_total_posts": "סה\"כ פוסטים",
     "chart_followers_trend": "מגמת עוקבים",
     "chart_impressions": "חשיפות",
     "chart_engagement": "מעורבות",
@@ -58,6 +58,8 @@
     "date_range_last_14_days": "ימים אחרונים 14",
     "date_range_last_28_days": "ימים אחרונים 28",
     "date_range_last_month": "חודש קודם",
+    "date_range_current_month": "חודש נוכחי",
+    "date_range_current_year": "שנה נוכחית",
     "date_range_custom": "בחירה ידנית",
     "date_range_back_to_options": "חזור לאפשרויות",
     "date_range_display_by": "תצוגה לפי:",
@@ -96,7 +98,7 @@
     "feature_ai_desc": "המלצות ותובנות מונעות בינה מלאכותית",
     "signup_title": "התחל עכשיו",
     "signup_subtitle": "הצטרף אלינו והתחל לנהל את המותג שלך בצורה חכמה",
-    "benefits_title": "למה Hello Brand?",
+    "benefits_title": "למה Halo Brand?",
     "benefit_free_title": "חינם להתחלה",
     "benefit_free_desc": "התחל ללא עלות והרחב לפי הצורך",
     "benefit_easy_title": "קל לשימוש",
@@ -106,7 +108,7 @@
     "stat_active_users": "משתמשים פעילים",
     "stat_managed_posts": "פוסטים מנוהלים",
     "stat_satisfaction": "שביעות רצון",
-    "footer_copyright": "© Hello Brand 2024. כל הזכויות שמורות."
+    "footer_copyright": "© Halo Brand 2024. כל הזכויות שמורות."
   },
   "Auth": {
     "email_label": "אימייל",

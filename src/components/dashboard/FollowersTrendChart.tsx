@@ -33,17 +33,19 @@ function FollowersTrendChart({
   }));
 
   return (
-    <div className="h-80 min-h-[20rem] w-full min-w-0">
+    <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+        <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
           <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
           <YAxis
-            stroke="#be185d"
+            stroke="#6b7280"
             fontSize={12}
             tickMargin={10}
+            width={70}
             axisLine={false}
             tickLine={false}
+            tickFormatter={value => new Intl.NumberFormat('he-IL').format(value)}
           />
           <Tooltip
             contentStyle={{
@@ -56,9 +58,9 @@ function FollowersTrendChart({
           <Line
             type="monotone"
             dataKey="followers"
-            stroke="#F50A81"
+            stroke="#FF0083"
             strokeWidth={3}
-            dot={{ r: 3, fill: '#F50A81' }}
+            dot={{ r: 3, fill: '#FF0083' }}
             activeDot={{ r: 6 }}
           />
         </LineChart>

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, subDays } from 'date-fns';
 import {
   Eye,
@@ -7,25 +8,30 @@ import {
 } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
-import { SignOutButton } from '@/components/auth/SignOutButton';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
 import DemographicsCharts from '@/components/dashboard/DemographicsCharts';
 import EngagementAreaChart from '@/components/dashboard/EngagementAreaChart';
 import EngagementRateChart from '@/components/dashboard/EngagementRateChart';
 import FollowersTrendChart from '@/components/dashboard/FollowersTrendChart';
 import ImpressionsAreaChart from '@/components/dashboard/ImpressionsAreaChart';
-import { MetricCard } from '@/components/dashboard/MetricCard';
 import NetFollowerGrowthChart from '@/components/dashboard/NetFollowerGrowthChart';
 import PostsByPlatformChart from '@/components/dashboard/PostsByPlatformChart';
 import PostsTable from '@/components/dashboard/PostsTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
+import { MetricCardsClient } from './MetricCardsClient';
+
+export const metadata: Metadata = {
+  title: 'Halo Brand - Dashboard',
+  description: 'Dashboard for social media analytics',
+};
 
 type DashboardProps = {
   searchParams: Promise<{
     platform?: string;
     brand?: string;
+    metric?: string;
     range?: string;
     granularity?: string;
     from?: string;
@@ -37,6 +43,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const params = await searchParams;
   const selectedPlatform = params.platform || null;
   const selectedBrandId = params.brand || null;
+  const selectedMetric = params.metric || 'followers';
   const dateRange = params.range || 'last7';
   const granularity = params.granularity || 'day';
   const customFrom = params.from;
@@ -48,10 +55,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const isRTL = locale === 'he';
 
   const {
-    data: { session },
-  } = await supabase.auth.getSession();
+    data: { user },
+    error: authError,
+  } = await supabase.auth.getUser();
 
-  if (!session) {
+  if (authError || !user) {
     redirect('/sign-in');
   }
 
@@ -59,11 +67,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const { data: userRecord } = await supabase
     .from('users')
     .select('id')
-    .eq('email', session.user.email)
+    .eq('email', user.email)
     .single();
 
   // If user doesn't exist in users table, use auth user ID directly
-  const userId = userRecord?.id || session.user.id;
+  const userId = userRecord?.id || user.id;
 
   // Build query for posts with optional brand filter
   let postsQuery = supabase
@@ -539,6 +547,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Calculate platform metrics from actual analytics and posts data (must be before postsByPlatformData)
   const platformFollowersMap = new Map<string, { followers: number; change: number }>();
   const platformPostsCount = new Map<string, number>();
+  const platformImpressionsMap = new Map<string, number>();
+  const platformEngagementMap = new Map<string, number>();
 
   // Calculate followers and posts per platform from date-filtered posts
   if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
@@ -567,6 +577,28 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
       // Count posts per platform
       platformPostsCount.set(plat, (platformPostsCount.get(plat) || 0) + 1);
+
+      // Sum impressions and engagement per platform from analytics
+      const analytics = finalFilteredAnalytics.filter((a) => {
+        const post = dateFilteredPosts.find((p: any) => p.id === a.post_id);
+        if (!post) {
+          return false;
+        }
+        const postMeta = (post as any)?.metadata as any;
+        return normalizePlatform(postMeta?.platform ?? 'unknown') === plat;
+      });
+
+      const platformImpressions = analytics.reduce((sum, a) => sum + Number(a.impressions ?? 0), 0);
+      const platformEngagement = analytics.reduce((sum, a) => {
+        return sum + Number(a.likes ?? 0) + Number(a.comments ?? 0) + Number(a.shares ?? 0);
+      }, 0);
+
+      if (platformImpressions > 0) {
+        platformImpressionsMap.set(plat, (platformImpressionsMap.get(plat) || 0) + platformImpressions);
+      }
+      if (platformEngagement > 0) {
+        platformEngagementMap.set(plat, (platformEngagementMap.get(plat) || 0) + platformEngagement);
+      }
     }
   }
 
@@ -650,18 +682,49 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const finalTotalImpressions = displayImpressions;
   const finalTotalFollowers = displayFollowers;
 
-  // Calculate platform-specific follower counts from database data
-  const getPlatformFollowers = (platformName: string) => {
+  // Calculate platform-specific metrics from database data
+  const getPlatformMetric = (platformName: string, metric: string) => {
     if (platformName === 'all') {
-      // Always return total followers for "all" platform card
-      return totalFollowers;
+      // Always return total for "all" platform card
+      switch (metric) {
+        case 'followers':
+          return totalFollowers;
+        case 'impressions':
+          return totalImpressions;
+        case 'engagement':
+          return totalEngagement;
+        case 'posts':
+          return totalPosts;
+        default:
+          return totalFollowers;
+      }
     }
 
     const platformKey = normalizePlatform(platformName);
-    const platformData = platformFollowersMap.get(platformKey);
+    switch (metric) {
+      case 'followers':
+        return platformFollowersMap.get(platformKey)?.followers || 0;
+      case 'impressions':
+        return platformImpressionsMap.get(platformKey) || 0;
+      case 'engagement':
+        return platformEngagementMap.get(platformKey) || 0;
+      case 'posts':
+        return platformPostsCount.get(platformKey) || 0;
+      default:
+        return platformFollowersMap.get(platformKey)?.followers || 0;
+    }
+  };
 
-    // Return followers from database for this platform
-    return platformData?.followers || 0;
+  const getPlatformChange = (platformName: string, metric: string) => {
+    if (platformName === 'all') {
+      return 0;
+    }
+    const platformKey = normalizePlatform(platformName);
+    if (metric === 'followers') {
+      return platformFollowersMap.get(platformKey)?.change || 0;
+    }
+    // Mock change for other metrics
+    return seededRandom(`change:${platformKey}:${metric}`) * 6;
   };
 
   // Platform metrics calculated from database data
@@ -684,20 +747,45 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return followers > 0 || posts > 0;
   });
 
-  // Build platform data for connected platforms only
-  // Note: "all" platform card should always show total followers, not filtered
-  // For LTR: All, YouTube, Facebook, LinkedIn, TikTok, X, Instagram
-  // For RTL: All, Instagram, X, TikTok, LinkedIn, Facebook, YouTube (reversed order of platforms)
-  const platformCards = connectedPlatforms.map(({ platform, key }) => ({
+  // Pre-calculate ALL metrics for ALL platforms for instant client-side switching
+  type MetricType = 'followers' | 'impressions' | 'engagement' | 'posts';
+  const allMetrics: MetricType[] = ['followers', 'impressions', 'engagement', 'posts'];
+
+  const platformDataWithAllMetrics = connectedPlatforms.map(({ platform }) => {
+    const metrics: Record<MetricType, { value: number; change: number }> = {} as any;
+    allMetrics.forEach((metric) => {
+      metrics[metric] = {
+        value: getPlatformMetric(platform, metric),
+        change: getPlatformChange(platform, metric),
+      };
+    });
+    return {
+      platform,
+      metrics,
+    };
+  });
+
+  // Also pre-calculate "all" platform metrics
+  const allPlatformMetrics: Record<MetricType, { value: number; change: number }> = {} as any;
+  allMetrics.forEach((metric) => {
+    allPlatformMetrics[metric] = {
+      value: getPlatformMetric('all', metric),
+      change: 0,
+    };
+  });
+
+  // Build current platform data based on selected metric (for backward compatibility)
+  const platformCards = connectedPlatforms.map(({ platform }) => ({
     platform,
-    followers: getPlatformFollowers(platform),
-    change: platformFollowersMap.get(key)?.change || 0,
+    value: getPlatformMetric(platform, selectedMetric),
+    change: getPlatformChange(platform, selectedMetric),
+    metric: selectedMetric,
   }));
 
   // Build base array: "All" first for both, but platforms reversed for RTL
   const platformDataBase = isRTL
-    ? [{ platform: 'all', followers: totalFollowers, change: 0 }, ...[...platformCards].reverse()]
-    : [{ platform: 'all', followers: totalFollowers, change: 0 }, ...platformCards];
+    ? [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: 0, metric: selectedMetric }, ...[...platformCards].reverse()]
+    : [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: 0, metric: selectedMetric }, ...platformCards];
 
   // Use the base order directly (already correct for the locale)
   const platformData = platformDataBase;
@@ -801,56 +889,27 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           </div>
           <div className="flex flex-wrap items-center gap-4">
             <DateRangePicker />
-            <SignOutButton />
           </div>
         </div>
 
         {/* Row 1: KPI Cards */}
-        {/* Order for both LTR and RTL: Followers, Impressions, Engagement, Posts */}
-        {(() => {
-          const kpiCards = [
-            <MetricCard
-              key="followers"
-              title={t('metric_total_followers')}
-              value={formatted(finalTotalFollowers)}
-              change={12.5}
-              icon={Users}
-              vsLabel={t('vs_last_month')}
-            />,
-            <MetricCard
-              key="impressions"
-              title={t('metric_total_impressions')}
-              value={formatted(finalTotalImpressions)}
-              change={18.7}
-              icon={Eye}
-              vsLabel={t('vs_last_month')}
-            />,
-            <MetricCard
-              key="engagement"
-              title={t('metric_total_engagement')}
-              value={formatted(finalTotalEngagement)}
-              change={5.3}
-              icon={Heart}
-              vsLabel={t('vs_last_month')}
-            />,
-            <MetricCard
-              key="posts"
-              title={t('metric_total_posts')}
-              value={formatted(finalTotalPosts)}
-              change={5.1}
-              icon={FileText}
-              vsLabel={t('vs_last_month')}
-            />,
-          ];
-          return (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {kpiCards}
-            </div>
-          );
-        })()}
+        <MetricCardsClient
+          followers={formatted(finalTotalFollowers)}
+          impressions={formatted(finalTotalImpressions)}
+          engagement={formatted(finalTotalEngagement)}
+          posts={formatted(finalTotalPosts)}
+          vsLabel={t('vs_last_month')}
+        />
 
         {/* Row 2: Platform Cards */}
-        <PlatformCards platformData={platformData} selectedPlatform={selectedPlatform} />
+        <PlatformCards
+          platformData={platformData}
+          platformDataWithAllMetrics={platformDataWithAllMetrics}
+          allPlatformMetrics={allPlatformMetrics}
+          selectedPlatform={selectedPlatform}
+          selectedMetric={selectedMetric}
+          isRTL={isRTL}
+        />
 
         {/* Row 3: Engagement, Impressions, Follower Trend Charts */}
         {/* Order for LTR: Engagement, Impressions, Followers Trend */}
@@ -860,7 +919,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-pink-500" />
+                  <Heart className="h-5 w-5 text-pink-600" />
                   {t('chart_engagement')}
                 </CardTitle>
               </CardHeader>
@@ -871,7 +930,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Eye className="h-5 w-5 text-pink-500" />
+                  <Eye className="h-5 w-5 text-pink-600" />
                   {t('chart_impressions')}
                 </CardTitle>
               </CardHeader>
@@ -882,7 +941,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-pink-500" />
+                  <Users className="h-5 w-5 text-pink-600" />
                   {t('chart_followers_trend')}
                 </CardTitle>
               </CardHeader>
@@ -906,7 +965,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-pink-500" />
+                  <Users className="h-5 w-5 text-pink-600" />
                   {t('chart_net_follower_growth')}
                 </CardTitle>
               </CardHeader>
@@ -917,7 +976,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <FileText className="h-5 w-5 text-pink-500" />
+                  <FileText className="h-5 w-5 text-pink-600" />
                   {t('chart_posts_by_platform')}
                 </CardTitle>
               </CardHeader>
@@ -928,7 +987,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-pink-500" />
+                  <Heart className="h-5 w-5 text-pink-600" />
                   {t('chart_engagement_rate')}
                 </CardTitle>
               </CardHeader>

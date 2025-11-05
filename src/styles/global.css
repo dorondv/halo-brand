@@ -1,3 +1,284 @@
 @layer theme, base, components, utilities;
 
 @import 'tailwindcss';
+
+@theme {
+  --color-pink-brand: #ec4899;
+  --color-pink-brand-light: #f472b6;
+  --color-pink-brand-lighter: #f9a8d4;
+}
+
+/* react-date-range custom styling */
+
+.rdrCalendar {
+  box-shadow: none !important;
+  border-radius: 0.5rem;
+  overflow: hidden;
+}
+
+.rdrDefinedRangesWrapper {
+  display: none;
+}
+
+.rdrDateDisplayWrapper {
+  background-color: transparent;
+}
+
+.rdrMonthAndYearPickers {
+  display: none;
+}
+
+.rdrWeekDays {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-align: center;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+/* Default day styling */
+.rdrDay {
+  background-color: transparent;
+}
+
+.rdrDayNumber {
+  font-weight: 500;
+  color: #374151;
+}
+
+.rdrDayNumber span {
+  color: #374151 !important;
+}
+
+/* Days from other months (outside current month) */
+.rdrDayPassive {
+  opacity: 0.5;
+}
+
+.rdrDayPassive .rdrDayNumber span {
+  color: #9ca3af !important;
+}
+
+/* Today's date */
+.rdrDayNumber.rdrDayToday .rdrDayNumberSpan {
+  background-color: black !important;
+  color: white !important;
+  border-radius: 0.5rem;
+  font-weight: 600;
+}
+
+.rdrDayNumber.rdrDayToday .rdrDayNumberSpan::after {
+  display: none;
+}
+
+.rdrDay.rdrDayToday {
+  font-weight: 600;
+}
+
+/* Hover state */
+.rdrDayHovered {
+  border-radius: 0.5rem;
+  background-color: #f3f4f6;
+}
+
+/* Selected range - start and end edges */
+.rdrStartEdge .rdrDayNumberSpan,
+.rdrEndEdge .rdrDayNumberSpan {
+  background-color: #ec4899 !important;
+  color: white !important;
+  border-radius: 0.5rem !important;
+  font-weight: 600;
+}
+
+.rdrStartEdge,
+.rdrEndEdge {
+  background-color: #ec4899 !important;
+}
+
+.rdrStartEdge .rdrDayNumber,
+.rdrEndEdge .rdrDayNumber {
+  background-color: #ec4899 !important;
+}
+
+/* Selected range - middle dates */
+.rdrInRange .rdrDayNumberSpan {
+  background-color: #fdf2f8 !important;
+  color: #ec4899 !important;
+}
+
+.rdrInRange {
+  background-color: #fff5fb !important;
+}
+
+.rdrInRange .rdrDayNumber {
+  background-color: #fff5fb !important;
+}
+
+/* Ensure unselected days don't have pink background */
+.rdrDay:not(.rdrStartEdge):not(.rdrEndEdge):not(.rdrInRange) .rdrDayNumberSpan {
+  background-color: transparent !important;
+  color: #374151 !important;
+}
+
+/* Make sure today's date styling overrides selection */
+.rdrDayToday.rdrStartEdge .rdrDayNumberSpan,
+.rdrDayToday.rdrEndEdge .rdrDayNumberSpan {
+  background-color: black !important;
+  color: white !important;
+}
+
+.rdrDayToday.rdrInRange .rdrDayNumberSpan {
+  background-color: #fdf2f8 !important;
+  color: #ec4899 !important;
+}
+
+/* Hide default navigation buttons */
+.rdrMonthPicker,
+.rdrYearPicker {
+  display: none;
+}
+
+.rdrNextPrevButton {
+  display: none;
+}
+
+/* Custom navigation styles */
+.rdrMonths {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  position: relative;
+}
+
+.rdrMonths .rdrMonth:first-child .rdrPprevButton {
+  display: block;
+}
+
+.rdrMonths .rdrMonth:last-child .rdrNextButton {
+  display: block;
+}
+
+.rdrPprevButton,
+.rdrNextButton {
+  position: absolute;
+  top: 0.5rem;
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: 1px solid #e5e7eb;
+  background: white;
+  color: #374151;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.rdrPprevButton:hover,
+.rdrNextButton:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
+.rdrPprevButton {
+  right: 20%; /* Position relative to the center of the second month */
+  transform: translateX(50%);
+}
+
+.rdrNextButton {
+  left: 20%; /* Position relative to the center of the first month */
+  transform: translateX(-50%);
+}
+
+/* Month names - show for each month separately */
+.rdrMonth {
+  position: relative;
+}
+
+.rdrMonthName {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  top: -2.5rem;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #374151;
+  z-index: 5;
+  pointer-events: none;
+}
+
+/* RTL adjustments for Hebrew */
+[dir='rtl'] .rdrPprevButton {
+  left: 20%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+[dir='rtl'] .rdrNextButton {
+  right: 20%;
+  left: auto;
+  transform: translateX(50%);
+}
+
+[dir='rtl'] .rdrMonthName {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+[dir='rtl'] .rdrDayNumber.rdrDayToday .rdrDayNumberSpan {
+  border-radius: 0.5rem;
+}
+
+[dir='rtl'] .rdrStartEdge {
+  border-radius: 0 0.5rem 0.5rem 0 !important;
+}
+
+[dir='rtl'] .rdrEndEdge {
+  border-radius: 0.5rem 0 0 0.5rem !important;
+}
+
+[dir='rtl'] .rdrWeekDays {
+  direction: rtl;
+}
+
+[dir='rtl'] .rdrMonths {
+  direction: rtl;
+}
+
+[dir='rtl'] .rdrMonth {
+  direction: rtl;
+}
+
+/* LTR adjustments for English */
+[dir='ltr'] .rdrPprevButton {
+  left: 20%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+[dir='ltr'] .rdrNextButton {
+  right: 20%;
+  left: auto;
+  transform: translateX(50%);
+}
+
+[dir='ltr'] .rdrMonthName {
+  left: 50%;
+  right: auto;
+  transform: translateX(-50%);
+}
+
+[dir='ltr'] .rdrWeekDays {
+  direction: ltr;
+}
+
+[dir='ltr'] .rdrMonths {
+  direction: ltr;
+}
+
+[dir='ltr'] .rdrMonth {
+  direction: ltr;
+}

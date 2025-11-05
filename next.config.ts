@@ -20,15 +20,36 @@ const baseConfig: NextConfig = {
   },
   // Optimize middleware bundle size by excluding unnecessary dependencies
   webpack: (config, { isServer }) => {
+    // Ensure tailwindcss resolves correctly from the project directory
+    const projectRoot = process.cwd();
+    try {
+      const tailwindcssPath = require.resolve('tailwindcss', { paths: [`${projectRoot}/node_modules`] });
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        tailwindcss: tailwindcssPath,
+      };
+    } catch {
+      // Fallback if require.resolve fails
+      console.warn('Could not resolve tailwindcss, using default resolution');
+    }
+
+    // Ensure resolve paths include the project root and node_modules
+    if (!config.resolve.modules) {
+      config.resolve.modules = [];
+    }
+    config.resolve.modules = [
+      ...new Set([
+        ...config.resolve.modules,
+        `${projectRoot}/node_modules`,
+        'node_modules',
+      ]),
+    ];
+
     if (!isServer) {
       return config;
     }
 
     // For Edge Runtime (middleware), optimize bundle size
-    config.resolve.alias = {
-      ...config.resolve.alias,
-    };
-
     // Reduce middleware bundle size by externalizing heavy dependencies when possible
     // Note: This is handled via dynamic imports in middleware.ts
     return config;

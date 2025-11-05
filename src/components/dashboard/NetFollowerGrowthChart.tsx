@@ -14,17 +14,19 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   }));
 
   return (
-    <div className="h-80 min-h-80 w-full min-w-0">
+    <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 0 }}>
+        <BarChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
           <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
           <YAxis
-            stroke="#be185d"
+            stroke="#6b7280"
             fontSize={12}
             tickMargin={10}
+            width={70}
             axisLine={false}
             tickLine={false}
+            tickFormatter={value => new Intl.NumberFormat('he-IL').format(value)}
           />
           <Tooltip
             contentStyle={{
@@ -36,7 +38,7 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
           />
           <Bar dataKey="growth" radius={[4, 4, 0, 0]}>
             {formattedData.map(entry => (
-              <Cell key={`cell-${entry.date}-${entry.growth}`} fill={entry.growth >= 0 ? '#F50A81' : '#9CA3AF'} />
+              <Cell key={`cell-${entry.date}-${entry.growth}`} fill={entry.growth >= 0 ? '#FF0083' : '#9CA3AF'} />
             ))}
           </Bar>
         </BarChart>

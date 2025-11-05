@@ -79,7 +79,7 @@ async function seed() {
 
   // Insert brands (companies)
   const brandsData = [
-    { name: 'Hello Brand', description: 'Main brand for social media marketing' },
+    { name: 'Halo Brand', description: 'Main brand for social media marketing' },
     { name: 'Demo Corp', description: 'Secondary brand for testing' },
   ];
 

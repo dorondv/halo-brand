@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
-import { ChevronDown, ChevronUp, FileText } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileText, Image } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -29,10 +29,10 @@ const PlatformIcon = ({ platform, className }: { platform: string; className?: s
 
   if (platformLower === 'instagram') {
     return (
-      <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={iconClass} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
         <rect x="2" y="2" width="20" height="20" rx="5" ry="5" />
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" />
+        <circle cx="12" cy="12" r="3.5" />
+        <line x1="17.5" y1="6.5" x2="17.51" y2="6.5" strokeLinecap="round" />
       </svg>
     );
   }
@@ -74,14 +74,24 @@ const PlatformIcon = ({ platform, className }: { platform: string; className?: s
   return <span className={iconClass}>📱</span>;
 };
 
-const platformColors: Record<string, string> = {
-  instagram: 'text-pink-500',
-  facebook: 'text-blue-600',
-  x: 'text-black',
-  twitter: 'text-black',
-  youtube: 'text-red-600',
-  linkedin: 'text-blue-700',
-  tiktok: 'text-black',
+const getPlatformBgColor = (platform: string) => {
+  const platformLower = platform.toLowerCase();
+  if (platformLower === 'instagram') {
+    return 'bg-gradient-to-br from-[#FCAF45] via-[#E4405F] to-[#833AB4]';
+  }
+  if (platformLower === 'facebook') {
+    return 'bg-blue-600';
+  }
+  if (platformLower === 'x' || platformLower === 'twitter') {
+    return 'bg-black';
+  }
+  if (platformLower === 'youtube') {
+    return 'bg-red-600';
+  }
+  if (platformLower === 'linkedin') {
+    return 'bg-blue-700';
+  }
+  return 'bg-gray-600';
 };
 
 const getScoreColor = (score: number) => {
@@ -165,7 +175,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
     <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <FileText className="h-5 w-5 text-pink-500" />
+          <FileText className="h-5 w-5 text-pink-600" />
           {t('posts_details_title')}
         </CardTitle>
         <p className="mt-2 text-sm text-gray-600">
@@ -177,35 +187,19 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200">
-                <th
-                  className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  onClick={() => handleSort('score')}
-                >
-                  <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                    {t('posts_table_score')}
-                    {sortColumn === 'score' && (
-                      sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
-                    )}
-                  </div>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                  {t('posts_table_platform')}
+                </th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">
+                  {t('posts_table_post')}
                 </th>
                 <th
                   className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  onClick={() => handleSort('engagementRate')}
+                  onClick={() => handleSort('date')}
                 >
                   <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                    {t('posts_table_engagement_rate')}
-                    {sortColumn === 'engagementRate' && (
-                      sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
-                    )}
-                  </div>
-                </th>
-                <th
-                  className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  onClick={() => handleSort('engagement')}
-                >
-                  <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                    {t('posts_table_engagement')}
-                    {sortColumn === 'engagement' && (
+                    {t('posts_table_date')}
+                    {sortColumn === 'date' && (
                       sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
                     )}
                   </div>
@@ -223,20 +217,36 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                 </th>
                 <th
                   className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
-                  onClick={() => handleSort('date')}
+                  onClick={() => handleSort('engagement')}
                 >
                   <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                    {t('posts_table_date')}
-                    {sortColumn === 'date' && (
+                    {t('posts_table_engagement')}
+                    {sortColumn === 'engagement' && (
                       sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
                     )}
                   </div>
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">
-                  {t('posts_table_post')}
+                <th
+                  className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => handleSort('engagementRate')}
+                >
+                  <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                    {t('posts_table_engagement_rate')}
+                    {sortColumn === 'engagementRate' && (
+                      sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
+                    )}
+                  </div>
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700">
-                  {t('posts_table_platform')}
+                <th
+                  className="cursor-pointer px-4 py-3 text-right text-sm font-medium text-gray-700 hover:bg-gray-50"
+                  onClick={() => handleSort('score')}
+                >
+                  <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                    {t('posts_table_score')}
+                    {sortColumn === 'score' && (
+                      sortDirection === 'desc' ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />
+                    )}
+                  </div>
                 </th>
               </tr>
             </thead>
@@ -246,25 +256,24 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                 const dayName = format(postDate, 'EEEE', { locale: dfLocale });
                 const dateStr = format(postDate, 'dd/MM/yyyy');
                 const timeStr = format(postDate, 'HH:mm');
-                const platformLower = post.platform.toLowerCase();
-                const platformColor = platformColors[platformLower] || 'text-gray-600';
 
                 return (
                   <tr key={`post-${post.date}-${post.platform}-${post.engagement}-${post.postContent.slice(0, 20)}`} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-4 text-right">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
-                        {post.score}
-                      </span>
+                    <td className="px-4 py-4">
+                      <div className="flex items-center justify-center">
+                        <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
+                          <PlatformIcon platform={post.platform} className="h-5 w-5 text-white" />
+                        </div>
+                      </div>
                     </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {post.engagementRate.toFixed(2)}
-                      %
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.engagement)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.impressions)}
+                    <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                      <div className={`flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
+                        <span className="text-xs text-gray-500">{t('posts_table_post_media')}</span>
+                        <Image className="h-4 w-4 text-gray-400" />
+                      </div>
+                      <div className={`mt-1 truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                        {post.postContent}
+                      </div>
                     </td>
                     <td className="px-4 py-4 text-right text-sm text-gray-700">
                       <div>
@@ -273,18 +282,20 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                         <div className="text-xs text-gray-500">{dayName}</div>
                       </div>
                     </td>
-                    <td className="max-w-md px-4 py-4 text-right text-sm text-gray-700">
-                      <div className="truncate" title={post.postContent}>
-                        {post.postContent}
-                      </div>
+                    <td className="px-4 py-4 text-right text-sm text-gray-700">
+                      {new Intl.NumberFormat('he-IL').format(post.impressions)}
+                    </td>
+                    <td className="px-4 py-4 text-right text-sm text-gray-700">
+                      {new Intl.NumberFormat('he-IL').format(post.engagement)}
+                    </td>
+                    <td className="px-4 py-4 text-right text-sm text-gray-700">
+                      {post.engagementRate.toFixed(2)}
+                      %
                     </td>
                     <td className="px-4 py-4 text-right">
-                      <div className={`flex items-center gap-2 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        <span className={platformColor}>
-                          <PlatformIcon platform={post.platform} />
-                        </span>
-                        <span className="text-xs text-gray-500">{t('posts_table_post_media')}</span>
-                      </div>
+                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
+                        {post.score}
+                      </span>
                     </td>
                   </tr>
                 );

@@ -2,8 +2,17 @@
 
 import { X } from 'lucide-react';
 import * as React from 'react';
-import { createPortal } from 'react-dom';
 import { cn } from '@/libs/cn';
+
+// Lazy load createPortal to avoid SSR issues in Next.js 16
+let createPortalFn: typeof import('react-dom').createPortal | null = null;
+const loadCreatePortal = async () => {
+  if (typeof window !== 'undefined' && !createPortalFn) {
+    const reactDom = await import('react-dom');
+    createPortalFn = reactDom.createPortal;
+  }
+  return createPortalFn;
+};
 
 type DialogContextValue = {
   open: boolean;
@@ -14,11 +23,18 @@ const DialogContext = React.createContext<DialogContextValue | null>(null);
 
 export function Dialog({ children, open, onOpenChange }: { children: React.ReactNode; open: boolean; onOpenChange: (open: boolean) => void }) {
   const [mounted, setMounted] = React.useState(false);
+  const [portalReady, setPortalReady] = React.useState(false);
 
   React.useLayoutEffect(() => {
     if (!mounted) {
       // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setMounted(true);
+      // Load createPortal on client side only
+      if (typeof window !== 'undefined') {
+        loadCreatePortal().then(() => {
+          setPortalReady(true);
+        });
+      }
     }
   }, [mounted]);
 
@@ -33,11 +49,11 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
     };
   }, [open]);
 
-  if (!open || !mounted) {
+  if (!open || !mounted || !portalReady || !createPortalFn) {
     return null;
   }
 
-  return createPortal(
+  return createPortalFn(
     <DialogContext value={{ open, onOpenChange }}>
       <div className="fixed inset-0 z-9999 flex items-center justify-center">
         {/* Backdrop/Overlay */}

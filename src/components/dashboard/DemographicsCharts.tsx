@@ -8,7 +8,7 @@ type CountryData = { name: string; value: number };
 type GenderData = { name: string; value: number };
 type AgeData = { name: string; value: number };
 
-const pinkShades = ['#F50A81', '#F973A8', '#FCB5D8', '#FECFE8', '#FFF0F8'];
+const pinkShades = ['#FF0083', '#FF3399', '#FF66B3', '#FF99CC', '#FFCCE6'];
 const grayShade = '#9CA3AF';
 
 const EMPTY_COUNTRIES: CountryData[] = [];
@@ -65,7 +65,7 @@ function DemographicsCharts({
     <Card key="countries" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Globe className="h-5 w-5 text-pink-500" />
+          <Globe className="h-5 w-5 text-pink-600" />
           {countriesTitle}
         </CardTitle>
       </CardHeader>
@@ -120,7 +120,7 @@ function DemographicsCharts({
     <Card key="gender" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Users className="h-5 w-5 text-pink-500" />
+          <Users className="h-5 w-5 text-pink-600" />
           {genderTitle}
         </CardTitle>
       </CardHeader>
@@ -175,7 +175,7 @@ function DemographicsCharts({
     <Card key="age" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <Users className="h-5 w-5 text-pink-500" />
+          <Users className="h-5 w-5 text-pink-600" />
           {ageTitle}
         </CardTitle>
       </CardHeader>

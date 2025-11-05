@@ -1,16 +1,16 @@
-import { Zap } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SignInForm } from '@/components/auth/SignInForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Logo } from '@/components/ui/Logo';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function SignInPage() {
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
-  if (session) {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
     redirect('/dashboard');
   }
   const t = await getTranslations('Auth');
@@ -18,26 +18,23 @@ export default async function SignInPage() {
   const isRTL = locale === 'he';
 
   return (
-    <div className="absolute inset-0 min-h-screen w-screen bg-gradient-to-br from-pink-50 via-white to-orange-50" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="absolute inset-0 min-h-screen w-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Locale Switcher - Top Right */}
       <div className={`absolute top-6 z-10 ${isRTL ? 'left-6' : 'right-6'}`}>
         <LocaleSwitcher />
       </div>
 
       {/* Header */}
-      <header className="container mx-auto px-6 py-6">
+      <header className="container mx-auto px-6 pt-6 pb-2">
         <div className="flex items-center justify-center">
-          <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">Hello Brand</span>
-            <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
-              <Zap className="h-8 w-8 text-white" />
-            </div>
+          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
+            <Logo width={140} height={35} className="text-white" />
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <div className="container mx-auto px-6 py-12">
+      <div className="container mx-auto px-6 pt-4 pb-12">
         <div className="mx-auto max-w-md">
           <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
             <CardHeader className="pb-4 text-center">

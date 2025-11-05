@@ -1,9 +1,10 @@
-import { ArrowLeft, ArrowRight, Calendar, Check, Sparkles, TrendingUp, Users, Zap } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Calendar, Check, Sparkles, TrendingUp, Users } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
@@ -12,7 +13,7 @@ export default async function MarketingPage() {
   const locale = await getLocale();
   const isRTL = locale === 'he';
   const supabase = await createSupabaseServerClient();
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { user } } = await supabase.auth.getUser();
   const features = [
     {
       icon: Calendar,
@@ -37,20 +38,17 @@ export default async function MarketingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-orange-50" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
-            <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-2xl font-bold text-transparent">Hello Brand</span>
-            <div className="rounded-lg bg-gradient-to-br from-pink-500 to-orange-400 p-2">
-              <Zap className="h-8 w-8 text-white" />
-            </div>
+          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
+            <Logo width={140} height={35} className="text-white" />
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>
-            {!session && (
+            {!user && (
               <>
                 <LocaleSwitcher />
                 <Link
@@ -61,7 +59,7 @@ export default async function MarketingPage() {
                 </Link>
               </>
             )}
-            {session && (
+            {user && (
               <>
                 {isRTL
                   ? (
@@ -71,16 +69,16 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2 flex-row-reverse',
-                            'hover:from-pink-600 hover:to-orange-500 transition-all',
+                            'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
                         >
                           {t('go_to_dashboard')}
                           <ArrowLeft className="h-4 w-4" />
                         </Link>
                         <span className="text-sm text-gray-600">
-                          {t('greeting', { email: session.user.email ?? '' })}
+                          {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <LocaleSwitcher />
                       </>
@@ -91,14 +89,14 @@ export default async function MarketingPage() {
                       <>
                         <LocaleSwitcher />
                         <span className="text-sm text-gray-600">
-                          {t('greeting', { email: session.user.email ?? '' })}
+                          {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2',
-                            'hover:from-pink-600 hover:to-orange-500 transition-all',
+                            'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
                         >
                           {t('go_to_dashboard')}
@@ -121,7 +119,7 @@ export default async function MarketingPage() {
               <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl">
                 {t('hero_line1')}
                 {' '}
-                <span className="bg-gradient-to-r from-pink-600 to-orange-500 bg-clip-text text-transparent">
+                <span className="bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent">
                   {t('hero_line2_highlight')}
                 </span>
                 {' '}
@@ -169,7 +167,7 @@ export default async function MarketingPage() {
 
           {/* Sign Up Form - Visual right in LTR, visual left in RTL */}
           <div>
-            {!session && (
+            {!user && (
               <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
                 <CardHeader className="pb-4 text-center">
                   <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
@@ -190,7 +188,7 @@ export default async function MarketingPage() {
 
       {/* Benefits Section - Gradient Background */}
       <div className="container mx-auto px-6 py-12">
-        <div className="rounded-3xl bg-gradient-to-br from-pink-500 to-orange-400 p-12 text-white">
+        <div className="rounded-3xl bg-gradient-to-br from-pink-500 to-pink-600 p-12 text-white">
           <div className="mx-auto max-w-3xl space-y-6 text-center">
             <h2 className="text-4xl font-bold">
               {t('benefits_title')}
