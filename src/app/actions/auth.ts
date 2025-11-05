@@ -3,7 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/libs/Supabase';
-import { getBaseUrl } from '@/utils/Helpers';
+import { getAuthCallbackUrl } from '@/utils/Helpers';
 
 // Lazy load Arcjet only when needed (avoids bundling in middleware)
 async function protectWithArcjet(isSignup: boolean) {
@@ -139,12 +139,13 @@ export async function signOut() {
 
 export async function signInWithGoogle() {
   const supabase = await createSupabaseServerClient();
-  const baseUrl = getBaseUrl();
+  const headersList = await headers();
+  const callbackUrl = await getAuthCallbackUrl(headersList);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${baseUrl}/api/auth/callback`,
+      redirectTo: callbackUrl,
     },
   });
 
@@ -165,12 +166,13 @@ export async function signInWithGoogle() {
 
 export async function signInWithFacebook() {
   const supabase = await createSupabaseServerClient();
-  const baseUrl = getBaseUrl();
+  const headersList = await headers();
+  const callbackUrl = await getAuthCallbackUrl(headersList);
 
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'facebook',
     options: {
-      redirectTo: `${baseUrl}/api/auth/callback`,
+      redirectTo: callbackUrl,
     },
   });
 
