@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import { Calendar, Hash, Send, X } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import React, { useState } from 'react';
 import MediaUpload from '@/components/create/MediaUpload';
@@ -11,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { cn } from '@/libs/cn';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -35,6 +37,9 @@ const mockAccounts: Account[] = [
 
 export default function CreatePostPage() {
   const router = useRouter();
+  const t = useTranslations('CreatePost');
+  const locale = useLocale();
+  const isRTL = locale === 'he';
   const [formData, setFormData] = useState({
     content: '',
     platforms: [] as Platform[],
@@ -95,13 +100,13 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="min-h-screen p-6">
+    <div className="min-h-screen p-6" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="mx-auto max-w-4xl space-y-8">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
           <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
-            Create New Post
+            {t('title')}
           </h1>
-          <p className="mt-2 text-lg text-slate-500">Create engaging and inspiring content for your audience</p>
+          <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
         </motion.div>
 
         <form onSubmit={handleSubmit} className="space-y-8">
@@ -109,26 +114,26 @@ export default function CreatePostPage() {
             <div className="space-y-6 lg:col-span-2">
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                     <Send className="h-5 w-5 text-blue-500" />
-                    Post Content
+                    {t('post_content_title')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Textarea
-                    placeholder="What's on your mind?"
+                    placeholder={t('content_placeholder')}
                     value={formData.content}
                     onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
                     className="min-h-[120px] resize-none border-gray-200 transition-all duration-300 focus:border-blue-300"
                   />
 
-                  <div className="flex justify-between text-sm text-slate-500">
+                  <div className={cn('flex text-sm text-slate-500', isRTL ? 'flex-row-reverse justify-between' : 'justify-between')}>
                     <span>
                       {formData.content.length}
                       {' '}
-                      characters
+                      {t('characters')}
                     </span>
-                    <span>Tip: Add a question or call to action</span>
+                    <span>{t('tip')}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -140,14 +145,14 @@ export default function CreatePostPage() {
 
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
+                  <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                     <Hash className="h-5 w-5 text-emerald-500" />
-                    Hashtags
+                    {t('hashtags_title')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <Input
-                    placeholder="Add hashtags (press Enter)"
+                    placeholder={t('hashtags_placeholder')}
                     value={hashtagInput}
                     onChange={e => setHashtagInput(e.target.value)}
                     onKeyPress={addHashtag}
@@ -197,15 +202,15 @@ export default function CreatePostPage() {
               >
                 {isSubmitting
                   ? (
-                      <div className="flex items-center gap-2">
+                      <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                        {scheduleMode === 'now' ? 'Publishing...' : 'Scheduling...'}
+                        {scheduleMode === 'now' ? t('publishing') : t('scheduling')}
                       </div>
                     )
                   : (
-                      <div className="flex items-center gap-2">
+                      <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                         {scheduleMode === 'now' ? <Send className="h-5 w-5" /> : <Calendar className="h-5 w-5" />}
-                        {scheduleMode === 'now' ? 'Publish Now' : 'Schedule Post'}
+                        {scheduleMode === 'now' ? t('publish_now') : t('schedule_post')}
                       </div>
                     )}
               </Button>

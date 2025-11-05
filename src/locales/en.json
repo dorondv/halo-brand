@@ -140,5 +140,19 @@
   },
   "DashboardLayout": {
     "sign_out": "Sign out"
+  },
+  "CreatePost": {
+    "title": "Create New Post",
+    "subtitle": "Create engaging and inspiring content for your audience",
+    "post_content_title": "Post Content",
+    "content_placeholder": "What's on your mind?",
+    "characters": "characters",
+    "tip": "Tip: Add a question or call to action",
+    "hashtags_title": "Hashtags",
+    "hashtags_placeholder": "Add hashtags (press Enter)",
+    "publishing": "Publishing...",
+    "scheduling": "Scheduling...",
+    "publish_now": "Publish Now",
+    "schedule_post": "Schedule Post"
   }
 }

@@ -2,7 +2,6 @@
 
 import { Check, Facebook, Hash, Instagram, Linkedin, MessageSquare, Play, Users } from 'lucide-react';
 import React from 'react';
-import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 const XIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -138,7 +137,11 @@ export default function PlatformSelector({ accounts, selectedPlatforms, onPlatfo
                     : 'Not connected'}
                 </p>
               </div>
-              {isSelected && <Badge className="bg-pink-500 text-white">Selected</Badge>}
+              {isSelected && (
+                <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-pink-500 text-white">
+                  <Check className="h-4 w-4" />
+                </div>
+              )}
             </div>
           );
         })}

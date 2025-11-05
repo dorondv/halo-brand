@@ -140,5 +140,19 @@
   },
   "DashboardLayout": {
     "sign_out": "התנתקות"
+  },
+  "CreatePost": {
+    "title": "צור פוסט חדש",
+    "subtitle": "צור תוכן מעניין ומעורר השראה לקהל שלך",
+    "post_content_title": "תוכן הפוסט",
+    "content_placeholder": "מה על דעתך?",
+    "characters": "תווים",
+    "tip": "טיפ: הוסף שאלה או קריאה לפעולה",
+    "hashtags_title": "שטאגים",
+    "hashtags_placeholder": "הוסף האשטאגים (לחץ Enter)",
+    "publishing": "מפרסם...",
+    "scheduling": "מתזמן...",
+    "publish_now": "פרסם עכשיו",
+    "schedule_post": "תזמן פוסט"
   }
 }
