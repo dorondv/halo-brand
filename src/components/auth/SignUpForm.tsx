@@ -120,19 +120,6 @@ export function SignUpForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="companyName" className="text-sm font-medium text-gray-900">
-            {t('company_brand_label')}
-          </Label>
-          <Input
-            id="companyName"
-            name="companyName"
-            type="text"
-            placeholder={t('company_brand_placeholder')}
-            required
-            className="h-12 rounded-md border-gray-300"
-          />
-        </div>
-        <div className="space-y-2">
           <Label htmlFor="email" className="text-sm font-medium text-gray-900">
             {t('email_label')}
           </Label>
@@ -164,9 +151,9 @@ export function SignUpForm() {
           type="submit"
           disabled={isPending}
           className={cn(
-            'w-full h-12 text-lg rounded-md bg-gradient-to-r from-pink-500 to-orange-400 px-4 py-2',
+            'w-full h-12 text-lg rounded-md bg-gradient-to-br from-pink-500 to-pink-600 px-4 py-2',
             'text-white font-medium flex items-center justify-center gap-2',
-            'hover:from-pink-600 hover:to-orange-500 transition-all',
+            'hover:from-pink-600 hover:to-pink-700 transition-all',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             isRTL ? 'flex-row-reverse' : '',
           )}
