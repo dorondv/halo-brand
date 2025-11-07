@@ -5,6 +5,7 @@ import Image from 'next/image';
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 type MediaUploadProps = {
   mediaUrls: string[];
@@ -14,6 +15,7 @@ type MediaUploadProps = {
 export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -22,30 +24,76 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
     }
 
     setIsUploading(true);
+    setUploadError(null);
+
     try {
-      // Mock upload - in real implementation, you would upload to Supabase Storage
-      // For now, we'll create object URLs for preview
-      const newUrls: string[] = [];
-      for (const file of files) {
-        // Create a mock URL for preview (in production, this would be the uploaded file URL)
-        const mockUrl = URL.createObjectURL(file);
-        newUrls.push(mockUrl);
+      const supabase = createSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Not authenticated');
       }
+
+      // Get user ID
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      const userId = userRecord?.id || session.user.id;
+
+      const newUrls: string[] = [];
+
+      for (const file of files) {
+        // Validate file size (10MB limit)
+        const maxSize = 10 * 1024 * 1024; // 10MB
+        if (file.size > maxSize) {
+          throw new Error(`File ${file.name} exceeds 10MB limit`);
+        }
+
+        // Generate unique file name
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${userId}/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+        // Upload to Supabase Storage
+        const { error: uploadError } = await supabase.storage
+          .from('post-media')
+          .upload(fileName, file, {
+            cacheControl: '3600',
+            upsert: false,
+          });
+
+        if (uploadError) {
+          console.error('Upload error:', uploadError);
+          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+        }
+
+        // Get public URL
+        const { data: { publicUrl } } = supabase.storage
+          .from('post-media')
+          .getPublicUrl(fileName);
+
+        newUrls.push(publicUrl);
+      }
+
       onMediaUpdate([...mediaUrls, ...newUrls]);
     } catch (error) {
       console.error('Error uploading files:', error);
-    }
-    setIsUploading(false);
-
-    // Reset file input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
+      setUploadError(error instanceof Error ? error.message : 'Failed to upload files');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
     }
   };
 
   const removeMedia = (urlToRemove: string) => {
-    // Revoke object URL to free memory
-    URL.revokeObjectURL(urlToRemove);
+    // Only revoke object URLs (blob: URLs), not Supabase Storage URLs
+    if (urlToRemove.startsWith('blob:')) {
+      URL.revokeObjectURL(urlToRemove);
+    }
     onMediaUpdate(mediaUrls.filter(url => url !== urlToRemove));
   };
 
@@ -84,6 +132,12 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
           onChange={handleFileUpload}
           className="hidden"
         />
+
+        {uploadError && (
+          <div className="rounded-lg bg-red-50 p-3 text-sm text-red-600">
+            {uploadError}
+          </div>
+        )}
 
         <Button
           type="button"

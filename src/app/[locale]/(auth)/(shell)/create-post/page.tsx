@@ -4,7 +4,7 @@ import { motion } from 'framer-motion';
 import { Calendar, Hash, Send, X } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter } from 'next/navigation';
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import MediaUpload from '@/components/create/MediaUpload';
 import PlatformSelector from '@/components/create/PlatformSelector';
 import ScheduleSelector from '@/components/create/ScheduleSelector';
@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/libs/cn';
+import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -25,15 +26,6 @@ type Account = {
   platform: Platform;
   account_name: string;
 };
-
-// Mock accounts data - showing all platforms with some connected
-const mockAccounts: Account[] = [
-  { id: '1', platform: 'instagram', account_name: '@mybrand' },
-  { id: '2', platform: 'x', account_name: '@mybrand' },
-  { id: '3', platform: 'facebook', account_name: 'My Brand Page' },
-  { id: '4', platform: 'linkedin', account_name: 'My Brand' },
-  // YouTube, TikTok, and Threads are not connected (will show "Not connected")
-];
 
 export default function CreatePostPage() {
   const router = useRouter();
@@ -50,32 +42,143 @@ export default function CreatePostPage() {
   const [hashtagInput, setHashtagInput] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [error, setError] = useState<string | null>(null);
+
+  // Load social accounts from database
+  const loadAccounts = useCallback(async () => {
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        return;
+      }
+
+      // Get user ID
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      const userId = userRecord?.id || session.user.id;
+
+      // Fetch all active social accounts for this user
+      const { data, error: fetchError } = await supabase
+        .from('social_accounts')
+        .select('id,platform,account_name')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (fetchError) {
+        console.error('Error fetching accounts:', fetchError);
+        setAccounts([]);
+      } else {
+        const accountsData: Account[] = (data || []).map(acc => ({
+          id: acc.id,
+          platform: (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform,
+          account_name: acc.account_name || '',
+        }));
+        setAccounts(accountsData);
+      }
+    } catch (err) {
+      console.error('Error loading accounts:', err);
+      setAccounts([]);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadAccounts();
+  }, [loadAccounts]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.content.trim() || formData.platforms.length === 0) {
+      setError('Please provide content and select at least one platform');
       return;
     }
 
     setIsSubmitting(true);
-    try {
-      // Mock submission - in production, this would call an API
-      // Post data prepared - uncomment when ready to use:
-      // const postData = {
-      //   ...formData,
-      //   status: scheduleMode === 'now' ? 'published' : 'scheduled',
-      //   scheduled_time: scheduleMode === 'later' ? formData.scheduled_time : null,
-      // };
+    setError(null);
 
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    try {
+      // Determine media type
+      const firstMediaUrl = formData.media_urls[0];
+      const mediaType = formData.media_urls.length > 0 && firstMediaUrl ? (firstMediaUrl.includes('video') ? 'video' : 'image') : 'text';
+
+      // Create post in database
+      const postResponse = await fetch('/api/posts', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          content: formData.content,
+          image_url: formData.media_urls.length > 0 ? formData.media_urls[0] : null,
+          hashtags: formData.hashtags,
+          media_type: mediaType,
+          metadata: {
+            media_urls: formData.media_urls,
+            platforms: formData.platforms,
+          },
+        }),
+      });
+
+      if (!postResponse.ok) {
+        const errorData = await postResponse.json();
+        throw new Error(errorData.error || 'Failed to create post');
+      }
+
+      const { data: postData } = await postResponse.json();
+      const postId = postData[0]?.id;
+
+      if (!postId) {
+        throw new Error('Failed to get post ID');
+      }
+
+      // If scheduling, create scheduled posts for each selected platform
+      if (scheduleMode === 'later' && formData.scheduled_time) {
+        // Get accounts for selected platforms
+        const accountsForPlatforms = accounts.filter(acc =>
+          formData.platforms.includes(acc.platform),
+        );
+
+        if (accountsForPlatforms.length === 0) {
+          throw new Error('No connected accounts found for selected platforms');
+        }
+
+        // Create scheduled posts for each account
+        const schedulePromises = accountsForPlatforms.map(account =>
+          fetch('/api/schedule', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              postId,
+              socialAccountId: account.id,
+              scheduledFor: formData.scheduled_time,
+            }),
+          }),
+        );
+
+        const scheduleResults = await Promise.all(schedulePromises);
+        const failedSchedules = scheduleResults.filter(r => !r.ok);
+
+        if (failedSchedules.length > 0) {
+          console.error('Some schedules failed:', failedSchedules);
+          // Continue anyway - at least the post was created
+        }
+      }
 
       // Navigate to dashboard after successful submission
       router.push('/dashboard');
-    } catch (error) {
-      console.error('Error creating post:', error);
+    } catch (err) {
+      console.error('Error creating post:', err);
+      setError(err instanceof Error ? err.message : 'Failed to create post');
+    } finally {
+      setIsSubmitting(false);
     }
-    setIsSubmitting(false);
   };
 
   const addHashtag = (e: React.KeyboardEvent<HTMLInputElement>) => {
@@ -182,8 +285,15 @@ export default function CreatePostPage() {
             </div>
 
             <div className="space-y-6">
+              {error && (
+                <Card className="border-red-200 bg-red-50">
+                  <CardContent className="pt-6">
+                    <p className="text-sm text-red-600">{error}</p>
+                  </CardContent>
+                </Card>
+              )}
               <PlatformSelector
-                accounts={mockAccounts}
+                accounts={accounts}
                 selectedPlatforms={formData.platforms}
                 onPlatformsChange={platforms => setFormData(prev => ({ ...prev, platforms }))}
               />

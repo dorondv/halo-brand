@@ -1,9 +1,10 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Lightbulb, Settings as SettingsIcon, Sun, User as UserIcon } from 'lucide-react';
+import { Clock, Globe, Lightbulb, Settings as SettingsIcon, Sun, User as UserIcon } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
+import AvatarUpload from '@/components/settings/AvatarUpload';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -71,6 +72,7 @@ export default function SettingsPage() {
     language: 'he',
     timezone: 'Asia/Jerusalem',
     light_mode: true,
+    avatar_url: null as string | null,
   });
 
   const countries = getCountries(t as any);
@@ -92,6 +94,7 @@ export default function SettingsPage() {
         language: data.language || 'he',
         timezone: data.timezone || 'Asia/Jerusalem',
         light_mode: data.light_mode ?? true,
+        avatar_url: data.avatar_url || null,
       });
     } catch (error) {
       console.error('Error loading user settings:', error);
@@ -104,6 +107,7 @@ export default function SettingsPage() {
         language: 'he',
         timezone: 'Asia/Jerusalem',
         light_mode: true,
+        avatar_url: null,
       });
     }
     setIsLoading(false);
@@ -136,6 +140,7 @@ export default function SettingsPage() {
           language: userProfile.language,
           timezone: userProfile.timezone,
           light_mode: userProfile.light_mode,
+          avatar_url: userProfile.avatar_url,
         }),
       });
 
@@ -154,6 +159,7 @@ export default function SettingsPage() {
         language: data.language || 'he',
         timezone: data.timezone || 'Asia/Jerusalem',
         light_mode: data.light_mode ?? true,
+        avatar_url: data.avatar_url || null,
       });
 
       // Show success toast
@@ -165,7 +171,7 @@ export default function SettingsPage() {
     setIsSaving(false);
   };
 
-  const handleInputChange = (field: string, value: string | boolean) => {
+  const handleInputChange = (field: string, value: string | boolean | null) => {
     setUserProfile(prev => ({
       ...prev,
       [field]: value,
@@ -187,8 +193,14 @@ export default function SettingsPage() {
     <div className="min-h-screen p-6" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="mx-auto max-w-4xl space-y-8">
         <motion.div initial={{ opacity: 0, y: 20 }} animate={{ opacity: 1, y: 0 }}>
-          <div className={isRTL ? 'text-right' : 'text-left'}>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
+          <div>
+            <h1 className={cn(
+              'bg-clip-text text-4xl font-bold text-transparent',
+              isRTL
+                ? 'bg-gradient-to-l from-slate-900 to-slate-600'
+                : 'bg-gradient-to-r from-slate-900 to-slate-600',
+            )}
+            >
               {t('title')}
             </h1>
             <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
@@ -197,49 +209,72 @@ export default function SettingsPage() {
 
         <div className="grid gap-8">
           {/* Personal Information */}
-          <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+          <Card className="glass-effect border-white/20 shadow-xl">
             <CardHeader>
-              <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                <UserIcon className="h-5 w-5 text-pink-500" />
-                {t('personal_info_title')}
+              <CardTitle className="flex items-center gap-2">
+                {isRTL
+                  ? (
+                      <>
+                        {t('personal_info_title')}
+                        <UserIcon className="h-5 w-5 text-pink-500" />
+                      </>
+                    )
+                  : (
+                      <>
+                        <UserIcon className="h-5 w-5 text-pink-500" />
+                        {t('personal_info_title')}
+                      </>
+                    )}
               </CardTitle>
-              <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+              <CardDescription>
                 {t('personal_info_desc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Avatar Upload */}
+              <div className="space-y-2">
+                <Label>{t('avatar')}</Label>
+                <AvatarUpload
+                  currentAvatarUrl={userProfile.avatar_url}
+                  onAvatarUpdate={url => handleInputChange('avatar_url', url)}
+                  isRTL={isRTL}
+                />
+              </div>
+
               <div className="grid grid-cols-1 gap-6 md:grid-cols-2">
-                <div>
+                <div className="space-y-2">
                   <Label htmlFor="firstName">{t('first_name')}</Label>
                   <Input
                     id="firstName"
                     placeholder={t('first_name_placeholder')}
                     value={userProfile.first_name}
                     onChange={e => handleInputChange('first_name', e.target.value)}
-                    className="mt-2"
+                    disabled={isLoading}
                     dir={isRTL ? 'rtl' : 'ltr'}
                   />
                 </div>
-                <div>
+
+                <div className="space-y-2">
                   <Label htmlFor="lastName">{t('last_name')}</Label>
                   <Input
                     id="lastName"
                     placeholder={t('last_name_placeholder')}
                     value={userProfile.last_name}
                     onChange={e => handleInputChange('last_name', e.target.value)}
-                    className="mt-2"
+                    disabled={isLoading}
                     dir={isRTL ? 'rtl' : 'ltr'}
                   />
                 </div>
               </div>
-              <div>
+
+              <div className="space-y-2">
                 <Label htmlFor="idNumber">{t('id_number')}</Label>
                 <Input
                   id="idNumber"
                   placeholder={t('id_number_placeholder')}
                   value={userProfile.id_number}
                   onChange={e => handleInputChange('id_number', e.target.value)}
-                  className="mt-2"
+                  disabled={isLoading}
                   dir={isRTL ? 'rtl' : 'ltr'}
                 />
               </div>
@@ -247,21 +282,33 @@ export default function SettingsPage() {
           </Card>
 
           {/* Appearance and Display */}
-          <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+          <Card className="glass-effect border-white/20 shadow-xl">
             <CardHeader>
-              <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                <SettingsIcon className="h-5 w-5 text-pink-500" />
-                {t('appearance_title')}
+              <CardTitle className="flex items-center gap-2">
+                {isRTL
+                  ? (
+                      <>
+                        {t('appearance_title')}
+                        <Clock className="h-5 w-5 text-pink-500" />
+                      </>
+                    )
+                  : (
+                      <>
+                        <Clock className="h-5 w-5 text-pink-500" />
+                        {t('appearance_title')}
+                      </>
+                    )}
               </CardTitle>
-              <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+              <CardDescription>
                 {t('appearance_desc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {/* Light Mode Toggle */}
               <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
                 <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
                   <Sun className="h-5 w-5 text-yellow-500" />
-                  <div className={isRTL ? 'text-right' : 'text-left'}>
+                  <div>
                     <Label htmlFor="lightMode" className="text-base font-medium text-slate-800">
                       {t('light_mode')}
                     </Label>
@@ -282,96 +329,129 @@ export default function SettingsPage() {
                   <span
                     className={cn(
                       'absolute inline-block h-4 w-4 transform rounded-full bg-white shadow-sm transition-all duration-200 ease-in-out',
-                      userProfile.light_mode ? 'right-1' : 'left-1',
+                      userProfile.light_mode ? (isRTL ? 'left-1' : 'right-1') : (isRTL ? 'right-1' : 'left-1'),
                     )}
                   />
                 </button>
               </div>
-              <div className={cn('flex items-start gap-3 rounded-lg bg-blue-50 p-4', isRTL ? 'flex-row-reverse' : '')}>
+              {/* Tip Section */}
+              <div className={cn('flex items-start gap-3 rounded-lg bg-blue-50 border border-blue-200 p-4', isRTL ? 'flex-row-reverse' : '')}>
                 <Lightbulb className="h-5 w-5 shrink-0 text-yellow-500" />
-                <p className={cn('text-sm text-blue-700', isRTL ? 'text-right' : 'text-left')}>
+                <p className="text-sm text-blue-700">
                   {t('save_tip')}
                 </p>
               </div>
             </CardContent>
           </Card>
 
-          {/* Preferences */}
-          <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+          {/* System Preferences */}
+          <Card className="glass-effect border-white/20 shadow-xl">
             <CardHeader>
-              <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                <SettingsIcon className="h-5 w-5 text-pink-500" />
-                {t('preferences_title')}
+              <CardTitle className="flex items-center gap-2">
+                {isRTL
+                  ? (
+                      <>
+                        {t('preferences_title')}
+                        <SettingsIcon className="h-5 w-5 text-pink-500" />
+                      </>
+                    )
+                  : (
+                      <>
+                        <SettingsIcon className="h-5 w-5 text-pink-500" />
+                        {t('preferences_title')}
+                      </>
+                    )}
               </CardTitle>
-              <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+              <CardDescription>
                 {t('preferences_desc')}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div>
-                <Label htmlFor="country">{t('country')}</Label>
-                <Select
-                  value={userProfile.country}
-                  onValueChange={value => handleInputChange('country', value)}
-                >
-                  <SelectTrigger id="country" className="mt-2" dir={isRTL ? 'rtl' : 'ltr'}>
-                    <SelectValue
-                      selectedLabel={countries.find(c => c.value === userProfile.country)?.name}
-                      placeholder={t('country_placeholder')}
-                    />
-                  </SelectTrigger>
-                  <SelectContent dir={isRTL ? 'rtl' : 'ltr'} className={isRTL ? 'text-right' : 'text-left'}>
-                    {countries.map(country => (
-                      <SelectItem key={country.value} value={country.value}>
-                        {country.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="country" className="flex items-center gap-2">
+                    {isRTL
+                      ? (
+                          <>
+                            {t('country')}
+                            <Globe className="h-4 w-4" />
+                          </>
+                        )
+                      : (
+                          <>
+                            <Globe className="h-4 w-4" />
+                            {t('country')}
+                          </>
+                        )}
+                  </Label>
+                  <Select
+                    value={userProfile.country}
+                    onValueChange={value => handleInputChange('country', value)}
+                  >
+                    <SelectTrigger id="country" dir={isRTL ? 'rtl' : 'ltr'}>
+                      <SelectValue placeholder={t('country_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                      {countries.map(country => (
+                        <SelectItem key={country.value} value={country.value}>
+                          {country.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label htmlFor="language">{t('language')}</Label>
-                <Select
-                  value={userProfile.language}
-                  onValueChange={value => handleInputChange('language', value)}
-                >
-                  <SelectTrigger id="language" className="mt-2" dir={isRTL ? 'rtl' : 'ltr'}>
-                    <SelectValue
-                      selectedLabel={languages.find(l => l.value === userProfile.language)?.name}
-                      placeholder={t('language_placeholder')}
-                    />
-                  </SelectTrigger>
-                  <SelectContent dir={isRTL ? 'rtl' : 'ltr'} className={isRTL ? 'text-right' : 'text-left'}>
-                    {languages.map(language => (
-                      <SelectItem key={language.value} value={language.value}>
-                        {language.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+                <div className="space-y-2">
+                  <Label htmlFor="language">{t('language')}</Label>
+                  <Select
+                    value={userProfile.language}
+                    onValueChange={value => handleInputChange('language', value)}
+                  >
+                    <SelectTrigger id="language" dir={isRTL ? 'rtl' : 'ltr'}>
+                      <SelectValue placeholder={t('language_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                      {languages.map(language => (
+                        <SelectItem key={language.value} value={language.value}>
+                          {language.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
 
-              <div>
-                <Label htmlFor="timezone">{t('timezone')}</Label>
-                <Select
-                  value={userProfile.timezone}
-                  onValueChange={value => handleInputChange('timezone', value)}
-                >
-                  <SelectTrigger id="timezone" className="mt-2" dir={isRTL ? 'rtl' : 'ltr'}>
-                    <SelectValue
-                      selectedLabel={timezones.find(tz => tz.value === userProfile.timezone)?.name}
-                      placeholder={t('timezone_placeholder')}
-                    />
-                  </SelectTrigger>
-                  <SelectContent dir={isRTL ? 'rtl' : 'ltr'} className={isRTL ? 'text-right' : 'text-left'}>
-                    {timezones.map(timezone => (
-                      <SelectItem key={timezone.value} value={timezone.value}>
-                        {timezone.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <div className="space-y-2">
+                  <Label htmlFor="timezone" className="flex items-center gap-2">
+                    {isRTL
+                      ? (
+                          <>
+                            {t('timezone')}
+                            <Clock className="h-4 w-4" />
+                          </>
+                        )
+                      : (
+                          <>
+                            <Clock className="h-4 w-4" />
+                            {t('timezone')}
+                          </>
+                        )}
+                  </Label>
+                  <Select
+                    value={userProfile.timezone}
+                    onValueChange={value => handleInputChange('timezone', value)}
+                  >
+                    <SelectTrigger id="timezone" dir={isRTL ? 'rtl' : 'ltr'}>
+                      <SelectValue placeholder={t('timezone_placeholder')} />
+                    </SelectTrigger>
+                    <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                      {timezones.map(timezone => (
+                        <SelectItem key={timezone.value} value={timezone.value}>
+                          {timezone.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </CardContent>
           </Card>
@@ -380,15 +460,15 @@ export default function SettingsPage() {
           <div className={cn('flex', isRTL ? 'justify-start' : 'justify-end')}>
             <Button
               onClick={handleSaveSettings}
-              disabled={isSaving}
-              className="bg-gradient-to-r from-pink-500 to-pink-600 px-8 py-3 text-white"
+              disabled={isLoading || isSaving}
+              className="bg-gradient-to-r from-pink-500 to-pink-600 px-8 py-3 text-white hover:from-pink-600 hover:to-pink-700"
             >
               {isSaving
                 ? (
-                    <>
-                      <div className={cn('h-4 w-4 animate-spin rounded-full border-b-2 border-white', isRTL ? 'ml-2' : 'mr-2')}></div>
+                    <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
                       {t('saving')}
-                    </>
+                    </div>
                   )
                 : (
                     t('save_settings')

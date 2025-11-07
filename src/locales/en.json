@@ -235,6 +235,7 @@
     "loading": "Loading settings...",
     "personal_info_title": "Personal Information",
     "personal_info_desc": "Update your personal details",
+    "avatar": "Avatar",
     "first_name": "First Name",
     "first_name_placeholder": "Enter first name",
     "last_name": "Last Name",
