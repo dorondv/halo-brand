@@ -3,6 +3,7 @@
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { getAuthCallbackUrl } from '@/utils/Helpers';
 
 // Lazy load Arcjet only when needed (avoids bundling in middleware)
 async function protectWithArcjet(isSignup: boolean) {
@@ -134,4 +135,58 @@ export async function signOut() {
   const supabase = await createSupabaseServerClient();
   await supabase.auth.signOut();
   redirect('/sign-in');
+}
+
+export async function signInWithGoogle() {
+  const supabase = await createSupabaseServerClient();
+  const headersList = await headers();
+  const callbackUrl = await getAuthCallbackUrl(headersList);
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: callbackUrl,
+    },
+  });
+
+  if (error) {
+    return {
+      error: error.message,
+    };
+  }
+
+  if (data?.url) {
+    redirect(data.url);
+  }
+
+  return {
+    error: 'Failed to initiate Google sign in',
+  };
+}
+
+export async function signInWithFacebook() {
+  const supabase = await createSupabaseServerClient();
+  const headersList = await headers();
+  const callbackUrl = await getAuthCallbackUrl(headersList);
+
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'facebook',
+    options: {
+      redirectTo: callbackUrl,
+    },
+  });
+
+  if (error) {
+    return {
+      error: error.message,
+    };
+  }
+
+  if (data?.url) {
+    redirect(data.url);
+  }
+
+  return {
+    error: 'Failed to initiate Facebook sign in',
+  };
 }

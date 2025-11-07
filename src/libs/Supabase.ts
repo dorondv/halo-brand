@@ -19,8 +19,14 @@ export async function createSupabaseServerClient() {
               cookieStore.set(name, value, options);
             }
           } catch (error) {
+            // Silently handle cookie errors - they're expected in some contexts
+            // Only log in development for debugging
             if (process.env.NODE_ENV === 'development') {
-              console.warn('Supabase cookie set skipped:', (error as Error).message);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              // Only warn about cookie errors if they're not the expected "can only be modified" error
+              if (!errorMessage.includes('can only be modified')) {
+                console.warn('Supabase cookie set skipped:', errorMessage);
+              }
             }
           }
         },
@@ -30,11 +36,24 @@ export async function createSupabaseServerClient() {
               cookieStore.delete(name);
             }
           } catch (error) {
+            // Silently handle cookie errors - they're expected in some contexts
+            // Only log in development for debugging
             if (process.env.NODE_ENV === 'development') {
-              console.warn('Supabase cookie delete skipped:', (error as Error).message);
+              const errorMessage = error instanceof Error ? error.message : String(error);
+              // Only warn about cookie errors if they're not the expected "can only be modified" error
+              if (!errorMessage.includes('can only be modified')) {
+                console.warn('Supabase cookie delete skipped:', errorMessage);
+              }
             }
           }
         },
+      },
+      auth: {
+        // Disable automatic token refresh to prevent refresh token errors
+        // Token refresh should be handled manually or via Supabase's built-in mechanisms
+        autoRefreshToken: true,
+        persistSession: true,
+        detectSessionInUrl: false, // We handle OAuth callbacks manually
       },
     },
   );

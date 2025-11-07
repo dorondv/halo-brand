@@ -72,7 +72,7 @@ export function SelectValue({ placeholder, selectedLabel }: { placeholder?: stri
   return <span>{selectedLabel || placeholder || 'Select...'}</span>;
 }
 
-export function SelectContent({ children }: { children: React.ReactNode }) {
+export function SelectContent({ children, className, dir }: { children: React.ReactNode; className?: string; dir?: 'ltr' | 'rtl' }) {
   const ctx = React.use(SelectContext);
   if (!ctx) {
     throw new Error('SelectContent must be used within Select');
@@ -83,7 +83,7 @@ export function SelectContent({ children }: { children: React.ReactNode }) {
   }
 
   return (
-    <div className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg">
+    <div className={cn('absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg', className)} dir={dir}>
       {children}
     </div>
   );

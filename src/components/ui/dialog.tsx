@@ -147,3 +147,11 @@ export function DialogClose({ className, ...props }: React.ButtonHTMLAttributes<
     </button>
   );
 }
+
+export function DialogFooter({ children, className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div className={cn('flex justify-end gap-2 mt-6', className)} {...props}>
+      {children}
+    </div>
+  );
+}
