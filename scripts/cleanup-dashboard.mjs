@@ -19,14 +19,26 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('\nMissing Supabase credentials.\nPlease set environment variables (one of):');
   console.error('  SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL');
   console.error('and');
-  console.error('  SUPABASE_SERVICE_KEY (recommended) or SUPABASE_ANON_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY');
+  console.error('  SUPABASE_SERVICE_KEY (REQUIRED for admin operations) or SUPABASE_ANON_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY');
   console.error('\nYou can create a .env file in the project root with these values, for example:');
   console.error('  SUPABASE_URL=https://your-project.supabase.co');
   console.error('  SUPABASE_SERVICE_KEY=your-service-role-key');
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+// Warn if using anon key instead of service key
+if (!process.env.SUPABASE_SERVICE_KEY && !process.env.SUPABASE_KEY) {
+  console.warn('\n⚠️  WARNING: Using ANON_KEY instead of SERVICE_KEY.');
+  console.warn('Admin operations (deleting auth users) require SERVICE_KEY.');
+  console.warn('Please set SUPABASE_SERVICE_KEY in your .env file.\n');
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 async function cleanup() {
   console.log('Cleaning up demo dashboard data...');
@@ -143,17 +155,56 @@ async function cleanup() {
     }
   }
 
-  // 6. Delete the demo user
+  // 6. Delete settings (references users)
+  const { count: settingsCount } = await supabase
+    .from('settings')
+    .select('*', { count: 'exact', head: true })
+    .eq('user_id', userId);
+
+  if (settingsCount && settingsCount > 0) {
+    const { error } = await supabase
+      .from('settings')
+      .delete()
+      .eq('user_id', userId);
+    if (error) {
+      console.error('Error deleting settings:', error.message);
+    } else {
+      console.log(`✅ Deleted settings record`);
+    }
+  }
+
+  // 7. Delete the demo user from public.users
   const { error: deleteUserError } = await supabase
     .from('users')
     .delete()
     .eq('id', userId);
 
   if (deleteUserError) {
-    console.error('Error deleting demo user:', deleteUserError.message);
+    console.error('Error deleting demo user from public.users:', deleteUserError.message);
     process.exit(1);
   } else {
-    console.log('✅ Deleted demo user');
+    console.log('✅ Deleted demo user from public.users');
+  }
+
+  // 8. Delete the auth user from auth.users (requires service role)
+  try {
+    const { data: authUsers } = await supabase.auth.admin.listUsers();
+    const demoAuthUser = authUsers?.users?.find(u => u.email === 'demo@hello.brand');
+
+    if (demoAuthUser) {
+      const { error: deleteAuthError } = await supabase.auth.admin.deleteUser(demoAuthUser.id);
+      if (deleteAuthError) {
+        console.warn('⚠️  Could not delete auth user (may require service role):', deleteAuthError.message);
+        console.warn('   The auth user may still exist in auth.users table.');
+      } else {
+        console.log('✅ Deleted demo user from auth.users');
+      }
+    } else {
+      console.log('ℹ️  Auth user not found (may have been already deleted)');
+    }
+  } catch (err) {
+    console.warn('⚠️  Could not delete auth user:', err?.message || err);
+    console.warn('   This requires SERVICE_KEY. The auth user may still exist in auth.users table.');
   }
 
   console.log('\n✅ Cleanup completed successfully.');

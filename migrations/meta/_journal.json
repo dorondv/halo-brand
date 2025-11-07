@@ -12,15 +12,22 @@
     {
       "idx": 1,
       "version": "7",
-      "when": 1761838123803,
-      "tag": "0001_condemned_mephisto",
+      "when": 1761926215084,
+      "tag": "0001_loud_charles_xavier",
       "breakpoints": true
     },
     {
       "idx": 2,
       "version": "7",
-      "when": 1761926215084,
-      "tag": "0002_loud_charles_xavier",
+      "when": 1762357683977,
+      "tag": "0002_new_the_initiative",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1762362000000,
+      "tag": "0003_optimize_settings_and_remove_duplicates",
       "breakpoints": true
     }
   ]

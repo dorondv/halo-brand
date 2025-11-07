@@ -8,73 +8,255 @@ const SUPABASE_URL
     || process.env.NEXT_PUBLIC_SUPABASE_URL2
     || process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
 
-const SUPABASE_KEY
-  = process.env.SUPABASE_SERVICE_KEY
-    || process.env.SUPABASE_KEY
-    || process.env.SUPABASE_ANON_KEY
-    || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    || process.env.SUPABASE_ANON_KEY;
+// REQUIRE service key for admin operations
+const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_KEY || process.env.SUPABASE_KEY;
 
-if (!SUPABASE_URL || !SUPABASE_KEY) {
-  console.error('\nMissing Supabase credentials.\nPlease set environment variables (one of):');
-  console.error('  SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL');
-  console.error('and');
-  console.error('  SUPABASE_SERVICE_KEY (recommended) or SUPABASE_ANON_KEY / NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  console.error('\nYou can create a .env file in the project root with these values, for example:');
+if (!SUPABASE_URL) {
+  console.error('\n❌ Missing SUPABASE_URL environment variable.');
+  console.error('Please set SUPABASE_URL or NEXT_PUBLIC_SUPABASE_URL in your .env file.');
+  console.error('\nExample:');
   console.error('  SUPABASE_URL=https://your-project.supabase.co');
-  console.error('  SUPABASE_SERVICE_KEY=your-service-role-key');
   process.exit(1);
 }
 
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
+if (!SUPABASE_SERVICE_KEY) {
+  console.error('\n❌ Missing SUPABASE_SERVICE_KEY environment variable.');
+  console.error('This script requires SERVICE_KEY for admin operations (creating auth users).');
+  console.error('\nPlease set SUPABASE_SERVICE_KEY in your .env file.');
+  console.error('\nTo find your service key:');
+  console.error('  1. Go to Supabase Dashboard → Project Settings → API');
+  console.error('  2. Copy the "service_role" key (NOT the anon key)');
+  console.error('  3. Add it to your .env file:');
+  console.error('     SUPABASE_SERVICE_KEY=your-service-role-key-here');
+  console.error('\n⚠️  WARNING: Never commit the service key to git!');
+  process.exit(1);
+}
+
+const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 async function seed() {
   console.log('Seeding comprehensive dashboard data...');
+  console.log('Creating user via Supabase Auth (email provider) - trigger will fire automatically.\n');
+
+  const demoEmail = 'demo@hello.brand';
+  const demoPassword = 'testing123456'; // Temporary password for demo user
+  const demoName = 'Demo User';
+
+  console.log(`Demo user credentials:`);
+  console.log(`  Email: ${demoEmail}`);
+  console.log(`  Password: ${demoPassword}`);
+  console.log(`  (This is a temporary demo account - change password after first login)\n`);
 
   // Remove old demo data (best effort)
-  await supabase.from('scheduled_posts').delete().neq('id', '');
-  await supabase.from('posts').delete().neq('id', '');
-  await supabase.from('social_accounts').delete().neq('id', '');
-  await supabase.from('brands').delete().neq('id', '');
-  await supabase.from('users').delete().neq('id', '');
-
-  // Insert a demo user
-  let users;
-  let usersError;
-  {
-    const res = await supabase.from('users').insert([
-      { email: 'demo@hello.brand', plan: 'trial', name: 'Demo User' },
-    ]).select();
-    users = res.data;
-    usersError = res.error;
+  // First, try to delete auth user if it exists (requires service role)
+  try {
+    const { data: existingAuthUsers } = await supabase.auth.admin.listUsers();
+    const demoAuthUser = existingAuthUsers?.users?.find(u => u.email === demoEmail);
+    if (demoAuthUser) {
+      await supabase.auth.admin.deleteUser(demoAuthUser.id);
+      console.log('✅ Removed existing auth user');
+    }
+  } catch (err) {
+    console.warn('Could not delete existing auth user (may not exist):', err?.message || err);
   }
 
-  if (usersError) {
-    // If user already exists (unique constraint), try to fetch it instead of failing
-    const msg = String(usersError.message || usersError || '');
-    if (msg.toLowerCase().includes('duplicate') || msg.includes('unique')) {
-      console.warn('Demo user already exists, attempting to load existing user...');
-      const { data: existingUsers, error: fetchErr } = await supabase.from('users').select().eq('email', 'demo@hello.brand').limit(1);
-      if (fetchErr) {
-        console.error('Failed to fetch existing demo user after duplicate error:', fetchErr.message || fetchErr);
-        process.exit(1);
-      }
-      if (existingUsers && existingUsers.length) {
-        users = existingUsers; // overwrite local variable
+  // Clean up public tables - delete only demo user's data
+  // Find demo user first to get their ID
+  const { data: existingDemoUser } = await supabase
+    .from('users')
+    .select('id')
+    .eq('email', demoEmail)
+    .maybeSingle();
+
+  if (existingDemoUser) {
+    const demoUserId = existingDemoUser.id;
+    console.log('Found existing demo user, cleaning up their data...');
+
+    // Delete in correct order (respecting foreign keys)
+    const { data: userPosts } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('user_id', demoUserId);
+    const postIds = userPosts?.map(p => p.id) || [];
+
+    if (postIds.length > 0) {
+      await supabase.from('scheduled_posts').delete().in('post_id', postIds);
+      await supabase.from('post_analytics').delete().in('post_id', postIds);
+    }
+
+    await supabase.from('posts').delete().eq('user_id', demoUserId);
+    await supabase.from('social_accounts').delete().eq('user_id', demoUserId);
+    await supabase.from('brands').delete().eq('user_id', demoUserId);
+    await supabase.from('settings').delete().eq('user_id', demoUserId);
+    await supabase.from('users').delete().eq('id', demoUserId);
+    console.log('✅ Cleaned up existing demo user data');
+  } else {
+    console.log('No existing demo user found, proceeding with fresh seed');
+  }
+
+  // Create user via Supabase Auth (this will trigger the on_auth_user_created trigger)
+  console.log('Creating user via Supabase Auth...');
+  let authUser;
+  let userId;
+
+  // Check if user already exists in public.users
+  const { data: existingUser } = await supabase
+    .from('users')
+    .select('id, email')
+    .eq('email', demoEmail)
+    .maybeSingle();
+
+  if (existingUser) {
+    console.log('✅ User already exists in public.users, using existing user ID');
+    userId = existingUser.id;
+
+    // Verify auth user exists
+    try {
+      const { data: authUsers } = await supabase.auth.admin.listUsers();
+      const existingAuthUser = authUsers?.users?.find(u => u.email === demoEmail);
+      if (existingAuthUser) {
+        authUser = existingAuthUser;
+        console.log('✅ Auth user already exists');
       } else {
-        console.error('No existing user found after duplicate error; aborting.');
-        process.exit(1);
+        // Create auth user if it doesn't exist
+        const { data: newAuthUser, error: createError } = await supabase.auth.admin.createUser({
+          email: demoEmail,
+          password: demoPassword,
+          email_confirm: true, // Auto-confirm email
+          user_metadata: {
+            full_name: demoName,
+            name: demoName,
+          },
+        });
+        if (createError) {
+          console.error('\n❌ Failed to create auth user');
+          console.error('Error message:', createError.message);
+          console.error('Error code:', createError.status || createError.code);
+          console.error('Full error:', JSON.stringify(createError, null, 2));
+          process.exit(1);
+        }
+        authUser = newAuthUser.user;
+        userId = authUser.id;
+        console.log('✅ Created new auth user');
       }
-    } else {
-      console.error('Failed to insert demo user:', usersError.message || usersError);
+    } catch (err) {
+      console.error('Error checking/creating auth user:', err?.message || err);
       process.exit(1);
+    }
+  } else {
+    // Create new user via Auth Admin API
+    console.log('Attempting to create auth user...');
+    const { data: newAuthUser, error: createError } = await supabase.auth.admin.createUser({
+      email: demoEmail,
+      password: demoPassword,
+      email_confirm: true, // Auto-confirm email so they can sign in
+      user_metadata: {
+        full_name: demoName,
+        name: demoName,
+      },
+    });
+
+    if (createError) {
+      console.error('\n❌ Failed to create auth user');
+      console.error('Error message:', createError.message);
+      console.error('Error code:', createError.status || createError.code);
+      console.error('Full error:', JSON.stringify(createError, null, 2));
+
+      // Check if trigger exists
+      console.error('\n💡 Troubleshooting:');
+      console.error('The trigger is failing when executing. This is usually caused by:');
+      console.error('1. The trigger function querying auth.identities before it exists');
+      console.error('2. Missing error handling in the trigger function');
+      console.error('\n🔧 Fix: Run this script in Supabase Dashboard → SQL Editor:');
+      console.error('   scripts/fix-trigger-function.sql');
+      console.error('\nThis will update the trigger function with better error handling.');
+      console.error('\nAlternatively, check Supabase logs for the exact error:');
+      console.error('   Dashboard → Logs → Postgres Logs');
+
+      process.exit(1);
+    }
+
+    authUser = newAuthUser.user;
+    userId = authUser.id;
+    console.log('✅ Created auth user via Supabase Auth');
+
+    // Wait a moment for the trigger to fire and create the public.users record
+    console.log('Waiting for trigger to create public.users record...');
+    let retries = 10;
+    let publicUser = null;
+    while (retries > 0 && !publicUser) {
+      await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
+      const { data } = await supabase
+        .from('users')
+        .select('id, email, name, plan')
+        .eq('id', userId)
+        .maybeSingle();
+      if (data) {
+        publicUser = data;
+        break;
+      }
+      retries--;
+    }
+
+    if (!publicUser) {
+      console.error('Trigger did not create public.users record. Please verify the trigger exists.');
+      console.log('To check trigger, run in Supabase Dashboard SQL Editor:');
+      console.log('SELECT * FROM information_schema.triggers WHERE trigger_name = \'on_auth_user_created\';');
+      process.exit(1);
+    }
+
+    console.log('✅ Trigger fired - public.users record created');
+    console.log(`   User ID: ${publicUser.id}`);
+    console.log(`   Email: ${publicUser.email}`);
+    console.log(`   Name: ${publicUser.name}`);
+    console.log(`   Plan: ${publicUser.plan}`);
+
+    // Verify settings were created by trigger
+    const { data: settings } = await supabase
+      .from('settings')
+      .select('user_id, language, timezone, country')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    if (settings) {
+      console.log('✅ Settings created by trigger');
+      console.log(`   Language: ${settings.language}, Timezone: ${settings.timezone}, Country: ${settings.country}`);
+    } else {
+      console.warn('⚠️  Settings not found - trigger may not have created them. Creating manually...');
+      const { error: settingsError } = await supabase.from('settings').upsert([
+        {
+          user_id: userId,
+          language: 'he',
+          timezone: 'Asia/Jerusalem',
+          country: 'il',
+          dark_mode: false,
+        },
+      ], {
+        onConflict: 'user_id',
+      });
+      if (settingsError) {
+        console.error('Failed to create settings:', settingsError.message || settingsError);
+      } else {
+        console.log('✅ Created settings manually');
+      }
     }
   }
 
-  const userId = users && users.length ? users[0].id : null;
-  if (!userId) {
-    console.error('No user id returned from insert; aborting seed.');
-    process.exit(1);
+  // Update user plan to 'trial' for demo purposes
+  const { error: updateError } = await supabase
+    .from('users')
+    .update({ plan: 'trial', name: demoName })
+    .eq('id', userId);
+
+  if (updateError) {
+    console.warn('Could not update user plan:', updateError.message || updateError);
+  } else {
+    console.log('✅ Updated user plan to "trial"');
   }
 
   // Insert brands (companies)
@@ -171,6 +353,7 @@ async function seed() {
       const comments = Math.floor(engagement * 0.25); // 25% comments
       const shares = Math.floor(engagement * 0.15); // 15% shares
 
+      const postTimestamp = `${dateStr}T${String(10 + i).padStart(2, '0')}:00:00.000Z`;
       posts.push({
         user_id: userId,
         brand_id: brandId,
@@ -184,14 +367,15 @@ async function seed() {
           date: dateStr,
         },
         status: 'published',
-        created_at: `${dateStr}T${String(10 + i).padStart(2, '0')}:00:00.000Z`,
+        updated_at: postTimestamp,
+        created_at: postTimestamp,
         // Store analytics data separately for post_analytics insertion
         _analytics: {
           impressions,
           likes,
           comments,
           shares,
-          date: `${dateStr}T${String(10 + i).padStart(2, '0')}:00:00.000Z`,
+          date: postTimestamp,
         },
       });
     }
@@ -217,6 +401,7 @@ async function seed() {
     const comments = Math.floor(engagement * 0.25); // 25% comments
     const shares = Math.floor(engagement * 0.15); // 15% shares
 
+    const postTimestamp = `${dateStr}T12:00:00.000Z`;
     posts.push({
       user_id: userId,
       brand_id: brandId,
@@ -230,14 +415,15 @@ async function seed() {
         date: dateStr,
       },
       status: 'published',
-      created_at: `${dateStr}T12:00:00.000Z`,
+      updated_at: postTimestamp,
+      created_at: postTimestamp,
       // Store analytics data separately for post_analytics insertion
       _analytics: {
         impressions,
         likes,
         comments,
         shares,
-        date: `${dateStr}T12:00:00.000Z`,
+        date: postTimestamp,
       },
     });
   }
