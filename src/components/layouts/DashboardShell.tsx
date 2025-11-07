@@ -11,9 +11,11 @@ import {
   PenTool,
   Settings,
   Tags,
+  User,
   X,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import Image from 'next/image';
 import Link from 'next/link';
 import React, { Suspense } from 'react';
 import { SignOutButton } from '@/components/auth/SignOutButton';
@@ -44,6 +46,8 @@ export function DashboardShell({ children }: Props) {
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [userName, setUserName] = React.useState<string | null>(null);
+  const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
+  const [avatarError, setAvatarError] = React.useState(false);
   const t = useTranslations('Nav');
   const locale = useLocale();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
@@ -61,6 +65,21 @@ export function DashboardShell({ children }: Props) {
               || session.user.email?.split('@')[0]
               || 'User';
           setUserName(name);
+
+          // Fetch avatar from public.users table
+          const { data: userRecord } = await supabase
+            .from('users')
+            .select('avatar_url, name')
+            .eq('id', session.user.id)
+            .maybeSingle();
+
+          if (userRecord?.avatar_url) {
+            setUserAvatar(userRecord.avatar_url);
+            setAvatarError(false); // Reset error state for new avatar
+          } else if (userRecord?.name) {
+            // Use name from database if available
+            setUserName(userRecord.name);
+          }
         }
       } catch (error) {
         console.error('Error fetching user:', error);
@@ -116,9 +135,30 @@ export function DashboardShell({ children }: Props) {
               <Menu className="h-6 w-6" />
             </Button>
             {userName && (
-              <h1 className="text-lg font-semibold text-gray-800">
-                {t('hello_greeting', { name: userName })}
-              </h1>
+              <div className="flex items-center gap-3">
+                {userAvatar && !avatarError
+                  ? (
+                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
+                        <Image
+                          src={userAvatar}
+                          alt={userName}
+                          fill
+                          className="object-cover"
+                          sizes="40px"
+                          unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
+                          onError={() => setAvatarError(true)}
+                        />
+                      </div>
+                    )
+                  : (
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+                        <User className="h-5 w-5" />
+                      </div>
+                    )}
+                <h1 className="text-lg font-semibold text-gray-800">
+                  {t('hello_greeting', { name: userName })}
+                </h1>
+              </div>
             )}
           </div>
           <div className="flex-1" />
