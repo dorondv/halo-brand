@@ -202,6 +202,7 @@
     "loading_brands": "Loading brands...",
     "brand_name": "Brand Name",
     "brand_name_placeholder": "Enter brand name",
+    "logo_optional": "Logo (Optional)",
     "create_brand": "Create Brand",
     "cancel": "Cancel",
     "no_brands": "No brands. Create a new brand to get started.",

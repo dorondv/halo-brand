@@ -168,6 +168,8 @@ export default function ConnectionsPage() {
   const [manualAccountData, setManualAccountData] = useState({ handle: '', display_name: '' });
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
+  const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<SocialAccount | null>(null);
   const [isConnectingDemo, setIsConnectingDemo] = useState<string | null>(null);
 
@@ -322,6 +324,54 @@ export default function ConnectionsPage() {
 
       const userId = userRecord?.id || session.user.id;
 
+      let logoUrl: string | null = null;
+
+      // Upload logo if provided
+      if (brandLogoFile) {
+        setIsUploadingLogo(true);
+        try {
+          // Validate file type (only images)
+          if (!brandLogoFile.type.startsWith('image/')) {
+            throw new Error('Please upload an image file');
+          }
+
+          // Validate file size (5MB limit)
+          const maxSize = 5 * 1024 * 1024; // 5MB
+          if (brandLogoFile.size > maxSize) {
+            throw new Error('Image size exceeds 5MB limit');
+          }
+
+          // Generate unique file name
+          const fileExt = brandLogoFile.name.split('.').pop();
+          const fileName = `${userId}/brands/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          // Upload to Supabase Storage (using post-media bucket or create a brands bucket)
+          const { error: uploadError } = await supabase.storage
+            .from('post-media')
+            .upload(fileName, brandLogoFile, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error('Logo upload error:', uploadError);
+            throw new Error(`Failed to upload logo: ${uploadError.message}`);
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('post-media')
+            .getPublicUrl(fileName);
+
+          logoUrl = publicUrl;
+        } catch (error) {
+          console.error('Error uploading logo:', error);
+          // Continue with brand creation even if logo upload fails
+        } finally {
+          setIsUploadingLogo(false);
+        }
+      }
+
       // Create brand
       const { data: newBrandData, error } = await supabase
         .from('brands')
@@ -330,7 +380,7 @@ export default function ConnectionsPage() {
             user_id: userId,
             name: newBrandName,
             description: null,
-            logo_url: null,
+            logo_url: logoUrl,
             is_active: true,
           },
         ])
@@ -352,6 +402,7 @@ export default function ConnectionsPage() {
       setBrands(prev => [...prev, newBrand]);
       setSelectedBrand(newBrand);
       setNewBrandName('');
+      setBrandLogoFile(null);
       setIsCreatingBrand(false);
       // Reload brands to ensure consistency
       await loadBrands();
@@ -654,10 +705,26 @@ export default function ConnectionsPage() {
               </div>
               <Button
                 onClick={() => setIsCreatingBrand(true)}
-                className="shrink-0 bg-gradient-to-r from-pink-500 to-pink-600 text-white"
+                className={cn(
+                  'shrink-0 text-white',
+                  isRTL
+                    ? 'bg-gradient-to-l from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700'
+                    : 'bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700',
+                )}
               >
-                <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
-                {t('new_brand')}
+                {isRTL
+                  ? (
+                      <>
+                        {t('new_brand')}
+                        <Plus className="mr-2 h-4 w-4" />
+                      </>
+                    )
+                  : (
+                      <>
+                        <Plus className="ml-2 h-4 w-4" />
+                        {t('new_brand')}
+                      </>
+                    )}
               </Button>
             </div>
           </CardHeader>
@@ -671,23 +738,68 @@ export default function ConnectionsPage() {
                 )
               : isCreatingBrand
                 ? (
-                    <div className="space-y-4 rounded-lg bg-pink-50 p-4">
-                      <div>
+                    <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6">
+                      <div className="space-y-2">
                         <Label htmlFor="brandName">{t('brand_name')}</Label>
                         <Input
                           id="brandName"
                           placeholder={t('brand_name_placeholder')}
                           value={newBrandName}
                           onChange={e => setNewBrandName(e.target.value)}
+                          className="bg-white"
+                          dir={isRTL ? 'rtl' : 'ltr'}
                         />
                       </div>
-                      <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                        <Button onClick={handleCreateBrand} className="bg-pink-600 text-white">
-                          <CheckCircle2 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
-                          {t('create_brand')}
-                        </Button>
-                        <Button variant="outline" onClick={() => setIsCreatingBrand(false)}>
+                      <div className="space-y-2">
+                        <Label htmlFor="brandLogo">{t('logo_optional')}</Label>
+                        <div className="relative">
+                          <input
+                            type="file"
+                            id="brandLogo"
+                            accept="image/*"
+                            onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
+                            className={cn(
+                              'block w-full text-sm bg-white rounded-md border border-gray-300',
+                              'file:border-0 file:bg-white file:text-gray-700 file:text-sm file:font-medium',
+                              'file:cursor-pointer hover:file:bg-gray-50',
+                              'text-gray-500',
+                              isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
+                            )}
+                            dir={isRTL ? 'rtl' : 'ltr'}
+                          />
+                        </div>
+                      </div>
+                      <div className={cn('flex gap-3 pt-2', isRTL ? 'justify-start' : 'justify-end')}>
+                        <Button
+                          variant="outline"
+                          onClick={() => {
+                            setIsCreatingBrand(false);
+                            setNewBrandName('');
+                            setBrandLogoFile(null);
+                          }}
+                          className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                          disabled={isUploadingLogo}
+                        >
                           {t('cancel')}
+                        </Button>
+                        <Button
+                          onClick={handleCreateBrand}
+                          className="bg-pink-600 text-white hover:bg-pink-700"
+                          disabled={!newBrandName.trim() || isUploadingLogo}
+                        >
+                          {isRTL
+                            ? (
+                                <>
+                                  {t('create_brand')}
+                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                </>
+                              )
+                            : (
+                                <>
+                                  <CheckCircle2 className="ml-2 h-4 w-4" />
+                                  {t('create_brand')}
+                                </>
+                              )}
                         </Button>
                       </div>
                     </div>

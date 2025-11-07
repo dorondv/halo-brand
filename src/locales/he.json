@@ -202,6 +202,7 @@
     "loading_brands": "טוען מותגים...",
     "brand_name": "שם המותג",
     "brand_name_placeholder": "הכנס שם המותג",
+    "logo_optional": "לוגו (אופציונלי)",
     "create_brand": "צור מותג",
     "cancel": "ביטול",
     "no_brands": "אין מותגים. צור מותג חדש כדי להתחיל.",
