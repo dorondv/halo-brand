@@ -11,9 +11,11 @@ import {
   Loader2,
   Play,
   Plus,
+  Trash2,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { useCallback, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,6 +28,7 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { useToast } from '@/components/ui/toast';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
@@ -87,6 +90,7 @@ type Brand = {
   id: string;
   name: string;
   logo_url?: string;
+  getlate_profile_id?: string | null;
 };
 
 type SocialAccount = {
@@ -159,6 +163,8 @@ export default function ConnectionsPage() {
   const t = useTranslations('Integrations');
   const locale = useLocale();
   const isRTL = locale === 'he';
+  const searchParams = useSearchParams();
+  const { showToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
@@ -172,6 +178,9 @@ export default function ConnectionsPage() {
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<SocialAccount | null>(null);
   const [isConnectingDemo, setIsConnectingDemo] = useState<string | null>(null);
+  const [isConnectingOAuth, setIsConnectingOAuth] = useState<string | null>(null);
+  const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null);
+  const [isDeletingBrand, setIsDeletingBrand] = useState(false);
 
   const platformConfigs = getPlatformConfigs(t as any);
 
@@ -213,10 +222,10 @@ export default function ConnectionsPage() {
         userId = newUser?.id || session.user.id;
       }
 
-      // Fetch brands for this user
+      // Fetch brands for this user (including Getlate profile ID)
       const { data, error } = await supabase
         .from('brands')
-        .select('id,name,description,logo_url')
+        .select('id,name,description,logo_url,getlate_profile_id')
         .eq('user_id', userId)
         .eq('is_active', true)
         .order('name');
@@ -229,6 +238,7 @@ export default function ConnectionsPage() {
           id: brand.id,
           name: brand.name,
           logo_url: brand.logo_url || undefined,
+          getlate_profile_id: brand.getlate_profile_id || undefined,
         }));
         setBrands(brandsData);
         if (brandsData.length > 0 && !selectedBrand && brandsData[0]) {
@@ -249,6 +259,17 @@ export default function ConnectionsPage() {
     }
     try {
       const supabase = createSupabaseBrowserClient();
+
+      // First, sync accounts from Getlate if brand has a Getlate profile
+      if (selectedBrand.getlate_profile_id) {
+        try {
+          await fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`);
+        } catch {
+          // Silently fail and use cached data
+        }
+      }
+
+      // Then load accounts from database
       const { data, error } = await supabase
         .from('social_accounts')
         .select('id,brand_id,platform,account_name,account_id,platform_specific_data')
@@ -256,15 +277,17 @@ export default function ConnectionsPage() {
         .eq('is_active', true);
 
       if (error) {
-        console.error('Error fetching accounts:', error);
         setAccounts([]);
       } else {
         const accountsData: SocialAccount[] = (data || []).map((acc) => {
           const platformSpecific = acc.platform_specific_data as Record<string, unknown> | null;
+          // Normalize platform: 'twitter' -> 'x' for display, but keep original for matching
+          const normalizedPlatform = (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform;
+
           return {
             id: acc.id,
             brand_id: acc.brand_id,
-            platform: (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform,
+            platform: normalizedPlatform,
             handle: acc.account_name || '',
             display_name: (platformSpecific?.display_name as string) || acc.account_name || '',
             avatar_url: (platformSpecific?.avatar_url as string) || undefined,
@@ -273,10 +296,10 @@ export default function ConnectionsPage() {
             last_sync: (platformSpecific?.last_sync as string) || undefined,
           };
         });
+
         setAccounts(accountsData);
       }
-    } catch (error) {
-      console.error('Error loading accounts:', error);
+    } catch {
       setAccounts([]);
     }
   }, [selectedBrand]);
@@ -302,6 +325,31 @@ export default function ConnectionsPage() {
       clearTimeout(timeoutId);
     };
   }, [loadAccounts]);
+
+  // Handle OAuth callback - check for success, cancellation, or error messages
+  useEffect(() => {
+    const cancelled = searchParams.get('cancelled');
+    const connected = searchParams.get('connected');
+    const error = searchParams.get('error');
+
+    if (cancelled === 'true') {
+      showToast(t('connection_cancelled'), 'info');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (connected === 'true') {
+      showToast(t('connection_success'), 'success');
+      // Reload accounts to show the newly connected account
+      if (selectedBrand) {
+        loadAccounts();
+      }
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (error) {
+      showToast(t('connection_error'), 'error');
+      // Clean up URL
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, [searchParams, selectedBrand, loadAccounts, showToast, t]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
@@ -372,26 +420,26 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Create brand
-      const { data: newBrandData, error } = await supabase
-        .from('brands')
-        .insert([
-          {
-            user_id: userId,
-            name: newBrandName,
-            description: null,
-            logo_url: logoUrl,
-            is_active: true,
-          },
-        ])
-        .select('id,name,logo_url')
-        .single();
+      // Create brand via API to handle Getlate profile automatically
+      const brandResponse = await fetch('/api/brands', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: newBrandName,
+          description: null,
+          logo_url: logoUrl,
+        }),
+      });
 
-      if (error) {
+      if (!brandResponse.ok) {
+        const error = await brandResponse.json().catch(() => ({ error: 'Failed to create brand' }));
         console.error('Error creating brand:', error);
-        // Error will be handled by reloading brands - if creation failed, it won't appear
         return;
       }
+
+      const { brand: newBrandData } = await brandResponse.json();
 
       const newBrand: Brand = {
         id: newBrandData.id,
@@ -574,6 +622,208 @@ export default function ConnectionsPage() {
     setShowManualDialog(true);
   };
 
+  const handleOAuthConnect = async (platform: Platform) => {
+    if (!selectedBrand) {
+      return;
+    }
+
+    setIsConnectingOAuth(platform);
+
+    try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setIsConnectingOAuth(null);
+        return;
+      }
+
+      // Get or create user in users table (same pattern as loadBrands)
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      let userId = userRecord?.id;
+
+      // If user doesn't exist in users table, create it
+      if (!userId) {
+        const { data: newUser } = await supabase
+          .from('users')
+          .insert([
+            {
+              id: session.user.id,
+              email: session.user.email || '',
+              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
+              plan: 'free',
+              is_active: true,
+            },
+          ])
+          .select('id')
+          .single();
+
+        userId = newUser?.id || session.user.id;
+      }
+
+      // Check if brand has a Getlate profile, create if not
+      // First, try to select all columns including getlate_profile_id
+      let { data: brandData, error: brandError } = await supabase
+        .from('brands')
+        .select('id, getlate_profile_id, name, user_id')
+        .eq('id', selectedBrand.id)
+        .eq('user_id', userId)
+        .maybeSingle();
+
+      // If the error is about the column not existing, try again without getlate_profile_id
+      if (brandError && brandError.message && brandError.message.includes('does not exist')) {
+        // Column doesn't exist yet - select without it
+        const { data: brandDataWithoutGetlate, error: brandErrorWithoutGetlate } = await supabase
+          .from('brands')
+          .select('id, name, user_id')
+          .eq('id', selectedBrand.id)
+          .eq('user_id', userId)
+          .maybeSingle();
+
+        if (brandErrorWithoutGetlate && (brandErrorWithoutGetlate.message || brandErrorWithoutGetlate.code)) {
+          console.error('Error fetching brand:', brandErrorWithoutGetlate.message || brandErrorWithoutGetlate.code);
+          setIsConnectingOAuth(null);
+          return;
+        }
+
+        if (!brandDataWithoutGetlate) {
+          console.error('Brand not found or does not belong to current user', {
+            brandId: selectedBrand.id,
+            userId,
+          });
+          setIsConnectingOAuth(null);
+          return;
+        }
+
+        // Add getlate_profile_id as null since column doesn't exist
+        brandData = { ...brandDataWithoutGetlate, getlate_profile_id: null };
+        brandError = null;
+      } else if (brandError && (brandError.message || brandError.code)) {
+        // Other error
+        console.error('Error fetching brand:', brandError.message || brandError.code || brandError);
+        setIsConnectingOAuth(null);
+        return;
+      }
+
+      if (!brandData) {
+        console.error('Brand not found or does not belong to current user', {
+          brandId: selectedBrand.id,
+          userId,
+        });
+        setIsConnectingOAuth(null);
+        return;
+      }
+
+      // If brand doesn't have a Getlate profile, create one
+      // Note: getlate_profile_id might be null if the column doesn't exist yet
+      if (!brandData.getlate_profile_id) {
+        const profileResponse = await fetch('/api/getlate/profiles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            name: brandData.name || selectedBrand.name,
+            brandId: selectedBrand.id,
+          }),
+        });
+
+        if (!profileResponse.ok) {
+          const error = await profileResponse.json().catch(() => ({ error: 'Failed to create profile' }));
+          console.error('Error creating Getlate profile:', error);
+          setIsConnectingOAuth(null);
+          return;
+        }
+
+        // Get the profile ID from the response
+        const responseData = await profileResponse.json();
+
+        const { profile, profileId } = responseData;
+
+        // Use profile ID from response, or try to extract from profile object
+        let profileIdToUse = profileId || profile?.id;
+
+        // Debug logging
+        if (!profileIdToUse) {
+          console.warn('Profile ID not found in response:', {
+            hasProfileId: !!profileId,
+            hasProfile: !!profile,
+            profileIdValue: profileId,
+            profileIdFromProfile: profile?.id,
+            fullResponse: responseData,
+          });
+        }
+
+        if (!profileIdToUse) {
+          // Fallback: reload brand data to get the new profile ID
+          // Wait a bit for the database update to complete
+          await new Promise(resolve => setTimeout(resolve, 500));
+
+          const { data: updatedBrand, error: reloadError } = await supabase
+            .from('brands')
+            .select('id, getlate_profile_id')
+            .eq('id', selectedBrand.id)
+            .maybeSingle(); // Use maybeSingle to avoid throwing if not found
+
+          if (!reloadError && updatedBrand?.getlate_profile_id) {
+            profileIdToUse = updatedBrand.getlate_profile_id;
+          }
+        }
+
+        if (!profileIdToUse) {
+          console.error('Failed to get Getlate profile ID after creation', {
+            responseData,
+            brandId: selectedBrand.id,
+          });
+          setIsConnectingOAuth(null);
+          return;
+        }
+
+        brandData = { ...brandData, getlate_profile_id: profileIdToUse };
+      }
+
+      // Initiate OAuth flow
+      const connectResponse = await fetch('/api/getlate/connect', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          platform: platform === 'x' ? 'twitter' : platform,
+          brandId: selectedBrand.id,
+          redirectUrl: `${window.location.origin}/api/getlate/callback`,
+        }),
+      });
+
+      if (!connectResponse.ok) {
+        const error = await connectResponse.json().catch(() => ({ error: 'Failed to initiate connection' }));
+        console.error('Error initiating OAuth:', error);
+        setIsConnectingOAuth(null);
+        return;
+      }
+
+      const responseData = await connectResponse.json();
+      const { authUrl } = responseData;
+
+      // Validate authUrl before redirecting
+      if (!authUrl || typeof authUrl !== 'string' || authUrl === 'undefined') {
+        console.error('Invalid authUrl received:', authUrl, 'Full response:', responseData);
+        setIsConnectingOAuth(null);
+        return;
+      }
+
+      // Redirect to OAuth URL
+      window.location.href = authUrl;
+    } catch (error) {
+      console.error('Error connecting with OAuth:', error);
+      setIsConnectingOAuth(null);
+    }
+  };
+
   const handleManualSubmit = async () => {
     if (!manualAccountData.handle.trim() || !manualAccountData.display_name.trim() || !selectedPlatform || !selectedBrand) {
       return;
@@ -673,6 +923,47 @@ export default function ConnectionsPage() {
     } catch (error) {
       console.error('Error disconnecting account:', error);
       // Error will be handled by not removing account from state
+    }
+  };
+
+  const handleDeleteBrand = async () => {
+    if (!brandToDelete) {
+      return;
+    }
+
+    setIsDeletingBrand(true);
+    try {
+      const response = await fetch(`/api/brands?brandId=${brandToDelete.id}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to delete brand' }));
+        console.error('Error deleting brand:', error);
+        setIsDeletingBrand(false);
+        return;
+      }
+
+      // Remove brand from state
+      setBrands(prev => prev.filter(b => b.id !== brandToDelete.id));
+
+      // If deleted brand was selected, select another one or clear selection
+      if (selectedBrand?.id === brandToDelete.id) {
+        const remainingBrands = brands.filter(b => b.id !== brandToDelete.id);
+        if (remainingBrands.length > 0 && remainingBrands[0]) {
+          setSelectedBrand(remainingBrands[0]);
+        } else {
+          setSelectedBrand(null);
+        }
+      }
+
+      setBrandToDelete(null);
+      // Reload brands to ensure consistency
+      await loadBrands();
+    } catch (error) {
+      console.error('Error deleting brand:', error);
+    } finally {
+      setIsDeletingBrand(false);
     }
   };
 
@@ -816,41 +1107,60 @@ export default function ConnectionsPage() {
                         {brands.map(brand => (
                           <div
                             key={brand.id}
-                            onClick={() => setSelectedBrand(brand)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' || e.key === ' ') {
-                                e.preventDefault();
-                                setSelectedBrand(brand);
-                              }
-                            }}
-                            role="button"
-                            tabIndex={0}
-                            className={`cursor-pointer rounded-lg border-2 p-4 transition-all duration-300 ${
+                            dir={isRTL ? 'rtl' : 'ltr'}
+                            className={`relative rounded-lg border-2 p-4 transition-all duration-300 ${
                               selectedBrand?.id === brand.id
                                 ? 'border-pink-500 bg-pink-50'
                                 : 'border-gray-200 bg-white/50 hover:border-pink-300'
                             }`}
                           >
-                            <div className="flex items-center gap-3">
-                              {brand.logo_url
-                                ? (
-                                    <Image
-                                      src={brand.logo_url}
-                                      alt={brand.name}
-                                      width={40}
-                                      height={40}
-                                      className="h-10 w-10 rounded-full object-cover"
-                                    />
-                                  )
-                                : (
-                                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100">
-                                      <Briefcase className="h-5 w-5 text-pink-500" />
-                                    </div>
-                                  )}
-                              <div>
-                                <p className="font-semibold text-slate-800">{brand.name}</p>
+                            <div
+                              onClick={() => setSelectedBrand(brand)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  setSelectedBrand(brand);
+                                }
+                              }}
+                              role="button"
+                              tabIndex={0}
+                              className="cursor-pointer"
+                            >
+                              <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
+                                {brand.logo_url
+                                  ? (
+                                      <Image
+                                        src={brand.logo_url}
+                                        alt={brand.name}
+                                        width={40}
+                                        height={40}
+                                        className="h-10 w-10 rounded-full object-cover"
+                                      />
+                                    )
+                                  : (
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100">
+                                        <Briefcase className="h-5 w-5 text-pink-500" />
+                                      </div>
+                                    )}
+                                <div className="flex-1">
+                                  <p className="font-semibold text-slate-800">{brand.name}</p>
+                                </div>
                               </div>
                             </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setBrandToDelete(brand);
+                              }}
+                              className={cn(
+                                'absolute top-2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600',
+                                isRTL ? 'right-2' : 'right-2',
+                              )}
+                              aria-label={`Delete ${brand.name}`}
+                              title={`Delete ${brand.name}`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         ))}
                       </div>
@@ -880,10 +1190,23 @@ export default function ConnectionsPage() {
                   }
                   const Icon = config.icon;
                   const normalizedPlatform = platform === 'twitter' ? 'x' : platform;
+                  // Find account - handle both platform name formats and case variations
+                  // Also handle 'twitter' -> 'x' normalization
                   const connectedAccount = accounts.find(
-                    acc =>
-                      (acc.platform === platform || acc.platform === normalizedPlatform)
-                      && acc.brand_id === selectedBrand.id,
+                    (acc) => {
+                      const accPlatform = (acc.platform || '').toLowerCase();
+                      const searchPlatform = platform.toLowerCase();
+                      const searchNormalized = normalizedPlatform.toLowerCase();
+                      // Also check for 'twitter' if searching for 'x' or vice versa
+                      const isTwitterMatch = (searchPlatform === 'x' && accPlatform === 'twitter')
+                        || (searchPlatform === 'twitter' && accPlatform === 'x');
+                      const platformMatch = accPlatform === searchPlatform
+                        || accPlatform === searchNormalized
+                        || isTwitterMatch;
+                      const brandMatch = acc.brand_id === selectedBrand.id;
+
+                      return platformMatch && brandMatch;
+                    },
                   );
 
                   return (
@@ -918,8 +1241,22 @@ export default function ConnectionsPage() {
                           : (
                               <>
                                 <Button
+                                  onClick={() => handleOAuthConnect(platform)}
+                                  disabled={isConnectingOAuth === platform || isConnectingDemo === platform}
+                                  size="sm"
+                                  className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                >
+                                  {isConnectingOAuth === platform
+                                    ? (
+                                        <Loader2 className="h-4 w-4 animate-spin" />
+                                      )
+                                    : (
+                                        t('connect_oauth')
+                                      )}
+                                </Button>
+                                <Button
                                   onClick={() => handleDemoConnect(platform)}
-                                  disabled={isConnectingDemo === platform}
+                                  disabled={isConnectingDemo === platform || isConnectingOAuth === platform}
                                   size="sm"
                                   className="bg-gradient-to-r from-pink-500 to-pink-600 text-white"
                                 >
@@ -949,6 +1286,49 @@ export default function ConnectionsPage() {
             </CardContent>
           </Card>
         )}
+
+        {/* Delete Brand Confirmation Dialog */}
+        <Dialog open={!!brandToDelete} onOpenChange={open => !open && setBrandToDelete(null)}>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+            <DialogHeader>
+              <DialogTitle>{t('delete_brand_title')}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-slate-600">
+                {t('delete_brand_message', { name: brandToDelete?.name || '' })}
+              </p>
+            </div>
+            <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
+              <Button
+                variant="outline"
+                onClick={() => setBrandToDelete(null)}
+                disabled={isDeletingBrand}
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                {t('cancel')}
+              </Button>
+              <Button
+                onClick={handleDeleteBrand}
+                disabled={isDeletingBrand}
+                className="bg-red-600 text-white hover:bg-red-700"
+              >
+                {isDeletingBrand
+                  ? (
+                      <>
+                        <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                        {t('deleting')}
+                      </>
+                    )
+                  : (
+                      <>
+                        <Trash2 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                        {t('delete')}
+                      </>
+                    )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Manual Connection Dialog */}
         <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>

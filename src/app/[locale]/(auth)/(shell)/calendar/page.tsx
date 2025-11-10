@@ -151,7 +151,7 @@ export default function CalendarPage() {
   const t = useTranslations('Calendar');
   const locale = useLocale();
   const isRTL = locale === 'he';
-  const [currentDate, setCurrentDate] = useState(() => new Date('2024-11-01'));
+  const [currentDate, setCurrentDate] = useState(() => startOfMonth(new Date()));
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -161,53 +161,55 @@ export default function CalendarPage() {
   const allCategoryTypes = [...new Set(Object.values(importantDates).map(date => date.type))];
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => allCategoryTypes);
 
-  // Mock posts data
+  // Load scheduled posts from database
   useEffect(() => {
     let isMounted = true;
-    let timeoutId: NodeJS.Timeout | null = null;
 
     const loadPosts = async () => {
       setIsLoading(true);
       try {
-        // Simulate API call
-        await new Promise<void>((resolve) => {
-          timeoutId = setTimeout(resolve, 500);
+        // Calculate date range for current month (and next week)
+        const monthStart = startOfMonth(currentDate);
+        const monthEnd = endOfMonth(currentDate);
+        const nextWeekEnd = new Date(monthEnd);
+        nextWeekEnd.setDate(nextWeekEnd.getDate() + 7); // Include next week
+
+        // Fetch scheduled posts from database
+        const response = await fetch(
+          `/api/scheduled-posts?start=${monthStart.toISOString()}&end=${nextWeekEnd.toISOString()}`,
+        );
+
+        if (!response.ok) {
+          throw new Error('Failed to fetch scheduled posts');
+        }
+
+        const { data } = await response.json();
+
+        // Transform database posts to calendar format
+        const calendarPosts: Post[] = (data || []).map((item: any, index: number) => {
+          // Ensure we always have a unique ID
+          const itemId = item.post_id || item.id || item.post?.id;
+          const contentHash = (item.post?.content || item.content || '').substring(0, 20).replace(/\s/g, '');
+          const scheduledTime = item.scheduled_for || item.scheduled_time || '';
+          const uniqueId = itemId || `post-${index}-${scheduledTime}-${contentHash || 'unknown'}`;
+
+          return {
+            id: uniqueId,
+            content: item.post?.content || item.content || '',
+            scheduled_time: item.scheduled_for || item.scheduled_time,
+            platforms: item.post?.platforms || item.platforms || [],
+            is_getlate: item.is_getlate || false,
+          };
         });
 
-        // Mock scheduled posts
-        const mockPosts: Post[] = [
-          {
-            id: '1',
-            content: 'New product launch announcement',
-            scheduled_time: '2024-11-05T10:00:00',
-            platforms: ['instagram', 'facebook'],
-          },
-          {
-            id: '2',
-            content: 'Black Friday sale preview',
-            scheduled_time: '2024-11-28T09:00:00',
-            platforms: ['instagram', 'x', 'facebook'],
-          },
-          {
-            id: '3',
-            content: 'Holiday greetings and special offer',
-            scheduled_time: '2024-12-25T08:00:00',
-            platforms: ['instagram'],
-          },
-        ];
-
         if (isMounted) {
-          setPosts(mockPosts.filter(post => post.scheduled_time));
+          setPosts(calendarPosts.filter(post => post.scheduled_time));
           setIsLoading(false);
         }
-      } catch (error) {
-        console.error('Error loading posts:', error);
+      } catch {
         if (isMounted) {
+          setPosts([]);
           setIsLoading(false);
-        }
-      } finally {
-        if (timeoutId) {
-          clearTimeout(timeoutId);
         }
       }
     };
@@ -238,9 +240,14 @@ export default function CalendarPage() {
   };
 
   const getPostsForDate = (date: Date) => {
-    return posts.filter(
+    const filtered = posts.filter(
       post => post.scheduled_time && isSameDay(new Date(post.scheduled_time), date),
     );
+    // Ensure all posts have unique IDs
+    return filtered.map((post, index) => ({
+      ...post,
+      id: post.id || `post-${date.toISOString()}-${index}-${post.content?.substring(0, 10) || 'unknown'}`,
+    }));
   };
 
   const getImportantDateForDay = (date: Date) => {
@@ -370,9 +377,9 @@ export default function CalendarPage() {
                       </div>
                     )}
 
-                    {dayPosts.slice(0, hasImportantDate ? 1 : 2).map(post => (
+                    {dayPosts.slice(0, hasImportantDate ? 1 : 2).map((post, idx) => (
                       <div
-                        key={post.id}
+                        key={post.id || `day-post-${date.toISOString()}-${idx}`}
                         className="truncate rounded bg-blue-500 px-2 py-1 text-xs text-white"
                         title={post.content}
                       >
@@ -686,9 +693,9 @@ export default function CalendarPage() {
                             ? (
                                 <div className="space-y-3">
                                   <h4 className="font-semibold text-slate-900">{t('your_posts')}</h4>
-                                  {selectedDatePosts.map(post => (
+                                  {selectedDatePosts.map((post, idx) => (
                                     <div
-                                      key={post.id}
+                                      key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
                                       className="rounded-xl border border-white/30 p-4"
                                     >
                                       <p className="mb-2 line-clamp-2 font-medium text-slate-900">

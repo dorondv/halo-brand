@@ -18,6 +18,12 @@ import NetFollowerGrowthChart from '@/components/dashboard/NetFollowerGrowthChar
 import PostsByPlatformChart from '@/components/dashboard/PostsByPlatformChart';
 import PostsTable from '@/components/dashboard/PostsTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  getCachedAccounts,
+  getCachedDemographics,
+  getCachedPosts,
+  syncAnalyticsInBackground,
+} from '@/libs/dashboard-cache';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
 import { MetricCardsClient } from './MetricCardsClient';
@@ -76,63 +82,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // If user doesn't exist in users table, use auth user ID directly
   const userId = userRecord?.id || user.id;
 
-  // Build query for posts with optional brand filter
-  let postsQuery = supabase
-    .from('posts')
-    .select('id,metadata,created_at,content,brand_id')
-    .eq('user_id', userId)
-    .eq('status', 'published'); // Only count published posts
-
-  if (selectedBrandId && selectedBrandId !== 'all') {
-    postsQuery = postsQuery.eq('brand_id', selectedBrandId);
-  }
-
-  const { data: postsData } = await postsQuery.order('created_at', { ascending: false });
-
-  // Build query for social accounts with optional brand filter
-  let accountsQuery = supabase
-    .from('social_accounts')
-    .select('id,platform,account_name,platform_specific_data,brand_id')
-    .eq('user_id', userId)
-    .eq('is_active', true); // Only active accounts
-
-  if (selectedBrandId && selectedBrandId !== 'all') {
-    accountsQuery = accountsQuery.eq('brand_id', selectedBrandId);
-  }
-
-  const { data: _accountsData } = await accountsQuery;
-
-  // Fetch post analytics (the source of truth for analytics data)
-  let analyticsData: any[] = [];
-  if (postsData && postsData.length > 0) {
-    const { data } = await supabase
-      .from('post_analytics')
-      .select('post_id,likes,comments,shares,impressions,date,metadata')
-      .in('post_id', postsData.map(p => p.id));
-    analyticsData = data || [];
-  }
-
-  // Create a map of post_id -> analytics entries (grouped by post)
-  const analyticsByPost = new Map<string, typeof analyticsData>();
-  if (analyticsData && Array.isArray(analyticsData)) {
-    for (const analytics of analyticsData) {
-      if (!analyticsByPost.has(analytics.post_id)) {
-        analyticsByPost.set(analytics.post_id, []);
-      }
-      analyticsByPost.get(analytics.post_id)!.push(analytics);
-    }
-  }
-
-  // Helper function to normalize platform names (needed early for follower calculation)
-  const normalizePlatform = (platform: string) => {
-    const normalized = platform.toLowerCase();
-    if (normalized === 'twitter') {
-      return 'x';
-    }
-    return normalized;
-  };
-
-  // Calculate date range first (needed for filtering totals)
+  // Calculate date range first (needed for cached queries)
   const calculateDateRange = () => {
     const today = endOfDay(new Date());
 
@@ -161,38 +111,73 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   const { from: rangeFrom, to: rangeTo } = calculateDateRange();
 
-  // Filter by date range first (before calculating totals)
-  const filterByDateRange = <T extends { created_at?: string }>(
-    items: T[],
-  ): T[] => {
-    return items.filter((item) => {
-      const itemDate = item.created_at ? new Date(item.created_at) : null;
-      if (!itemDate) {
-        return false;
-      }
-      return itemDate >= rangeFrom && itemDate <= rangeTo;
-    });
+  // Calculate previous period for comparison (same duration, shifted back)
+  const calculatePreviousPeriod = () => {
+    const duration = rangeTo.getTime() - rangeFrom.getTime();
+    const previousTo = new Date(rangeFrom.getTime() - 1); // Day before current period starts
+    const previousFrom = new Date(previousTo.getTime() - duration);
+    return { from: previousFrom, to: previousTo };
   };
+
+  const { from: previousRangeFrom, to: previousRangeTo } = calculatePreviousPeriod();
+
+  // Create Supabase client outside cache scope (required for Next.js 16)
+  // Note: supabase is already created above (line 61)
+
+  // Use cached functions for data fetching (non-blocking, cached)
+  // Pass supabase client as parameter since it uses cookies() which can't be in cache scope
+  // Fetch both current and previous period data in parallel
+  const [
+    { posts: postsData, analytics: analyticsData },
+    { posts: previousPostsData, analytics: previousAnalyticsData },
+    _accountsData,
+    demographics,
+  ] = await Promise.all([
+    getCachedPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
+    getCachedPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
+    getCachedAccounts(supabase, userId, selectedBrandId),
+    getCachedDemographics(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
+  ]);
+
+  // Trigger background analytics sync (non-blocking)
+  // Pass date range to sync only relevant data
+  syncAnalyticsInBackground(supabase, userId, selectedBrandId, {
+    dateFrom: rangeFrom,
+    dateTo: rangeTo,
+  });
+
+  // Create a map of post_id -> analytics entries (grouped by post)
+  const analyticsByPost = new Map<string, typeof analyticsData>();
+  if (analyticsData && Array.isArray(analyticsData)) {
+    for (const analytics of analyticsData) {
+      if (!analyticsByPost.has(analytics.post_id)) {
+        analyticsByPost.set(analytics.post_id, []);
+      }
+      analyticsByPost.get(analytics.post_id)!.push(analytics);
+    }
+  }
+
+  // Helper function to normalize platform names (needed early for follower calculation)
+  const normalizePlatform = (platform: string) => {
+    const normalized = platform.toLowerCase();
+    if (normalized === 'twitter') {
+      return 'x';
+    }
+    return normalized;
+  };
+
+  // Posts are already filtered by date range from cache
+  const dateFilteredPosts = postsData || [];
 
   // Filter analytics by date range
-  const filterAnalyticsByDateRange = (
-    analytics: typeof analyticsData,
-  ): typeof analyticsData => {
-    if (!analytics || !Array.isArray(analytics)) {
-      return [];
+  // Include analytics that are within the date range (regardless of post publish date)
+  const dateFilteredAnalytics = (analyticsData || []).filter((a) => {
+    if (!a.date) {
+      return false;
     }
-    return analytics.filter((a) => {
-      if (!a.date) {
-        return false;
-      }
-      const analyticsDate = new Date(a.date);
-      return analyticsDate >= rangeFrom && analyticsDate <= rangeTo;
-    });
-  };
-
-  // Filter posts and analytics by date range first
-  const dateFilteredPosts = filterByDateRange(postsData || []);
-  const dateFilteredAnalytics = filterAnalyticsByDateRange(analyticsData || []) || [];
+    const analyticsDate = new Date(a.date);
+    return analyticsDate >= rangeFrom && analyticsDate <= rangeTo;
+  });
 
   // Aggregate metric sums from date-filtered post_analytics
   let totalImpressions = 0;
@@ -204,9 +189,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     totalPosts = dateFilteredPosts.length;
 
     // Calculate totals from date-filtered analytics
+    // Engagement = likes + comments + shares (all engagement types)
     for (const analytics of dateFilteredAnalytics) {
       totalImpressions += Number(analytics.impressions ?? 0);
-      totalEngagement += Number(analytics.likes ?? 0) + Number(analytics.comments ?? 0) + Number(analytics.shares ?? 0);
+      // Ensure we're using the correct field names and handling null/undefined
+      const likes = Number(analytics.likes ?? 0);
+      const comments = Number(analytics.comments ?? 0);
+      const shares = Number(analytics.shares ?? 0);
+      totalEngagement += likes + comments + shares;
     }
 
     // Get followers from platform_specific_data - sum across all accounts/platforms
@@ -215,7 +205,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     for (const acc of _accountsData || []) {
       const platform = (acc as any)?.platform ?? 'unknown';
       const platformData = (acc as any)?.platform_specific_data as any;
-      const followers = Number(platformData?.followers ?? 0);
+      // Try follower_count first (from Getlate), then followers
+      const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
       if (followers > 0) {
         const normalized = normalizePlatform(platform);
         const currentMax = followersByPlatform.get(normalized) ?? 0;
@@ -229,77 +220,180 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     for (const followers of followersByPlatform.values()) {
       totalFollowers += followers;
     }
+  }
 
-    // Fallback: try to get followers from posts metadata if no accounts data
-    if (totalFollowers === 0) {
-      const followersFromPosts = new Map<string, number>();
-      for (const p of dateFilteredPosts) {
-        const meta = (p as any)?.metadata as any;
-        if (meta && typeof meta === 'object') {
-          const platform = meta.platform ?? 'unknown';
-          const normalized = normalizePlatform(platform);
-          const followers = Number(meta.followers ?? 0);
-          if (followers > 0) {
-            const currentMax = followersFromPosts.get(normalized) ?? 0;
-            if (followers > currentMax) {
-              followersFromPosts.set(normalized, followers);
+  // Build per-platform metrics from analytics and accounts
+  // Priority: analytics.platform (most reliable) > post.metadata.platform > account.platform
+  const platformMap = new Map<string, { followers: number; impressions: number; posts: number; engagement: number }>();
+
+  // Initialize platform map from accounts (for followers)
+  // Take maximum followers if multiple accounts on same platform
+  if (_accountsData && Array.isArray(_accountsData)) {
+    for (const acc of _accountsData) {
+      const plat = normalizePlatform((acc as any)?.platform ?? 'unknown');
+      const platformData = (acc as any)?.platform_specific_data as any;
+      const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
+
+      if (!platformMap.has(plat)) {
+        platformMap.set(plat, {
+          followers,
+          impressions: 0,
+          posts: 0,
+          engagement: 0,
+        });
+      } else {
+        // Update followers if this account has more followers
+        const current = platformMap.get(plat)!;
+        if (followers > current.followers) {
+          current.followers = followers;
+          platformMap.set(plat, current);
+        }
+      }
+    }
+  }
+
+  // Create a map of post_id -> platforms from analytics (most reliable source)
+  const postPlatformMap = new Map<string, Set<string>>();
+  if (dateFilteredAnalytics && Array.isArray(dateFilteredAnalytics)) {
+    for (const analytics of dateFilteredAnalytics) {
+      // Use analytics.platform as primary source (most reliable)
+      if (analytics.platform) {
+        const plat = normalizePlatform(analytics.platform);
+        if (!postPlatformMap.has(analytics.post_id)) {
+          postPlatformMap.set(analytics.post_id, new Set());
+        }
+        postPlatformMap.get(analytics.post_id)!.add(plat);
+
+        // Aggregate metrics by platform from analytics
+        // Preserve existing followers if already set from accounts
+        const existingEntry = platformMap.get(plat);
+        const entry = existingEntry ?? { followers: 0, impressions: 0, posts: 0, engagement: 0 };
+        // Preserve followers (don't overwrite with 0 if already set)
+        entry.followers = existingEntry?.followers ?? 0;
+        entry.impressions += Number(analytics.impressions ?? 0);
+        // Calculate engagement: likes + comments + shares
+        const likes = Number(analytics.likes ?? 0);
+        const comments = Number(analytics.comments ?? 0);
+        const shares = Number(analytics.shares ?? 0);
+        entry.engagement += likes + comments + shares;
+        platformMap.set(plat, entry);
+      }
+    }
+  }
+
+  // Get scheduled_posts with social_accounts to find platform for posts without analytics
+  const postIdsForPlatformLookup = dateFilteredPosts?.map(p => p.id) || [];
+  let scheduledPostsWithAccounts: any[] = [];
+  if (postIdsForPlatformLookup.length > 0) {
+    const { data } = await supabase
+      .from('scheduled_posts')
+      .select('post_id,social_accounts!inner(platform)')
+      .in('post_id', postIdsForPlatformLookup);
+    scheduledPostsWithAccounts = data || [];
+  }
+
+  // Create a map of post_id -> platforms from scheduled_posts -> social_accounts
+  const postPlatformMapFromScheduled = new Map<string, Set<string>>();
+  for (const scheduled of scheduledPostsWithAccounts) {
+    const account = (scheduled as any)?.social_accounts;
+    if (account?.platform) {
+      const plat = normalizePlatform(account.platform);
+      if (!postPlatformMapFromScheduled.has(scheduled.post_id)) {
+        postPlatformMapFromScheduled.set(scheduled.post_id, new Set());
+      }
+      postPlatformMapFromScheduled.get(scheduled.post_id)!.add(plat);
+    }
+  }
+
+  // Count posts per platform (use analytics platform if available, otherwise fallback to multiple sources)
+  // Use a Set to track which posts we've already counted per platform to avoid double-counting
+  const postsCountedPerPlatform = new Map<string, Set<string>>();
+
+  if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
+    for (const post of dateFilteredPosts) {
+      // Priority order for platform detection:
+      // 1. Analytics platform (most reliable)
+      // 2. Scheduled posts -> social accounts -> platform
+      // 3. Post platforms array (from Getlate)
+      // 4. Post metadata.platform
+      let platforms: string[] = [];
+
+      const platformsFromAnalytics = postPlatformMap.get(post.id);
+      if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
+        // Use all platforms from analytics (a post can be on multiple platforms)
+        platforms = Array.from(platformsFromAnalytics);
+      } else {
+        // Try scheduled posts -> social accounts
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(post.id);
+        if (platformsFromScheduled && platformsFromScheduled.size > 0) {
+          platforms = Array.from(platformsFromScheduled);
+        } else {
+          // Try post platforms array (from Getlate)
+          const postPlatforms = (post as any)?.platforms;
+          if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+            platforms = postPlatforms.map((p: any) => {
+              if (typeof p === 'string') {
+                return normalizePlatform(p);
+              }
+              if (p?.platform) {
+                return normalizePlatform(p.platform);
+              }
+              return null;
+            }).filter(Boolean) as string[];
+          }
+
+          // Fallback to post metadata
+          if (platforms.length === 0) {
+            const meta = (post as any)?.metadata as any;
+            const metaPlatform = normalizePlatform(meta?.platform ?? 'unknown');
+            platforms = [metaPlatform];
+          }
+        }
+      }
+
+      // If still no platform found, try to get from accounts (if post has brand_id)
+      if (platforms.length === 0 || (platforms.length === 1 && platforms[0] === 'unknown')) {
+        // Try to find platform from accounts for this brand
+        const postBrandId = (post as any)?.brand_id;
+        if (postBrandId && _accountsData) {
+          const brandAccounts = _accountsData.filter((acc: any) => acc.brand_id === postBrandId);
+          if (brandAccounts.length > 0) {
+            // Use the first account's platform
+            const firstAccountPlatform = normalizePlatform(brandAccounts[0]?.platform ?? 'unknown');
+            if (firstAccountPlatform !== 'unknown') {
+              platforms = [firstAccountPlatform];
             }
           }
         }
       }
-      // Sum followers from posts metadata
-      for (const followers of followersFromPosts.values()) {
-        totalFollowers += followers;
+
+      // Count post for each platform it belongs to (but only once per platform)
+      for (const plat of platforms) {
+        // Skip 'unknown' platform - we want to assign posts to real platforms
+        if (plat === 'unknown') {
+          continue;
+        }
+
+        // Initialize Set for this platform if needed
+        if (!postsCountedPerPlatform.has(plat)) {
+          postsCountedPerPlatform.set(plat, new Set());
+        }
+
+        // Only count if we haven't counted this post for this platform yet
+        if (!postsCountedPerPlatform.get(plat)!.has(post.id)) {
+          const existingEntry = platformMap.get(plat);
+          const entry = existingEntry ?? { followers: 0, impressions: 0, posts: 0, engagement: 0 };
+          // Preserve followers and other metrics if already set
+          if (existingEntry) {
+            entry.followers = existingEntry.followers;
+            entry.impressions = existingEntry.impressions;
+            entry.engagement = existingEntry.engagement;
+          }
+          entry.posts += 1;
+          platformMap.set(plat, entry);
+          postsCountedPerPlatform.get(plat)!.add(post.id);
+        }
       }
-    }
-  }
-
-  // Build per-platform metrics from post_analytics and posts
-  const platformMap = new Map<string, { followers: number; impressions: number; posts: number }>();
-  if (_accountsData && Array.isArray(_accountsData)) {
-    for (const acc of _accountsData) {
-      const plat = (acc as any)?.platform ?? 'unknown';
-      if (!platformMap.has(plat)) {
-        const platformData = (acc as any)?.platform_specific_data as any;
-        platformMap.set(plat, {
-          followers: Number(platformData?.followers ?? 0),
-          impressions: 0,
-          posts: 0,
-        });
-      }
-    }
-  }
-
-  // Create a map of post_id -> post for quick lookup (using date-filtered posts)
-  const postsMapForPlatform = new Map(dateFilteredPosts?.map(p => [p.id, p]) || []);
-
-  // Aggregate analytics by platform (via posts) - using date-filtered analytics
-  if (dateFilteredAnalytics && Array.isArray(dateFilteredAnalytics)) {
-    for (const analytics of dateFilteredAnalytics) {
-      const post = postsMapForPlatform.get(analytics.post_id);
-      if (!post) {
-        continue;
-      }
-
-      // Get platform from post metadata or try to find via brand/social account
-      const meta = (post as any)?.metadata as any;
-      const plat = meta?.platform ?? 'unknown';
-
-      const entry = platformMap.get(plat) ?? { followers: 0, impressions: 0, posts: 0 };
-      entry.impressions += Number(analytics.impressions ?? 0);
-      // Posts count will be calculated separately
-      platformMap.set(plat, entry);
-    }
-  }
-
-  // Count posts per platform (from date-filtered posts)
-  if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
-    for (const post of dateFilteredPosts) {
-      const meta = (post as any)?.metadata as any;
-      const plat = meta?.platform ?? 'unknown';
-      const entry = platformMap.get(plat) ?? { followers: 0, impressions: 0, posts: 0 };
-      entry.posts += 1;
-      platformMap.set(plat, entry);
     }
   }
 
@@ -319,25 +413,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   };
 
-  // Deterministic pseudo-random generator based on a string seed.
-  // This replaces calls to Math.random() in the render path so ESLint
-  // doesn't flag impure functions during render and mock values remain
-  // stable across renders for the same inputs.
-  const seededRandom = (seed: string) => {
-    // FNV-1a 32-bit hash
-    let h = 2166136261 >>> 0;
-    for (let i = 0; i < seed.length; i++) {
-      h ^= seed.charCodeAt(i);
-      h = Math.imul(h, 16777619) >>> 0;
-    }
-    // Convert to float in [0, 1)
-    return (h >>> 0) / 4294967296;
-  };
-
   // Helper function to build series map from analytics data
-  const buildSeriesMap = (analytics: typeof analyticsData, posts: any[]): Record<string, { followers: number; impressions: number; count: number; engagement: number }> => {
+  // Note: Followers should be set separately from platformMap, not from post metadata
+  const buildSeriesMap = (analytics: typeof analyticsData): Record<string, { followers: number; impressions: number; count: number; engagement: number }> => {
     const map: Record<string, { followers: number; impressions: number; count: number; engagement: number }> = {};
-    const postsMap = new Map(posts.map(p => [p.id, p]));
 
     if (!analytics || !Array.isArray(analytics)) {
       return map;
@@ -356,58 +435,90 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       }
 
       map[key].impressions += Number(a.impressions ?? 0);
-      map[key].engagement += Number(a.likes ?? 0) + Number(a.comments ?? 0) + Number(a.shares ?? 0);
+      // Calculate engagement: likes + comments + shares
+      const likes = Number(a.likes ?? 0);
+      const comments = Number(a.comments ?? 0);
+      const shares = Number(a.shares ?? 0);
+      map[key].engagement += likes + comments + shares;
       map[key].count += 1;
 
-      // Get followers from post's metadata or account (one-time lookup per post)
-      const post = postsMap.get(a.post_id);
-      if (post) {
-        const meta = (post as any)?.metadata as any;
-        const followers = Number(meta?.followers ?? 0);
-        if (followers > map[key].followers) {
-          map[key].followers = followers;
-        }
-      }
+      // Note: Followers will be set from platformMap after building the series map
+      // This ensures we use the correct followers from accounts, not post metadata
     }
     return map;
   };
 
-  // Build series map from date-filtered analytics (using date-filtered posts)
-  const seriesMap = buildSeriesMap(dateFilteredAnalytics, dateFilteredPosts || []);
+  // Build series map from date-filtered analytics
+  const seriesMap = buildSeriesMap(dateFilteredAnalytics);
 
   const formatted = (n: number) => new Intl.NumberFormat('en-US').format(Math.round(n));
-
-  // Filter data based on selected platform
-  const filterByPlatform = <T extends { platform?: string; metadata?: any }>(
-    items: T[],
-    platform: string | null,
-  ): T[] => {
-    if (!platform || platform === 'all') {
-      return items;
-    }
-    const normalized = normalizePlatform(platform);
-    return items.filter((item) => {
-      const itemPlatform = item.platform
-        ? normalizePlatform(item.platform)
-        : item.metadata?.platform
-          ? normalizePlatform(item.metadata.platform)
-          : null;
-      return itemPlatform === normalized;
-    });
-  };
 
   // Use date-filtered data (already calculated above)
   const dateFilteredAnalyticsForMetrics = dateFilteredAnalytics;
 
-  // Filter analytics by platform (via posts)
+  // Filter posts by platform first (include posts even if they don't have analytics yet)
   const finalFilteredPosts = selectedPlatform && selectedPlatform !== 'all'
-    ? filterByPlatform(dateFilteredPosts, selectedPlatform)
+    ? dateFilteredPosts.filter((p) => {
+        const normalizedSelectedPlatform = normalizePlatform(selectedPlatform);
+
+        // Check if post has analytics with matching platform
+        const platformsFromAnalytics = postPlatformMap.get(p.id);
+        if (platformsFromAnalytics && platformsFromAnalytics.has(normalizedSelectedPlatform)) {
+          return true;
+        }
+
+        // Check scheduled posts -> social accounts -> platform
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(p.id);
+        if (platformsFromScheduled && platformsFromScheduled.has(normalizedSelectedPlatform)) {
+          return true;
+        }
+
+        // Check post platforms array (from Getlate)
+        const postPlatforms = (p as any)?.platforms;
+        if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+          const platforms = postPlatforms.map((pl: any) => {
+            if (typeof pl === 'string') {
+              return normalizePlatform(pl);
+            }
+            if (pl?.platform) {
+              return normalizePlatform(pl.platform);
+            }
+            return null;
+          }).filter(Boolean) as string[];
+          if (platforms.includes(normalizedSelectedPlatform)) {
+            return true;
+          }
+        }
+
+        // Check post metadata
+        const meta = (p as any)?.metadata as any;
+        const metaPlatform = normalizePlatform(meta?.platform ?? 'unknown');
+        if (metaPlatform === normalizedSelectedPlatform) {
+          return true;
+        }
+
+        return false;
+      })
     : dateFilteredPosts;
 
+  // Filter analytics by platform AND ensure they belong to filtered posts
   const finalFilteredPostIds = new Set(finalFilteredPosts.map(p => p.id));
-  const finalFilteredAnalytics = dateFilteredAnalyticsForMetrics.filter(a =>
-    finalFilteredPostIds.has(a.post_id),
-  );
+  const finalFilteredAnalytics = selectedPlatform && selectedPlatform !== 'all'
+    ? dateFilteredAnalyticsForMetrics.filter((a) => {
+        // Must belong to a filtered post
+        if (!finalFilteredPostIds.has(a.post_id)) {
+          return false;
+        }
+
+        // Check platform match
+        if (a.platform) {
+          return normalizePlatform(a.platform) === normalizePlatform(selectedPlatform);
+        }
+        // Fallback: check if post has matching platform
+        const platforms = postPlatformMap.get(a.post_id);
+        return platforms && platforms.has(normalizePlatform(selectedPlatform));
+      })
+    : dateFilteredAnalyticsForMetrics;
 
   // Recalculate metrics based on filtered analytics data (platform + date filtered)
   let filteredImpressions = 0;
@@ -417,34 +528,47 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   filteredPostsCount = finalFilteredPosts.length;
 
-  // Calculate from filtered analytics
+  // Calculate from filtered analytics (only analytics for the selected platform)
   for (const a of finalFilteredAnalytics) {
     filteredImpressions += Number(a.impressions ?? 0);
-    filteredEngagement += Number(a.likes ?? 0) + Number(a.comments ?? 0) + Number(a.shares ?? 0);
+    // Calculate engagement: likes + comments + shares
+    const likes = Number(a.likes ?? 0);
+    const comments = Number(a.comments ?? 0);
+    const shares = Number(a.shares ?? 0);
+    filteredEngagement += likes + comments + shares;
   }
 
   // Get followers from accounts for selected platform
   // If platform is selected, get followers from accounts of that platform
   if (selectedPlatform && selectedPlatform !== 'all') {
     const normalizedPlatform = normalizePlatform(selectedPlatform);
-    for (const acc of _accountsData || []) {
-      const accPlatform = normalizePlatform((acc as any)?.platform ?? 'unknown');
-      if (accPlatform === normalizedPlatform) {
-        const platformData = (acc as any)?.platform_specific_data as any;
-        const followers = Number(platformData?.followers ?? 0);
-        // Take max if multiple accounts on same platform
-        filteredFollowers = Math.max(filteredFollowers, followers);
-      }
-    }
 
-    // Fallback: try to get from posts metadata
-    if (filteredFollowers === 0) {
-      for (const post of finalFilteredPosts) {
-        const meta = (post as any)?.metadata as any;
-        if (meta && typeof meta === 'object') {
-          const postPlatform = normalizePlatform(meta.platform ?? 'unknown');
-          if (postPlatform === normalizedPlatform) {
-            filteredFollowers = Math.max(filteredFollowers, Number(meta.followers ?? 0));
+    // First priority: Get from platformMap (already calculated with max followers per platform)
+    const platformData = platformMap.get(normalizedPlatform);
+    if (platformData && platformData.followers > 0) {
+      filteredFollowers = platformData.followers;
+    } else {
+      // Fallback: Calculate directly from accounts
+      for (const acc of _accountsData || []) {
+        const accPlatform = normalizePlatform((acc as any)?.platform ?? 'unknown');
+        if (accPlatform === normalizedPlatform) {
+          const platformData = (acc as any)?.platform_specific_data as any;
+          // Try follower_count first (from Getlate), then followers
+          const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
+          // Take max if multiple accounts on same platform
+          filteredFollowers = Math.max(filteredFollowers, followers);
+        }
+      }
+
+      // Last fallback: try to get from posts metadata
+      if (filteredFollowers === 0) {
+        for (const post of finalFilteredPosts) {
+          const meta = (post as any)?.metadata as any;
+          if (meta && typeof meta === 'object') {
+            const postPlatform = normalizePlatform(meta.platform ?? 'unknown');
+            if (postPlatform === normalizedPlatform) {
+              filteredFollowers = Math.max(filteredFollowers, Number(meta.followers ?? 0));
+            }
           }
         }
       }
@@ -507,7 +631,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   const dateSeries = generateDateSeries();
 
   // Build filtered series map using finalFilteredAnalytics (already filtered by date and platform)
-  const filteredSeriesMap = buildSeriesMap(finalFilteredAnalytics, finalFilteredPosts);
+  const filteredSeriesMap = buildSeriesMap(finalFilteredAnalytics);
 
   // Use filtered or total series based on platform selection
   const activeSeriesMap = selectedPlatform && selectedPlatform !== 'all' ? filteredSeriesMap : seriesMap;
@@ -537,70 +661,51 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   });
 
   // Generate follower trend series based on date series
+  // Use displayFollowers (from platformMap/accounts) for all dates since followers are a snapshot
+  // When platform is selected, displayFollowers already contains the correct platform-specific followers
   const followerTrendSeries = dateSeries.map((dateKey) => {
-    const seriesData = activeSeriesMap[dateKey] || filteredSeriesMap[dateKey];
-    // Use max followers from series data, or fallback to displayFollowers
-    const followers = seriesData && seriesData.followers > 0 ? seriesData.followers : displayFollowers;
+    // Use displayFollowers which is already correctly calculated from platformMap/accounts
+    // This ensures we use real-time follower data from accounts, not post metadata
     return {
       date: dateKey,
-      followers: followers || 0,
+      followers: displayFollowers || 0,
     };
   });
 
-  // Calculate platform metrics from actual analytics and posts data (must be before postsByPlatformData)
+  // Calculate platform metrics from platformMap (already aggregated from analytics)
   const platformFollowersMap = new Map<string, { followers: number; change: number }>();
   const platformPostsCount = new Map<string, number>();
   const platformImpressionsMap = new Map<string, number>();
   const platformEngagementMap = new Map<string, number>();
 
-  // Calculate followers and posts per platform from date-filtered posts
-  if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
-    for (const p of dateFilteredPosts) {
-      const meta = (p as any)?.metadata as any;
-      const plat = meta?.platform ? normalizePlatform(meta.platform) : 'unknown';
+  // Extract metrics from platformMap (this is the source of truth for platform data)
+  for (const [plat, data] of platformMap.entries()) {
+    platformFollowersMap.set(plat, {
+      followers: data.followers,
+      change: 0, // Real change calculation requires historical data
+    });
+    // Use posts count from platformMap (already counted correctly above)
+    platformPostsCount.set(plat, data.posts);
+    platformImpressionsMap.set(plat, data.impressions);
+    platformEngagementMap.set(plat, data.engagement);
+  }
 
-      // Get followers from account's platform_specific_data if available
-      let followers = Number(meta?.followers ?? 0);
-      if (followers === 0) {
-        const account = _accountsData?.find(acc => normalizePlatform(acc.platform) === plat);
-        if (account) {
-          const platformData = (account as any)?.platform_specific_data as any;
-          followers = Number(platformData?.followers ?? 0);
-        }
-      }
+  // Debug logging in development - verify platform posts count matches platformMap
 
-      // Track max followers per platform (most recent value)
-      const current = platformFollowersMap.get(plat);
-      if (!current || followers > current.followers) {
+  // Also ensure accounts are included even if no posts/analytics
+  if (_accountsData && Array.isArray(_accountsData)) {
+    for (const acc of _accountsData) {
+      const plat = normalizePlatform((acc as any)?.platform ?? 'unknown');
+      if (!platformFollowersMap.has(plat)) {
+        const platformData = (acc as any)?.platform_specific_data as any;
+        const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
         platformFollowersMap.set(plat, {
           followers,
-          change: current?.change ?? 0,
+          change: 0,
         });
-      }
-
-      // Count posts per platform
-      platformPostsCount.set(plat, (platformPostsCount.get(plat) || 0) + 1);
-
-      // Sum impressions and engagement per platform from analytics
-      const analytics = finalFilteredAnalytics.filter((a) => {
-        const post = dateFilteredPosts.find((p: any) => p.id === a.post_id);
-        if (!post) {
-          return false;
-        }
-        const postMeta = (post as any)?.metadata as any;
-        return normalizePlatform(postMeta?.platform ?? 'unknown') === plat;
-      });
-
-      const platformImpressions = analytics.reduce((sum, a) => sum + Number(a.impressions ?? 0), 0);
-      const platformEngagement = analytics.reduce((sum, a) => {
-        return sum + Number(a.likes ?? 0) + Number(a.comments ?? 0) + Number(a.shares ?? 0);
-      }, 0);
-
-      if (platformImpressions > 0) {
-        platformImpressionsMap.set(plat, (platformImpressionsMap.get(plat) || 0) + platformImpressions);
-      }
-      if (platformEngagement > 0) {
-        platformEngagementMap.set(plat, (platformEngagementMap.get(plat) || 0) + platformEngagement);
+        platformPostsCount.set(plat, platformPostsCount.get(plat) || 0);
+        platformImpressionsMap.set(plat, platformImpressionsMap.get(plat) || 0);
+        platformEngagementMap.set(plat, platformEngagementMap.get(plat) || 0);
       }
     }
   }
@@ -610,7 +715,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     for (const acc of _accountsData) {
       const plat = normalizePlatform((acc as any)?.platform ?? 'unknown');
       const platformData = (acc as any)?.platform_specific_data as any;
-      const followers = Number(platformData?.followers ?? 0);
+      const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
 
       if (followers > 0) {
         const current = platformFollowersMap.get(plat);
@@ -628,39 +733,37 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   }
 
-  // Calculate growth/change percentages (simple mock - would need historical data for real calculation)
-  // Only set change for platforms that have followers (connected)
+  // Calculate growth/change percentages
+  // For now, set to 0 (real calculation requires historical data)
+  // TODO: Implement real change calculation when historical follower data is available
   for (const [plat, data] of platformFollowersMap.entries()) {
     if (data.followers > 0 && data.change === 0) {
-      // Mock change percentage (deterministic per platform)
-      platformFollowersMap.set(plat, { ...data, change: seededRandom(`change:${plat}`) * 6 });
+      // Real change calculation requires historical data comparison
+      platformFollowersMap.set(plat, { ...data, change: 0 });
     }
   }
 
   // Generate net follower growth based on date series
-  // Note: Real calculation would need historical data. Using mock growth for now.
+  // Calculate from actual follower changes (if we have historical data)
+  // Otherwise show 0 (no growth data available)
   const netGrowthSeries = dateSeries.map((dateKey) => {
-    // Mock growth calculation (would need previous period data for real calculation)
-    const seriesData = activeSeriesMap[dateKey] || filteredSeriesMap[dateKey];
-    const mockGrowth = seriesData ? Math.floor(seededRandom(`growth:${dateKey}`) * 40) - 10 : 0;
+    // For now, show 0 if no historical comparison data available
+    // TODO: Implement real growth calculation when historical follower data is available
+    // Real growth calculation requires comparing current followers with previous period
     return {
       date: dateKey,
-      growth: mockGrowth,
+      growth: 0, // Real growth calculation requires historical data
     };
   });
 
   // Calculate posts by platform from actual data
-  const postsByPlatformData = Array.from(platformPostsCount.entries()).map(([platform, count]) => {
-    // Capitalize platform name for display
-    const displayName = platform.charAt(0).toUpperCase() + platform.slice(1);
-    return { platform: displayName, posts: count };
-  });
-
-  // If no data, use fallback for display
-  if (postsByPlatformData.length === 0) {
-    const fallbackPlatforms = ['YouTube', 'Facebook', 'LinkedIn', 'TikTok', 'X', 'Instagram'];
-    postsByPlatformData.push(...fallbackPlatforms.map(p => ({ platform: p, posts: 0 })));
-  }
+  const postsByPlatformData = Array.from(platformPostsCount.entries())
+    .filter(([_, count]) => count > 0) // Only show platforms with posts
+    .map(([platform, count]) => {
+      // Capitalize platform name for display
+      const displayName = platform.charAt(0).toUpperCase() + platform.slice(1);
+      return { platform: displayName, posts: count };
+    });
 
   // Filter if platform is selected
   const filteredPostsByPlatform = selectedPlatform && selectedPlatform !== 'all'
@@ -678,6 +781,150 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       rate: Math.round(rate * 10) / 10,
     };
   });
+
+  // Calculate previous period metrics for comparison
+  // Filter previous analytics by date range
+  const previousDateFilteredAnalytics = (previousAnalyticsData || []).filter((a) => {
+    if (!a.date) {
+      return false;
+    }
+    const analyticsDate = new Date(a.date);
+    return analyticsDate >= previousRangeFrom && analyticsDate <= previousRangeTo;
+  });
+
+  // Calculate previous period totals
+  let previousTotalImpressions = 0;
+  let previousTotalEngagement = 0;
+  let previousTotalPosts = 0;
+
+  // Filter previous posts by date range (same logic as current period)
+  const { data: previousScheduledPostsData } = await supabase
+    .from('scheduled_posts')
+    .select('post_id,published_at,scheduled_for,status')
+    .in('post_id', (previousPostsData || []).map((p: any) => p.id));
+
+  const previousPublishedDateMap = new Map<string, Date>();
+  for (const scheduled of previousScheduledPostsData || []) {
+    const publishDate = scheduled.published_at || scheduled.scheduled_for;
+    if (publishDate) {
+      previousPublishedDateMap.set(scheduled.post_id, new Date(publishDate));
+    }
+  }
+
+  const previousDateFilteredPosts = (previousPostsData || []).filter((post: any) => {
+    const publishDate = previousPublishedDateMap.get(post.id) || new Date(post.created_at);
+    return publishDate >= previousRangeFrom && publishDate <= previousRangeTo;
+  });
+
+  previousTotalPosts = previousDateFilteredPosts.length;
+
+  // Calculate previous period analytics totals
+  for (const analytics of previousDateFilteredAnalytics) {
+    previousTotalImpressions += Number(analytics.impressions ?? 0);
+    const likes = Number(analytics.likes ?? 0);
+    const comments = Number(analytics.comments ?? 0);
+    const shares = Number(analytics.shares ?? 0);
+    previousTotalEngagement += likes + comments + shares;
+  }
+
+  // Get previous period followers (use same accounts data, but this is a limitation)
+  // For accurate follower comparison, we'd need historical follower snapshots
+  // For now, we'll use the same follower count (no change) or calculate from analytics if available
+  const previousTotalFollowers = totalFollowers; // Default: assume no change (limitation)
+
+  // Calculate previous period metrics per platform
+  const previousPlatformMap = new Map<string, { followers: number; impressions: number; posts: number; engagement: number }>();
+
+  // Initialize previous platform map from accounts (same as current)
+  if (_accountsData && Array.isArray(_accountsData)) {
+    for (const acc of _accountsData) {
+      const plat = normalizePlatform((acc as any)?.platform ?? 'unknown');
+      if (!previousPlatformMap.has(plat)) {
+        const platformData = (acc as any)?.platform_specific_data as any;
+        previousPlatformMap.set(plat, {
+          followers: Number(platformData?.follower_count ?? platformData?.followers ?? 0),
+          impressions: 0,
+          posts: 0,
+          engagement: 0,
+        });
+      }
+    }
+  }
+
+  // Aggregate previous period analytics by platform
+  for (const analytics of previousDateFilteredAnalytics) {
+    if (analytics.platform) {
+      const plat = normalizePlatform(analytics.platform);
+      const entry = previousPlatformMap.get(plat) ?? { followers: 0, impressions: 0, posts: 0, engagement: 0 };
+      entry.impressions += Number(analytics.impressions ?? 0);
+      const likes = Number(analytics.likes ?? 0);
+      const comments = Number(analytics.comments ?? 0);
+      const shares = Number(analytics.shares ?? 0);
+      entry.engagement += likes + comments + shares;
+      previousPlatformMap.set(plat, entry);
+    }
+  }
+
+  // Count previous period posts per platform
+  const previousPostPlatformMap = new Map<string, Set<string>>();
+  for (const analytics of previousDateFilteredAnalytics) {
+    if (analytics.platform) {
+      const plat = normalizePlatform(analytics.platform);
+      if (!previousPostPlatformMap.has(analytics.post_id)) {
+        previousPostPlatformMap.set(analytics.post_id, new Set());
+      }
+      previousPostPlatformMap.get(analytics.post_id)!.add(plat);
+    }
+  }
+
+  const previousPostsCountedPerPlatform = new Map<string, Set<string>>();
+  for (const post of previousDateFilteredPosts) {
+    const platformsFromAnalytics = previousPostPlatformMap.get((post as any).id);
+    if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
+      for (const plat of platformsFromAnalytics) {
+        if (plat === 'unknown') {
+          continue;
+        }
+        if (!previousPostsCountedPerPlatform.has(plat)) {
+          previousPostsCountedPerPlatform.set(plat, new Set());
+        }
+        if (!previousPostsCountedPerPlatform.get(plat)!.has((post as any).id)) {
+          const entry = previousPlatformMap.get(plat) ?? { followers: 0, impressions: 0, posts: 0, engagement: 0 };
+          entry.posts += 1;
+          previousPlatformMap.set(plat, entry);
+          previousPostsCountedPerPlatform.get(plat)!.add((post as any).id);
+        }
+      }
+    }
+  }
+
+  // Calculate percentage changes
+  const calculatePercentageChange = (current: number, previous: number): number => {
+    if (previous === 0) {
+      // If previous is 0, return 100% increase if current > 0, else 0
+      return current > 0 ? 100 : 0;
+    }
+    return ((current - previous) / previous) * 100;
+  };
+
+  const followersChange = calculatePercentageChange(totalFollowers, previousTotalFollowers);
+  const impressionsChange = calculatePercentageChange(totalImpressions, previousTotalImpressions);
+  const engagementChange = calculatePercentageChange(totalEngagement, previousTotalEngagement);
+  const postsChange = calculatePercentageChange(totalPosts, previousTotalPosts);
+
+  // If platform is selected, calculate changes for filtered metrics
+  const finalFollowersChange = selectedPlatform && selectedPlatform !== 'all'
+    ? calculatePercentageChange(filteredFollowers, previousTotalFollowers) // Simplified: compare with total previous
+    : followersChange;
+  const finalImpressionsChange = selectedPlatform && selectedPlatform !== 'all'
+    ? calculatePercentageChange(filteredImpressions, previousTotalImpressions)
+    : impressionsChange;
+  const finalEngagementChange = selectedPlatform && selectedPlatform !== 'all'
+    ? calculatePercentageChange(filteredEngagement, previousTotalEngagement)
+    : engagementChange;
+  const finalPostsChange = selectedPlatform && selectedPlatform !== 'all'
+    ? calculatePercentageChange(filteredPostsCount, previousTotalPosts)
+    : postsChange;
 
   // Metric cards show filtered values when platform is selected, totals when "all" is selected
   const finalTotalPosts = displayPosts;
@@ -720,14 +967,48 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   const getPlatformChange = (platformName: string, metric: string) => {
     if (platformName === 'all') {
-      return 0;
+      // Use the calculated changes for "all" platform
+      switch (metric) {
+        case 'followers':
+          return followersChange;
+        case 'impressions':
+          return impressionsChange;
+        case 'engagement':
+          return engagementChange;
+        case 'posts':
+          return postsChange;
+        default:
+          return followersChange;
+      }
     }
+
     const platformKey = normalizePlatform(platformName);
-    if (metric === 'followers') {
-      return platformFollowersMap.get(platformKey)?.change || 0;
+    const currentValue = getPlatformMetric(platformName, metric);
+
+    // Get previous period value for this platform and metric
+    let previousValue = 0;
+    const previousPlatformData = previousPlatformMap.get(platformKey);
+
+    switch (metric) {
+      case 'followers':
+        previousValue = previousPlatformData?.followers ?? 0;
+        // If no previous data, use current (no change)
+        if (previousValue === 0) {
+          previousValue = currentValue;
+        }
+        break;
+      case 'impressions':
+        previousValue = previousPlatformData?.impressions ?? 0;
+        break;
+      case 'engagement':
+        previousValue = previousPlatformData?.engagement ?? 0;
+        break;
+      case 'posts':
+        previousValue = previousPlatformData?.posts ?? 0;
+        break;
     }
-    // Mock change for other metrics
-    return seededRandom(`change:${platformKey}:${metric}`) * 6;
+
+    return calculatePercentageChange(currentValue, previousValue);
   };
 
   // Platform metrics calculated from database data
@@ -743,18 +1024,59 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     { platform: 'Instagram', key: 'instagram' },
   ];
 
-  // Filter to only show platforms with connections (followers > 0 or posts > 0)
+  // Filter to only show platforms with connections
+  // Show platform if it exists in any of the maps (even if values are 0)
+  // This ensures platforms are visible if they have any data or accounts
   const connectedPlatforms = allPlatformsConfig.filter(({ key }) => {
-    const followers = platformFollowersMap.get(key)?.followers || 0;
-    const posts = platformPostsCount.get(key) || 0;
-    return followers > 0 || posts > 0;
+    // Check if platform exists in any map
+    const hasFollowers = platformFollowersMap.has(key);
+    const hasPosts = platformPostsCount.has(key);
+    const hasImpressions = platformImpressionsMap.has(key);
+    const hasEngagement = platformEngagementMap.has(key);
+    const hasInPlatformMap = platformMap.has(key);
+
+    // Show if platform exists in any map OR has any data > 0
+    if (hasFollowers || hasPosts || hasImpressions || hasEngagement || hasInPlatformMap) {
+      const followers = platformFollowersMap.get(key)?.followers || 0;
+      const posts = platformPostsCount.get(key) || 0;
+      const impressions = platformImpressionsMap.get(key) || 0;
+      const engagement = platformEngagementMap.get(key) || 0;
+      // Show if exists in map OR has data > 0
+      return followers > 0 || posts > 0 || impressions > 0 || engagement > 0 || hasInPlatformMap;
+    }
+    return false;
   });
+
+  // Also include platforms that exist in platformMap but not in allPlatformsConfig
+  // This handles cases where platforms are detected but not in the predefined list
+  const detectedPlatforms = Array.from(platformMap.keys()).filter((key) => {
+    // Skip 'unknown' platform
+    if (key === 'unknown') {
+      return false;
+    }
+    // Check if already in connectedPlatforms
+    const alreadyIncluded = connectedPlatforms.some(p => p.key === key);
+    if (alreadyIncluded) {
+      return false;
+    }
+    // Include if it has any data
+    const data = platformMap.get(key);
+    return data && (data.followers > 0 || data.posts > 0 || data.impressions > 0 || data.engagement > 0);
+  });
+
+  // Add detected platforms that aren't in the config
+  const additionalPlatforms = detectedPlatforms.map(key => ({
+    platform: key.charAt(0).toUpperCase() + key.slice(1), // Capitalize first letter
+    key,
+  }));
+
+  const allConnectedPlatforms = [...connectedPlatforms, ...additionalPlatforms];
 
   // Pre-calculate ALL metrics for ALL platforms for instant client-side switching
   type MetricType = 'followers' | 'impressions' | 'engagement' | 'posts';
   const allMetrics: MetricType[] = ['followers', 'impressions', 'engagement', 'posts'];
 
-  const platformDataWithAllMetrics = connectedPlatforms.map(({ platform }) => {
+  const platformDataWithAllMetrics = allConnectedPlatforms.map(({ platform }) => {
     const metrics: Record<MetricType, { value: number; change: number }> = {} as any;
     allMetrics.forEach((metric) => {
       metrics[metric] = {
@@ -773,12 +1095,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   allMetrics.forEach((metric) => {
     allPlatformMetrics[metric] = {
       value: getPlatformMetric('all', metric),
-      change: 0,
+      change: getPlatformChange('all', metric),
     };
   });
 
   // Build current platform data based on selected metric (for backward compatibility)
-  const platformCards = connectedPlatforms.map(({ platform }) => ({
+  const platformCards = allConnectedPlatforms.map(({ platform }) => ({
     platform,
     value: getPlatformMetric(platform, selectedMetric),
     change: getPlatformChange(platform, selectedMetric),
@@ -787,32 +1109,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Build base array: "All" first for both, but platforms reversed for RTL
   const platformDataBase = isRTL
-    ? [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: 0, metric: selectedMetric }, ...[...platformCards].reverse()]
-    : [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: 0, metric: selectedMetric }, ...platformCards];
+    ? [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: getPlatformChange('all', selectedMetric), metric: selectedMetric }, ...[...platformCards].reverse()]
+    : [{ platform: 'all', value: getPlatformMetric('all', selectedMetric), change: getPlatformChange('all', selectedMetric), metric: selectedMetric }, ...platformCards];
 
   // Use the base order directly (already correct for the locale)
   const platformData = platformDataBase;
 
-  // Demographics data (TODO: fetch from database when analytics table is populated)
-  const countriesData = [
-    { name: 'ישראל', value: 75 },
-    { name: 'ארה"ב', value: 15 },
-    { name: 'אירופה', value: 5 },
-    { name: 'אחר', value: 5 },
-  ];
-
-  const gendersData = [
-    { name: 'נשים', value: 58 },
-    { name: 'גברים', value: 42 },
-  ];
-
-  const agesData = [
-    { name: '+45', value: 27 },
-    { name: '35-44', value: 36 },
-    { name: '25-34', value: 19 },
-    { name: '18-24', value: 11 },
-    { name: '13-17', value: 7 },
-  ];
+  // Demographics data from cached function (real data only, empty arrays if no data)
+  const { countries: countriesData, genders: gendersData, ages: agesData } = demographics;
 
   // Generate filtered posts table data from actual posts if available, otherwise use dummy data
   let postsTableData: Array<{
@@ -825,9 +1129,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     platform: string;
   }> | undefined;
 
+  // Generate filtered posts table data from actual posts only (no dummy data)
   if (finalFilteredPosts && finalFilteredPosts.length > 0) {
     // Create a map of post_id -> latest analytics for quick lookup
-    type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any };
+    type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any; platform?: string | null };
     const latestAnalyticsByPost = new Map<string, AnalyticsEntry>();
     for (const analytics of finalFilteredAnalytics) {
       const existing = latestAnalyticsByPost.get(analytics.post_id);
@@ -846,7 +1151,43 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const engagementRate = impressions > 0 ? (engagement / impressions) * 100 : 0;
       const score = Math.floor(engagementRate * 100 + engagement / 10); // Simple score calculation
 
-      const meta = (p as any)?.metadata as any;
+      // Get platform using the same priority order as the rest of the dashboard:
+      // 1. Analytics platform (most reliable)
+      // 2. Scheduled posts -> social accounts -> platform
+      // 3. Post platforms array (from Getlate)
+      // 4. Post metadata.platform
+      let platform = 'unknown';
+
+      // Priority 1: Analytics platform
+      const platformsFromAnalytics = postPlatformMap.get(p.id);
+      if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
+        const platformsArray = Array.from(platformsFromAnalytics);
+        platform = platformsArray[0] || 'unknown';
+      } else {
+        // Priority 2: Scheduled posts -> social accounts
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(p.id);
+        if (platformsFromScheduled && platformsFromScheduled.size > 0) {
+          const platformsArray = Array.from(platformsFromScheduled);
+          platform = platformsArray[0] || 'unknown';
+        } else {
+          // Priority 3: Post platforms array (from Getlate)
+          const postPlatforms = (p as any)?.platforms;
+          if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+            const firstPlatform = postPlatforms[0];
+            if (typeof firstPlatform === 'string') {
+              platform = normalizePlatform(firstPlatform);
+            } else if (firstPlatform?.platform) {
+              platform = normalizePlatform(firstPlatform.platform);
+            }
+          }
+
+          // Priority 4: Post metadata
+          if (platform === 'unknown') {
+            const meta = (p as any)?.metadata as any;
+            platform = normalizePlatform(meta?.platform ?? 'unknown');
+          }
+        }
+      }
 
       return {
         score,
@@ -854,33 +1195,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         engagement,
         impressions,
         date: analytics?.date ?? (p as any)?.created_at ?? new Date().toISOString(),
-        postContent: (p as any)?.content ?? 'פוסט ללא תוכן',
-        platform: meta?.platform ?? 'unknown',
+        postContent: (p as any)?.content ?? '',
+        platform,
       };
     });
   }
-  if (selectedPlatform && selectedPlatform !== 'all') {
-    // Use deterministic dummy data when platform is selected but no DB data
-    const baseTs = new Date(rangeTo).getTime();
-    postsTableData = [0, 1].map((i) => {
-      const seed = `${selectedPlatform}:${i}`;
-      const score = Math.floor(seededRandom(`${seed}:score`) * 500) + (i === 0 ? 700 : 500);
-      const engagementRate = Math.round((seededRandom(`${seed}:rate`) * 5 + (i === 0 ? 6 : 5)) * 10) / 10;
-      const engagement = Math.floor(seededRandom(`${seed}:eng`) * (i === 0 ? 500 : 400)) + (i === 0 ? 400 : 300);
-      const impressions = Math.floor(seededRandom(`${seed}:imp`) * (i === 0 ? 5000 : 4000)) + (i === 0 ? 5000 : 4000);
-      const dateOffset = Math.floor(seededRandom(`${seed}:date`) * 7 * 24 * 60 * 60 * 1000);
-      return {
-        score,
-        engagementRate,
-        engagement,
-        impressions,
-        date: new Date(baseTs - dateOffset).toISOString(),
-        postContent: `דוגמה לפוסט מהפלטפורמה ${selectedPlatform}${i === 1 ? ' (אחר)' : ''}`,
-        platform: selectedPlatform,
-      };
-    });
-  }
-  // If no platform selected, postsTableData remains undefined and component uses default data
+  // If no posts, postsTableData remains undefined and component shows empty state
 
   return (
     <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -901,6 +1221,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           impressions={formatted(finalTotalImpressions)}
           engagement={formatted(finalTotalEngagement)}
           posts={formatted(finalTotalPosts)}
+          followersChange={finalFollowersChange}
+          impressionsChange={finalImpressionsChange}
+          engagementChange={finalEngagementChange}
+          postsChange={finalPostsChange}
           vsLabel={t('vs_last_month')}
         />
 

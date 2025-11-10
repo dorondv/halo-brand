@@ -11,6 +11,7 @@ import ScheduleSelector from '@/components/create/ScheduleSelector';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
@@ -23,8 +24,10 @@ type Platform = 'instagram' | 'x' | 'twitter' | 'facebook' | 'linkedin' | 'youtu
 
 type Account = {
   id: string;
+  brand_id: string;
   platform: Platform;
   account_name: string;
+  getlate_account_id?: string | null;
 };
 
 export default function CreatePostPage() {
@@ -43,9 +46,11 @@ export default function CreatePostPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [brands, setBrands] = useState<Array<{ id: string; name: string; getlate_profile_id?: string | null }>>([]);
+  const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load social accounts from database
+  // Load social accounts from database, syncing from Getlate first
   const loadAccounts = useCallback(async () => {
     try {
       const supabase = createSupabaseBrowserClient();
@@ -63,10 +68,50 @@ export default function CreatePostPage() {
 
       const userId = userRecord?.id || session.user.id;
 
-      // Fetch all active social accounts for this user
+      // First, sync accounts from Getlate for all brands that have Getlate profiles
+      try {
+        const { data: brands } = await supabase
+          .from('brands')
+          .select('id, getlate_profile_id')
+          .eq('user_id', userId)
+          .eq('is_active', true)
+          .not('getlate_profile_id', 'is', null);
+
+        if (brands && brands.length > 0) {
+          // Sync accounts for each brand with Getlate profile
+          const syncPromises = brands.map(brand =>
+            fetch(`/api/getlate/accounts?brandId=${brand.id}`).catch((err) => {
+              console.warn(`⚠️  Could not sync accounts for brand ${brand.id}:`, err);
+              return null;
+            }),
+          );
+
+          await Promise.all(syncPromises);
+        }
+      } catch (syncError) {
+        console.warn('⚠️  Error syncing accounts from Getlate, using cached data:', syncError);
+      }
+
+      // Load brands for brand selection
+      const { data: brandsData, error: brandsError } = await supabase
+        .from('brands')
+        .select('id, name, getlate_profile_id')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('name');
+
+      if (!brandsError && brandsData && brandsData.length > 0) {
+        setBrands(brandsData);
+        // Auto-select first brand if none selected
+        if (!selectedBrandId && brandsData.length > 0 && brandsData[0]) {
+          setSelectedBrandId(brandsData[0].id);
+        }
+      }
+
+      // Then fetch all active social accounts for this user (with brand_id and getlate_account_id)
       const { data, error: fetchError } = await supabase
         .from('social_accounts')
-        .select('id,platform,account_name')
+        .select('id, brand_id, platform, account_name, getlate_account_id')
         .eq('user_id', userId)
         .eq('is_active', true);
 
@@ -76,8 +121,10 @@ export default function CreatePostPage() {
       } else {
         const accountsData: Account[] = (data || []).map(acc => ({
           id: acc.id,
+          brand_id: acc.brand_id,
           platform: (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform,
           account_name: acc.account_name || '',
+          getlate_account_id: acc.getlate_account_id || null,
         }));
         setAccounts(accountsData);
       }
@@ -85,11 +132,11 @@ export default function CreatePostPage() {
       console.error('Error loading accounts:', err);
       setAccounts([]);
     }
-  }, []);
+  }, [selectedBrandId]);
 
   useEffect(() => {
     void loadAccounts();
-  }, [loadAccounts]);
+  }, [loadAccounts, selectedBrandId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,15 +145,46 @@ export default function CreatePostPage() {
       return;
     }
 
+    if (!selectedBrandId) {
+      setError('Please select a brand');
+      return;
+    }
+
     setIsSubmitting(true);
     setError(null);
 
     try {
+      // Get selected brand to check if it has Getlate profile
+      const selectedBrand = brands.find(b => b.id === selectedBrandId);
+      const useGetlate = !!selectedBrand?.getlate_profile_id;
+
+      // Get accounts for selected platforms and brand
+      const accountsForPlatforms = accounts.filter(acc =>
+        formData.platforms.includes(acc.platform)
+        && acc.brand_id === selectedBrandId
+        && (useGetlate ? acc.getlate_account_id : true), // If using Getlate, require getlate_account_id
+      );
+
+      if (accountsForPlatforms.length === 0) {
+        throw new Error('No connected accounts found for selected platforms. Please connect accounts first.');
+      }
+
       // Determine media type
       const firstMediaUrl = formData.media_urls[0];
       const mediaType = formData.media_urls.length > 0 && firstMediaUrl ? (firstMediaUrl.includes('video') ? 'video' : 'image') : 'text';
 
-      // Create post in database
+      // Map platforms for Getlate (if using Getlate) or local
+      // Always send local account ID, API will map to getlate_account_id if needed
+      const platformsArray = accountsForPlatforms.map(acc => ({
+        platform: acc.platform,
+        account_id: acc.id, // Always send local account ID, API will look up getlate_account_id
+        config: {},
+      }));
+
+      // Determine timezone (use user's timezone or default)
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+
+      // Create post in database with Getlate integration
       const postResponse = await fetch('/api/posts', {
         method: 'POST',
         headers: {
@@ -117,6 +195,11 @@ export default function CreatePostPage() {
           image_url: formData.media_urls.length > 0 ? formData.media_urls[0] : null,
           hashtags: formData.hashtags,
           media_type: mediaType,
+          brand_id: selectedBrandId,
+          scheduled_for: scheduleMode === 'later' && formData.scheduled_time ? formData.scheduled_time : undefined,
+          timezone,
+          platforms: platformsArray,
+          use_getlate: useGetlate,
           metadata: {
             media_urls: formData.media_urls,
             platforms: formData.platforms,
@@ -136,17 +219,9 @@ export default function CreatePostPage() {
         throw new Error('Failed to get post ID');
       }
 
-      // If scheduling, create scheduled posts for each selected platform
-      if (scheduleMode === 'later' && formData.scheduled_time) {
-        // Get accounts for selected platforms
-        const accountsForPlatforms = accounts.filter(acc =>
-          formData.platforms.includes(acc.platform),
-        );
-
-        if (accountsForPlatforms.length === 0) {
-          throw new Error('No connected accounts found for selected platforms');
-        }
-
+      // If using Getlate, the scheduling is handled by Getlate API
+      // If not using Getlate and scheduling, create scheduled posts for each account
+      if (!useGetlate && scheduleMode === 'later' && formData.scheduled_time) {
         // Create scheduled posts for each account
         const schedulePromises = accountsForPlatforms.map(account =>
           fetch('/api/schedule', {
@@ -158,6 +233,7 @@ export default function CreatePostPage() {
               postId,
               socialAccountId: account.id,
               scheduledFor: formData.scheduled_time,
+              timezone,
             }),
           }),
         );
@@ -292,8 +368,43 @@ export default function CreatePostPage() {
                   </CardContent>
                 </Card>
               )}
+
+              {/* Brand Selector */}
+              {brands.length > 0 && (
+                <Card className="border-gray-200 shadow-xl">
+                  <CardHeader>
+                    <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                      {t('brand')}
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Select
+                      value={selectedBrandId || ''}
+                      onValueChange={setSelectedBrandId}
+                    >
+                      <SelectTrigger dir={isRTL ? 'rtl' : 'ltr'}>
+                        <SelectValue
+                          placeholder={t('select_brand')}
+                          options={brands.map(brand => ({ value: brand.id, name: brand.name }))}
+                        />
+                      </SelectTrigger>
+                      <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                        {brands.map(brand => (
+                          <SelectItem key={brand.id} value={brand.id} dir={isRTL ? 'rtl' : 'ltr'}>
+                            {brand.name}
+                            {brand.getlate_profile_id && (
+                              <span className="ml-2 text-xs text-green-600">✓</span>
+                            )}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </CardContent>
+                </Card>
+              )}
+
               <PlatformSelector
-                accounts={accounts}
+                accounts={accounts.filter(acc => !selectedBrandId || acc.brand_id === selectedBrandId)}
                 selectedPlatforms={formData.platforms}
                 onPlatformsChange={platforms => setFormData(prev => ({ ...prev, platforms }))}
               />

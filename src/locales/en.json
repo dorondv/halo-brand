@@ -26,6 +26,7 @@
     "settings": "Settings",
     "support": "Support",
     "pricing": "Pricing",
+    "getlate_test": "Getlate API Test",
     "hello_greeting": "Hello {name}"
   },
   "DashboardPage": {
@@ -150,6 +151,8 @@
     "tip": "Tip: Add a question or call to action",
     "hashtags_title": "Hashtags",
     "hashtags_placeholder": "Add hashtags (press Enter)",
+    "brand": "Brand",
+    "select_brand": "Select a brand",
     "publishing": "Publishing...",
     "scheduling": "Scheduling...",
     "publish_now": "Publish Now",
@@ -211,6 +214,7 @@
     "followers": "followers",
     "not_connected": "Not connected",
     "disconnect": "Disconnect",
+    "connect_oauth": "Connect",
     "connect_demo": "Connect Demo",
     "manual": "Manual",
     "manual_connection_to": "Manual Connection to",
@@ -222,13 +226,20 @@
     "are_you_sure": "Are you sure?",
     "disconnect_warning": "This action will disconnect the account \"{handle}\" from the system.",
     "yes_disconnect": "Yes, Disconnect Account",
+    "delete_brand_title": "Delete Brand",
+    "delete_brand_message": "Are you sure you want to delete \"{name}\"? This will also remove the associated profile and cannot be undone.",
+    "delete": "Delete",
+    "deleting": "Deleting...",
     "platform_instagram_desc": "Share photos and stories",
     "platform_facebook_desc": "Connect with communities and groups",
     "platform_x_desc": "Share thoughts and short updates",
     "platform_linkedin_desc": "Connect with professionals",
     "platform_tiktok_desc": "Create viral videos",
     "platform_youtube_desc": "Upload video content",
-    "platform_threads_desc": "Share in Meta community"
+    "platform_threads_desc": "Share in Meta community",
+    "connection_cancelled": "Connection cancelled. The account was not connected.",
+    "connection_success": "Account connected successfully!",
+    "connection_error": "Failed to connect account. Please try again."
   },
   "Settings": {
     "title": "Settings",

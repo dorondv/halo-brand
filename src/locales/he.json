@@ -26,6 +26,7 @@
     "settings": "הגדרות",
     "support": "תמיכה",
     "pricing": "תוכניות",
+    "getlate_test": "בדיקת Getlate API",
     "hello_greeting": "שלום {name}"
   },
   "DashboardPage": {
@@ -150,6 +151,8 @@
     "tip": "טיפ: הוסף שאלה או קריאה לפעולה",
     "hashtags_title": "שטאגים",
     "hashtags_placeholder": "הוסף האשטאגים (לחץ Enter)",
+    "brand": "מותג",
+    "select_brand": "בחר מותג",
     "publishing": "מפרסם...",
     "scheduling": "מתזמן...",
     "publish_now": "פרסם עכשיו",
@@ -211,6 +214,7 @@
     "followers": "עוקבים",
     "not_connected": "לא מחובר",
     "disconnect": "נתק",
+    "connect_oauth": "חבר",
     "connect_demo": "חבר דמו",
     "manual": "ידני",
     "manual_connection_to": "חיבור ידני ל-",
@@ -222,13 +226,20 @@
     "are_you_sure": "האם אתה בטוח?",
     "disconnect_warning": "פעולה זו תנתק את החשבון \"{handle}\" מהמערכת.",
     "yes_disconnect": "כן, נתק את החשבון",
+    "delete_brand_title": "מחיקת מותג",
+    "delete_brand_message": "האם אתה בטוח שברצונך למחוק את \"{name}\"? פעולה זו תסיר גם את הפרופיל המשויך ולא ניתן לבטל אותה.",
+    "delete": "מחק",
+    "deleting": "מוחק...",
     "platform_instagram_desc": "שתף תמונות וסטוריז",
     "platform_facebook_desc": "התחבר עם קהילות וקבוצות",
     "platform_x_desc": "שתף מחשבות ועדכונים קצרים",
     "platform_linkedin_desc": "התחבר עם אנשי מקצוע",
     "platform_tiktok_desc": "צור סרטונים ויראליים",
     "platform_youtube_desc": "העלה סרטוני וידאו",
-    "platform_threads_desc": "שתף בקהילת Meta"
+    "platform_threads_desc": "שתף בקהילת Meta",
+    "connection_cancelled": "החיבור בוטל. החשבון לא חובר.",
+    "connection_success": "החשבון חובר בהצלחה!",
+    "connection_error": "נכשל בחיבור החשבון. אנא נסה שוב."
   },
   "Settings": {
     "title": "הגדרות",

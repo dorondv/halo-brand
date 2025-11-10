@@ -1,6 +1,6 @@
 'use client';
 
-import { ChevronDown, FileText, Plus } from 'lucide-react';
+import { Building2, Plus } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
@@ -178,36 +178,36 @@ export function BrandSelector() {
         throw new Error('Unable to determine user ID');
       }
 
-      // Create brand
-      const { data, error } = await supabase
-        .from('brands')
-        .insert([
-          {
-            user_id: userId,
-            name: brandName.trim(),
-            description: null,
-            logo_url: null,
-            is_active: true,
-          },
-        ])
-        .select()
-        .single();
+      // Create brand via API to handle Getlate profile automatically
+      const brandResponse = await fetch('/api/brands', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          name: brandName.trim(),
+          description: null,
+          logo_url: null,
+        }),
+      });
 
-      if (error) {
-        console.error('Error creating brand:', error.message || error.code || error);
-        // Use console.error instead of alert to avoid blocking the UI in tests and satisfy lint rules.
-        console.error(t('brand_create_error'));
-      } else {
-        // Refresh brands list
-        await fetchBrands();
-        // Select the newly created brand
-        handleBrandChange(data.id);
-        // Close modal and reset form
-        setIsModalOpen(false);
-        setBrandName('');
-        // Show success message (optional)
-        // alert(t('brand_create_success'));
+      if (!brandResponse.ok) {
+        const error = await brandResponse.json().catch(() => ({ error: 'Failed to create brand' }));
+        console.error('Error creating brand:', error);
+        throw new Error(error.error || 'Failed to create brand. Please try again.');
       }
+
+      const { brand: data } = await brandResponse.json();
+
+      // Refresh brands list
+      await fetchBrands();
+      // Select the newly created brand
+      handleBrandChange(data.id);
+      // Close modal and reset form
+      setIsModalOpen(false);
+      setBrandName('');
+      // Show success message (optional)
+      // alert(t('brand_create_success'));
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error creating brand:', errorMessage);
@@ -238,12 +238,11 @@ export function BrandSelector() {
         <Select value={selectedBrandId} onValueChange={handleBrandChange}>
           <SelectTrigger id="brand" className="w-full">
             <div className="flex min-w-0 flex-1 items-center gap-2">
-              <FileText className="h-4 w-4 shrink-0 text-gray-500" />
+              <Building2 className="h-4 w-4 shrink-0 text-gray-500" />
               <span className="truncate">
                 <SelectValue selectedLabel={displayValue} placeholder={t('brand_selector_placeholder')} />
               </span>
             </div>
-            <ChevronDown className="h-4 w-4 shrink-0 opacity-50" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">{t('brand_selector_all')}</SelectItem>

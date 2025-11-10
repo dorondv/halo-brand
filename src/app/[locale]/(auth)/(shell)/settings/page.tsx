@@ -389,11 +389,11 @@ export default function SettingsPage() {
                     onValueChange={value => handleInputChange('country', value)}
                   >
                     <SelectTrigger id="country" dir={isRTL ? 'rtl' : 'ltr'}>
-                      <SelectValue placeholder={t('country_placeholder')} />
+                      <SelectValue placeholder={t('country_placeholder')} options={countries} />
                     </SelectTrigger>
                     <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
                       {countries.map(country => (
-                        <SelectItem key={country.value} value={country.value}>
+                        <SelectItem key={country.value} value={country.value} dir={isRTL ? 'rtl' : 'ltr'}>
                           {country.name}
                         </SelectItem>
                       ))}
@@ -408,11 +408,11 @@ export default function SettingsPage() {
                     onValueChange={value => handleInputChange('language', value)}
                   >
                     <SelectTrigger id="language" dir={isRTL ? 'rtl' : 'ltr'}>
-                      <SelectValue placeholder={t('language_placeholder')} />
+                      <SelectValue placeholder={t('language_placeholder')} options={languages} />
                     </SelectTrigger>
                     <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
                       {languages.map(language => (
-                        <SelectItem key={language.value} value={language.value}>
+                        <SelectItem key={language.value} value={language.value} dir={isRTL ? 'rtl' : 'ltr'}>
                           {language.name}
                         </SelectItem>
                       ))}
@@ -441,11 +441,11 @@ export default function SettingsPage() {
                     onValueChange={value => handleInputChange('timezone', value)}
                   >
                     <SelectTrigger id="timezone" dir={isRTL ? 'rtl' : 'ltr'}>
-                      <SelectValue placeholder={t('timezone_placeholder')} />
+                      <SelectValue placeholder={t('timezone_placeholder')} options={timezones} />
                     </SelectTrigger>
                     <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
                       {timezones.map(timezone => (
-                        <SelectItem key={timezone.value} value={timezone.value}>
+                        <SelectItem key={timezone.value} value={timezone.value} dir={isRTL ? 'rtl' : 'ltr'}>
                           {timezone.name}
                         </SelectItem>
                       ))}

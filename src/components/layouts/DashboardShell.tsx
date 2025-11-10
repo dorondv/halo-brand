@@ -11,6 +11,7 @@ import {
   PenTool,
   Settings,
   Tags,
+  TestTube,
   User,
   X,
 } from 'lucide-react';
@@ -40,6 +41,7 @@ const baseNav = [
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
+  { href: '/getlate-test', key: 'getlate_test', icon: TestTube },
 ] as const;
 
 export function DashboardShell({ children }: Props) {
