@@ -248,9 +248,19 @@ async function seed() {
   }
 
   // Update user plan to 'trial' for demo purposes
+  // For demo@hello.brand, also set Getlate API key if available
+  const updateData = { plan: 'trial', name: demoName };
+
+  // Set Getlate API key for demo user if service key is available
+  const getlateServiceKey = process.env.GETLATE_SERVICE_API_KEY;
+  if (getlateServiceKey) {
+    updateData.getlate_api_key = getlateServiceKey;
+    console.log('✅ Setting Getlate API key for demo user');
+  }
+
   const { error: updateError } = await supabase
     .from('users')
-    .update({ plan: 'trial', name: demoName })
+    .update(updateData)
     .eq('id', userId);
 
   if (updateError) {
@@ -260,9 +270,12 @@ async function seed() {
   }
 
   // Insert brands (companies)
+  // For demo@hello.brand, use the default Getlate profile ID
+  const DEFAULT_GETLATE_PROFILE_ID = '690c738f2e6c6b55e66c14e6';
+
   const brandsData = [
-    { name: 'Halo Brand', description: 'Main brand for social media marketing' },
-    { name: 'Demo Corp', description: 'Secondary brand for testing' },
+    { name: 'Halo Brand', description: 'Main brand for social media marketing', getlate_profile_id: DEFAULT_GETLATE_PROFILE_ID },
+    { name: 'Demo Corp', description: 'Secondary brand for testing', getlate_profile_id: null },
   ];
 
   const { data: brands, error: brandsError } = await supabase.from('brands').insert(

@@ -29,6 +29,13 @@
       "when": 1762362000000,
       "tag": "0003_optimize_settings_and_remove_duplicates",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1762692025000,
+      "tag": "0004_add_getlate_fields",
+      "breakpoints": true
     }
   ]
 }

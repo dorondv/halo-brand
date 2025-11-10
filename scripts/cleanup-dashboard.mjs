@@ -1,3 +1,4 @@
+import readline from 'node:readline';
 import { createClient } from '@supabase/supabase-js';
 
 // Environment variables are loaded by dotenv-cli before this script runs.
@@ -39,6 +40,21 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
     persistSession: false,
   },
 });
+
+// Helper function to ask for user confirmation
+function askQuestion(question) {
+  const rl = readline.createInterface({
+    input: process.stdin,
+    output: process.stdout,
+  });
+
+  return new Promise((resolve) => {
+    rl.question(question, (answer) => {
+      rl.close();
+      resolve(answer.trim().toLowerCase());
+    });
+  });
+}
 
 async function cleanup() {
   console.log('Cleaning up demo dashboard data...');
@@ -143,6 +159,7 @@ async function cleanup() {
   }
 
   // 5. Delete brands (references users)
+  // Note: Getlate profiles are shared and not deleted when brands are removed
   if (brandsCount && brandsCount > 0) {
     const { error } = await supabase
       .from('brands')
@@ -152,6 +169,7 @@ async function cleanup() {
       console.error('Error deleting brands:', error.message);
     } else {
       console.log(`✅ Deleted ${brandsCount} brand(s)`);
+      console.log('   (Getlate profiles are preserved for reuse)');
     }
   }
 
@@ -173,7 +191,24 @@ async function cleanup() {
     }
   }
 
-  // 7. Delete the demo user from public.users
+  // 7. Ask if user wants to delete the demo user
+  console.log('\n📊 Summary of data to be deleted:');
+  console.log(`   - ${postsCount} post(s)`);
+  console.log(`   - ${analyticsCount || 0} analytics entr${analyticsCount === 1 ? 'y' : 'ies'}`);
+  console.log(`   - ${scheduledCount || 0} scheduled post(s)`);
+  console.log(`   - ${accountsCount || 0} social account(s)`);
+  console.log(`   - ${brandsCount || 0} brand(s)`);
+  console.log(`   - 1 user record (demo@hello.brand)`);
+
+  const shouldDeleteUser = await askQuestion('\n❓ Do you want to delete the demo user? (yes/no): ');
+
+  if (shouldDeleteUser !== 'yes' && shouldDeleteUser !== 'y') {
+    console.log('\n⚠️  User deletion cancelled. Only data was cleaned up, user record remains.');
+    console.log('✅ Cleanup completed (user preserved).');
+    return;
+  }
+
+  // Delete the demo user from public.users
   const { error: deleteUserError } = await supabase
     .from('users')
     .delete()
