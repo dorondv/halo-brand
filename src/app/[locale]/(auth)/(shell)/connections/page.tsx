@@ -252,7 +252,7 @@ export default function ConnectionsPage() {
     setIsLoading(false);
   }, [selectedBrand]);
 
-  const loadAccounts = useCallback(async () => {
+  const loadAccountsFromDB = useCallback(async (skipSync = false) => {
     if (!selectedBrand) {
       setAccounts([]);
       return;
@@ -260,16 +260,7 @@ export default function ConnectionsPage() {
     try {
       const supabase = createSupabaseBrowserClient();
 
-      // First, sync accounts from Getlate if brand has a Getlate profile
-      if (selectedBrand.getlate_profile_id) {
-        try {
-          await fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`);
-        } catch {
-          // Silently fail and use cached data
-        }
-      }
-
-      // Then load accounts from database
+      // Load accounts from database (show cached data immediately)
       const { data, error } = await supabase
         .from('social_accounts')
         .select('id,brand_id,platform,account_name,account_id,platform_specific_data')
@@ -299,10 +290,28 @@ export default function ConnectionsPage() {
 
         setAccounts(accountsData);
       }
+
+      // Sync accounts from Getlate in the background (non-blocking)
+      // This updates the accounts after they're already displayed
+      if (!skipSync && selectedBrand.getlate_profile_id) {
+        // Don't await - let it run in background
+        fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
+          .then(() => {
+            // Reload accounts from DB after sync completes (skip sync to avoid loop)
+            void loadAccountsFromDB(true);
+          })
+          .catch(() => {
+            // Silently fail - cached data is already shown
+          });
+      }
     } catch {
       setAccounts([]);
     }
   }, [selectedBrand]);
+
+  const loadAccounts = useCallback(() => {
+    void loadAccountsFromDB(false);
+  }, [loadAccountsFromDB]);
 
   useEffect(() => {
     // Load brands on mount - using setTimeout to avoid cascading renders warning
