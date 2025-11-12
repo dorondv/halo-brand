@@ -50,7 +50,7 @@ export default function CreatePostPage() {
   const [selectedBrandId, setSelectedBrandId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Load social accounts from database, syncing from Getlate first
+  // Load social accounts from database (use DB data directly, sync Getlate in background)
   const loadAccounts = useCallback(async () => {
     try {
       const supabase = createSupabaseBrowserClient();
@@ -68,30 +68,6 @@ export default function CreatePostPage() {
 
       const userId = userRecord?.id || session.user.id;
 
-      // First, sync accounts from Getlate for all brands that have Getlate profiles
-      try {
-        const { data: brands } = await supabase
-          .from('brands')
-          .select('id, getlate_profile_id')
-          .eq('user_id', userId)
-          .eq('is_active', true)
-          .not('getlate_profile_id', 'is', null);
-
-        if (brands && brands.length > 0) {
-          // Sync accounts for each brand with Getlate profile
-          const syncPromises = brands.map(brand =>
-            fetch(`/api/getlate/accounts?brandId=${brand.id}`).catch((err) => {
-              console.warn(`⚠️  Could not sync accounts for brand ${brand.id}:`, err);
-              return null;
-            }),
-          );
-
-          await Promise.all(syncPromises);
-        }
-      } catch (syncError) {
-        console.warn('⚠️  Error syncing accounts from Getlate, using cached data:', syncError);
-      }
-
       // Load brands for brand selection
       const { data: brandsData, error: brandsError } = await supabase
         .from('brands')
@@ -108,15 +84,24 @@ export default function CreatePostPage() {
         }
       }
 
-      // Then fetch all active social accounts for this user (with brand_id and getlate_account_id)
-      const { data, error: fetchError } = await supabase
+      // Fetch active social accounts from database (show DB data immediately)
+      // Filter by selected brand if one is selected, otherwise show all accounts
+      let accountsQuery = supabase
         .from('social_accounts')
         .select('id, brand_id, platform, account_name, getlate_account_id')
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('platform', { ascending: true });
+
+      // If a brand is selected, filter by brand_id
+      if (selectedBrandId) {
+        accountsQuery = accountsQuery.eq('brand_id', selectedBrandId);
+      }
+
+      const { data, error: fetchError } = await accountsQuery;
 
       if (fetchError) {
-        console.error('Error fetching accounts:', fetchError);
+        console.error('[CreatePost] Error fetching accounts from DB:', fetchError);
         setAccounts([]);
       } else {
         const accountsData: Account[] = (data || []).map(acc => ({
@@ -128,8 +113,36 @@ export default function CreatePostPage() {
         }));
         setAccounts(accountsData);
       }
+
+      // Sync accounts from Getlate in the background only once per brand selection
+      // This updates the database, but we're already showing DB data
+      // Only sync if brand changed or on initial load
+      if (selectedBrandId) {
+        const selectedBrand = brandsData?.find(b => b.id === selectedBrandId);
+        if (selectedBrand?.getlate_profile_id) {
+          // Use a ref or state to track if we've already synced for this brand
+          // For now, sync only on mount or brand change (not on every render)
+          const syncKey = `synced_${selectedBrandId}`;
+          const lastSynced = sessionStorage.getItem(syncKey);
+          const now = Date.now();
+
+          // Only sync if not synced in the last 5 minutes
+          if (!lastSynced || (now - Number.parseInt(lastSynced, 10)) > 5 * 60 * 1000) {
+            sessionStorage.setItem(syncKey, now.toString());
+            // Don't await - let it run in background
+            fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`)
+              .then(() => {
+                // Reload accounts from DB after sync (to show updated data)
+                void loadAccounts();
+              })
+              .catch(() => {
+                // Silently fail - DB data is already shown
+              });
+          }
+        }
+      }
     } catch (err) {
-      console.error('Error loading accounts:', err);
+      console.error('[CreatePost] Error loading accounts:', err);
       setAccounts([]);
     }
   }, [selectedBrandId]);
@@ -404,7 +417,7 @@ export default function CreatePostPage() {
               )}
 
               <PlatformSelector
-                accounts={accounts.filter(acc => !selectedBrandId || acc.brand_id === selectedBrandId)}
+                accounts={accounts}
                 selectedPlatforms={formData.platforms}
                 onPlatformsChange={platforms => setFormData(prev => ({ ...prev, platforms }))}
               />
