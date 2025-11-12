@@ -120,12 +120,19 @@ export async function GET(request: NextRequest) {
       // Check if account already exists
       const { data: existingAccount } = await supabase
         .from('social_accounts')
-        .select('id')
+        .select('id, platform_specific_data')
         .eq('getlate_account_id', accountId)
         .eq('brand_id', brandId)
         .maybeSingle();
 
       if (existingAccount) {
+        // Check if account was manually disconnected
+        const platformData = existingAccount.platform_specific_data as Record<string, unknown> | null;
+        const manuallyDisconnected = platformData?.manually_disconnected === true;
+
+        // If manually disconnected, don't reactivate it even if Getlate says it's connected
+        const shouldBeActive = manuallyDisconnected ? false : isConnected;
+
         // Update existing account
         const { data: updatedAccount } = await supabase
           .from('social_accounts')
@@ -138,9 +145,16 @@ export async function GET(request: NextRequest) {
               avatar_url: avatarUrl,
               follower_count: followerCount,
               last_sync: lastSync,
+              // Preserve manually_disconnected flag if it exists
+              ...(manuallyDisconnected
+                ? {
+                    manually_disconnected: true,
+                    manually_disconnected_at: platformData?.manually_disconnected_at,
+                  }
+                : {}),
               ...metadata,
             },
-            is_active: isConnected,
+            is_active: shouldBeActive,
           })
           .eq('id', existingAccount.id)
           .select()

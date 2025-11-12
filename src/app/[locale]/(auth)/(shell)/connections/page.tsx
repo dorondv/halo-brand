@@ -914,9 +914,19 @@ export default function ConnectionsPage() {
       const supabase = createSupabaseBrowserClient();
 
       // Deactivate account instead of deleting (soft delete)
+      // Also set a flag to prevent Getlate sync from reactivating it
+      const currentPlatformData = (accountToDisconnect as any).platform_specific_data || {};
       const { error } = await supabase
         .from('social_accounts')
-        .update({ is_active: false })
+        .update({
+          is_active: false,
+          // Store disconnect timestamp in metadata to track manual disconnects
+          platform_specific_data: {
+            ...currentPlatformData,
+            manually_disconnected_at: new Date().toISOString(),
+            manually_disconnected: true,
+          },
+        })
         .eq('id', accountToDisconnect.id);
 
       if (error) {
@@ -925,10 +935,12 @@ export default function ConnectionsPage() {
         return;
       }
 
+      // Remove from UI immediately
       setAccounts(prev => prev.filter(acc => acc.id !== accountToDisconnect.id));
       setAccountToDisconnect(null);
-      // Reload accounts to ensure consistency
-      await loadAccounts();
+
+      // Reload accounts with skipSync=true to prevent Getlate sync from reactivating it
+      await loadAccountsFromDB(true);
     } catch (error) {
       console.error('Error disconnecting account:', error);
       // Error will be handled by not removing account from state
@@ -1157,6 +1169,7 @@ export default function ConnectionsPage() {
                               </div>
                             </div>
                             <button
+                              type="button"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 setBrandToDelete(brand);
