@@ -51,7 +51,11 @@ export type GetlatePost = {
   id: string;
   profileId: string;
   content: string;
-  mediaUrls?: string[];
+  mediaUrls?: string[]; // Legacy support
+  mediaItems?: Array<{
+    type: 'image' | 'video';
+    url: string;
+  }>;
   scheduledFor?: string;
   timezone?: string;
   platforms: Array<{
@@ -174,35 +178,64 @@ export class GetlateClient {
 
   /**
    * Initiate OAuth connection flow for a social account
+   * Uses GET /v1/connect/[platform] endpoint with redirect_url parameter
    * Returns a URL to redirect the user to for OAuth authorization
-   * Note: The /connect endpoint may not be available, use createPlatformInvite instead
+   *
+   * According to Getlate API docs:
+   * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL
+   *
+   * Note: Getlate API returns JSON with authUrl instead of redirecting directly
+   * Success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
+   * Error redirect: redirect_url?error=ERROR_TYPE&platform=PLATFORM
    */
   async connectAccount(
     platform: GetlatePlatform,
     profileId: string,
     redirectUrl?: string,
-  ): Promise<{ authUrl: string; state: string }> {
-    // Try using platform-invites as /connect returns 405
-    const inviteResult = await this.createPlatformInvite({
-      profileId,
-      platform,
-      redirectUrl,
+  ): Promise<{ authUrl: string; state?: string }> {
+    // Normalize platform name (x -> twitter for Getlate API)
+    const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
+
+    // Build the endpoint URL with query parameters
+    let endpoint = `/connect/${normalizedPlatform}?profileId=${encodeURIComponent(profileId)}`;
+
+    // Add redirect_url if provided
+    if (redirectUrl) {
+      endpoint += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
+    }
+
+    // Getlate API returns JSON with authUrl, not a redirect
+    // We need to fetch the endpoint and extract the authUrl from the response
+    const response = await this.request<{ authUrl: string; state?: string }>(endpoint, {
+      method: 'GET',
     });
 
+    // Extract authUrl from response (could be nested or direct)
+    const authUrl = response.authUrl || (response as any).url || (response as any).redirectUrl;
+
+    if (!authUrl) {
+      throw new Error('Failed to get OAuth URL from Getlate API');
+    }
+
     return {
-      authUrl: inviteResult.inviteUrl,
-      state: inviteResult.token,
+      authUrl,
+      state: response.state,
     };
   }
 
   /**
    * Create a new post
    * Note: Getlate API may return post in nested structure like { message: string, post: GetlatePost }
+   * According to Getlate API docs, use mediaItems (not mediaUrls) for proper media handling
    */
   async createPost(data: {
     profileId: string;
     content: string;
-    mediaUrls?: string[];
+    mediaUrls?: string[]; // Legacy - will be converted to mediaItems
+    mediaItems?: Array<{
+      type: 'image' | 'video';
+      url: string;
+    }>;
     scheduledFor?: string;
     timezone?: string;
     platforms: Array<{
@@ -212,9 +245,30 @@ export class GetlateClient {
     }>;
     queuedFromProfile?: string; // Profile ID if post is added to queue
   }): Promise<GetlatePost> {
+    // Convert mediaUrls to mediaItems format if needed
+    const requestData: any = { ...data };
+
+    // If mediaUrls is provided but mediaItems is not, convert it
+    if (requestData.mediaUrls && !requestData.mediaItems && Array.isArray(requestData.mediaUrls)) {
+      requestData.mediaItems = requestData.mediaUrls.map((url: string) => {
+        // Determine type from URL
+        const urlLower = url.toLowerCase();
+        const isVideo = urlLower.includes('.mp4') || urlLower.includes('.mov')
+          || urlLower.includes('.avi') || urlLower.includes('.webm')
+          || urlLower.includes('.m4v') || urlLower.includes('video');
+
+        return {
+          type: isVideo ? 'video' as const : 'image' as const,
+          url,
+        };
+      });
+      // Remove mediaUrls as we're using mediaItems
+      delete requestData.mediaUrls;
+    }
+
     const response = await this.request<any>('/posts', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify(requestData),
     });
 
     // Handle nested response format: { message: string, post: GetlatePost }
@@ -224,6 +278,203 @@ export class GetlateClient {
 
     // Fallback: if response is already a post object
     return response as GetlatePost;
+  }
+
+  /**
+   * Upload media files to Getlate
+   * Supports both small files (multipart) and large files (client-upload flow)
+   * For large files (>4MB), use the client-upload flow with @vercel/blob
+   *
+   * @param files - Array of file URLs or File objects to upload
+   * @returns Array of uploaded media with URLs from Getlate
+   */
+  async uploadMedia(files: Array<File | string>): Promise<Array<{
+    type: 'image' | 'video';
+    url: string;
+    filename: string;
+    size: number;
+    mimeType: string;
+  }>> {
+    // For now, we'll handle URLs (from Supabase Storage) by downloading and uploading
+    // In the future, we could optimize by uploading directly to Getlate from the frontend
+
+    const uploadedFiles: Array<{
+      type: 'image' | 'video';
+      url: string;
+      filename: string;
+      size: number;
+      mimeType: string;
+    }> = [];
+
+    for (const file of files) {
+      if (typeof file === 'string') {
+        // It's a URL - we need to download it first, then upload to Getlate
+        // For now, we'll pass the URL directly and let Getlate handle it
+        // If Getlate doesn't accept external URLs, we'd need to download and re-upload
+        // But based on the docs, it seems Getlate expects files to be uploaded to their endpoint
+
+        // Try to determine file type from URL
+        const urlLower = file.toLowerCase();
+        const isVideo = urlLower.includes('.mp4') || urlLower.includes('.mov') || urlLower.includes('.avi')
+          || urlLower.includes('.webm') || urlLower.includes('.m4v');
+        const type = isVideo ? 'video' : 'image';
+
+        // Extract filename from URL
+        const urlParts = file.split('/');
+        const filename = urlParts[urlParts.length - 1] || 'media.jpg';
+
+        // For URLs, we'll need to download and upload
+        // But for now, let's try passing the URL directly in mediaUrls
+        // If that doesn't work, we'll need to implement download + upload
+        uploadedFiles.push({
+          type,
+          url: file, // Use original URL - Getlate may accept external URLs
+          filename,
+          size: 0, // Unknown size from URL
+          mimeType: type === 'video' ? 'video/mp4' : 'image/jpeg',
+        });
+      } else {
+        // It's a File object - upload directly via multipart
+        const formData = new FormData();
+        formData.append('files', file);
+
+        const url = `${this.baseUrl}/media`;
+        const response = await fetch(url, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            // Don't set Content-Type - let browser set it with boundary for multipart
+          },
+          body: formData,
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({
+            error: 'Unknown error',
+            message: `HTTP ${response.status}: ${response.statusText}`,
+          })) as GetlateError;
+
+          throw new Error(
+            errorData.message || errorData.error || `HTTP ${response.status}`,
+          );
+        }
+
+        const responseData = await response.json() as { files: Array<{
+          type: 'image' | 'video';
+          url: string;
+          filename: string;
+          size: number;
+          mimeType: string;
+        }>; };
+
+        if (responseData.files && Array.isArray(responseData.files)) {
+          uploadedFiles.push(...responseData.files);
+        }
+      }
+    }
+
+    return uploadedFiles;
+  }
+
+  /**
+   * Upload media from URLs (downloads and re-uploads to Getlate)
+   * This is needed when media is stored in Supabase Storage and needs to be uploaded to Getlate
+   * Works in both browser and Node.js environments
+   */
+  async uploadMediaFromUrls(urls: string[]): Promise<string[]> {
+    // Download files from URLs and upload to Getlate
+    const uploadedMedia: string[] = [];
+
+    for (const url of urls) {
+      try {
+        // Download the file
+        const response = await fetch(url);
+        if (!response.ok) {
+          console.warn(`[Getlate] Failed to download media from ${url}: ${response.status} ${response.statusText}`);
+          // Fallback to original URL if download fails
+          uploadedMedia.push(url);
+          continue;
+        }
+
+        const arrayBuffer = await response.arrayBuffer();
+        const filename = url.split('/').pop()?.split('?')[0] || 'media.jpg';
+
+        // Determine content type from URL or response headers
+        const contentType = response.headers.get('content-type')
+          || (url.toLowerCase().includes('.mp4')
+            ? 'video/mp4'
+            : url.toLowerCase().includes('.mov')
+              ? 'video/quicktime'
+              : url.toLowerCase().includes('.webm')
+                ? 'video/webm'
+                : url.toLowerCase().includes('.png')
+                  ? 'image/png'
+                  : url.toLowerCase().includes('.gif')
+                    ? 'image/gif'
+                    : url.toLowerCase().includes('.webp')
+                      ? 'image/webp'
+                      : 'image/jpeg');
+
+        // Upload to Getlate using multipart/form-data
+        // FormData and Blob are available in Node.js 18+ (which Next.js 16 uses)
+        const formData = new FormData();
+        // Create Blob from ArrayBuffer (works in both browser and Node.js 18+)
+        const blob = new Blob([arrayBuffer], { type: contentType });
+        // Create a File-like object for FormData
+        // In Node.js 18+, FormData accepts Blob with filename as third parameter
+        formData.append('files', blob, filename);
+
+        const mediaUrl = `${this.baseUrl}/media`;
+        const uploadResponse = await fetch(mediaUrl, {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${this.apiKey}`,
+            // Don't set Content-Type - let fetch set it with boundary for multipart
+          },
+          body: formData,
+        });
+
+        if (!uploadResponse.ok) {
+          const errorText = await uploadResponse.text();
+          let errorData: GetlateError;
+          try {
+            errorData = JSON.parse(errorText) as GetlateError;
+          } catch {
+            errorData = {
+              error: 'Unknown error',
+              message: `HTTP ${uploadResponse.status}: ${uploadResponse.statusText}`,
+            };
+          }
+
+          console.error(`[Getlate] Failed to upload media to Getlate from ${url}:`, errorData.message || errorData.error, `Response: ${errorText}`);
+          // Fallback to original URL if upload fails
+          uploadedMedia.push(url);
+          continue;
+        }
+
+        const uploadData = await uploadResponse.json() as { files: Array<{
+          type: 'image' | 'video';
+          url: string;
+          filename: string;
+          size: number;
+          mimeType: string;
+        }>; };
+
+        if (uploadData.files && Array.isArray(uploadData.files) && uploadData.files.length > 0 && uploadData.files[0]) {
+          uploadedMedia.push(uploadData.files[0].url);
+        } else {
+          console.warn(`[Getlate] No files in upload response, using original URL`);
+          // Fallback to original URL if no files returned
+          uploadedMedia.push(url);
+        }
+      } catch (error) {
+        console.error(`[Getlate] Error uploading media from ${url}:`, error);
+        // Fallback to original URL on error
+        uploadedMedia.push(url);
+      }
+    }
+
+    return uploadedMedia;
   }
 
   /**

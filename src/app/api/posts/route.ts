@@ -36,7 +36,7 @@ export async function POST(request: Request) {
     ai_caption: z.string().nullable().optional(),
     hashtags: z.array(z.string()).optional(),
     media_type: z.string().optional(),
-    metadata: z.any().optional(),
+    metadata: z.any().optional(), // Can contain media_urls array
     brand_id: z.string().uuid().optional(),
     scheduled_for: z.string().optional(), // ISO timestamp
     timezone: z.string().optional(), // IANA timezone
@@ -107,6 +107,51 @@ export async function POST(request: Request) {
             accountsByGetlateId?.map(acc => [acc.getlate_account_id, acc.getlate_account_id]) || [],
           );
 
+          // Extract all media URLs from metadata or use image_url
+          // Support both metadata.media_urls array and single image_url
+          const rawMediaUrls = payload.metadata?.media_urls && Array.isArray(payload.metadata.media_urls) && payload.metadata.media_urls.length > 0
+            ? payload.metadata.media_urls
+            : (payload.image_url ? [payload.image_url] : []);
+
+          // Upload media to Getlate first (required for proper media handling)
+          // This downloads from Supabase Storage URLs and uploads to Getlate's media endpoint
+          let mediaItems: Array<{ type: 'image' | 'video'; url: string }> | undefined;
+          if (rawMediaUrls.length > 0) {
+            try {
+              // Upload media to Getlate and get their URLs
+              const uploadedUrls = await getlateClient.uploadMediaFromUrls(rawMediaUrls);
+
+              // Convert to mediaItems format (required by Getlate API)
+              mediaItems = uploadedUrls.map((url: string) => {
+                // Determine type from URL
+                const urlLower = url.toLowerCase();
+                const isVideo = urlLower.includes('.mp4') || urlLower.includes('.mov')
+                  || urlLower.includes('.avi') || urlLower.includes('.webm')
+                  || urlLower.includes('.m4v') || urlLower.includes('video');
+
+                return {
+                  type: (isVideo ? 'video' : 'image') as 'image' | 'video',
+                  url,
+                };
+              });
+            } catch (error) {
+              console.error('[Posts API] Error uploading media to Getlate:', error);
+              // Fallback to original URLs in mediaItems format
+              mediaItems = rawMediaUrls.map((url: string) => {
+                const urlLower = url.toLowerCase();
+                const isVideo = urlLower.includes('.mp4') || urlLower.includes('.mov')
+                  || urlLower.includes('.avi') || urlLower.includes('.webm')
+                  || urlLower.includes('.m4v') || urlLower.includes('video');
+
+                return {
+                  type: (isVideo ? 'video' : 'image') as 'image' | 'video',
+                  url,
+                };
+              });
+              console.warn('[Posts API] Using fallback mediaItems (original URLs):', mediaItems);
+            }
+          }
+
           // Map platforms to Getlate format with proper account IDs
           const getlatePlatformsArray = (payload.platforms || []).map((p) => {
             // Check if account_id is already a getlate_account_id or needs to be looked up
@@ -118,10 +163,19 @@ export async function POST(request: Request) {
               return null;
             }
 
+            const platform = (p.platform === 'x' ? 'twitter' : p.platform) as GetlatePlatform;
+            const platformSpecificData: Record<string, unknown> = { ...(p.config || {}) };
+
+            // For Facebook, also include mediaItems in platformSpecificData
+            // (though they should also be at root level)
+            if (platform === 'facebook' && mediaItems && mediaItems.length > 0) {
+              platformSpecificData.mediaItems = mediaItems;
+            }
+
             return {
-              platform: (p.platform === 'x' ? 'twitter' : p.platform) as GetlatePlatform,
+              platform,
               accountId: getlateAccountId, // Getlate API expects accountId (camelCase)
-              platformSpecificData: p.config || {},
+              platformSpecificData,
             };
           }).filter(Boolean) as Array<{
             platform: GetlatePlatform;
@@ -134,10 +188,13 @@ export async function POST(request: Request) {
             // Continue with local post creation
           } else {
             // Create post in Getlate
+            // Use mediaItems format (required by Getlate API for proper media handling)
+            // For Facebook, mediaItems are also included in platformSpecificData
             const getlatePost = await getlateClient.createPost({
               profileId: brandRecord.getlate_profile_id,
               content: payload.content,
-              mediaUrls: payload.image_url ? [payload.image_url] : undefined,
+              // Send mediaItems at root level (Getlate API format)
+              mediaItems,
               scheduledFor: payload.scheduled_for,
               timezone: payload.timezone,
               platforms: getlatePlatformsArray,
