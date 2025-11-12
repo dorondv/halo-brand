@@ -68,7 +68,11 @@
     "granularity_day": "Day",
     "granularity_week": "Week",
     "granularity_month": "Month",
-    "granularity_year": "Year"
+    "granularity_year": "Year",
+    "pagination_previous": "Previous",
+    "pagination_next": "Next",
+    "pagination_page": "Page",
+    "pagination_of": "of"
   },
   "PageTitles": {
     "coming_soon": "Coming soon",

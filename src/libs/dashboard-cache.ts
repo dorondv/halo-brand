@@ -15,7 +15,7 @@ export async function getCachedPosts(
   // Note: Posts might be in 'scheduled' or 'draft' status but still have analytics
   let postsQuery = supabase
     .from('posts')
-    .select('id,metadata,created_at,content,brand_id,getlate_post_id,status,platforms')
+    .select('id,metadata,created_at,content,brand_id,getlate_post_id,status,platforms,image_url')
     .eq('user_id', userId)
     .in('status', ['published', 'scheduled', 'draft']); // Include all statuses
 

@@ -68,7 +68,11 @@
     "granularity_day": "יום",
     "granularity_week": "שבוע",
     "granularity_month": "חודש",
-    "granularity_year": "שנה"
+    "granularity_year": "שנה",
+    "pagination_previous": "הקודם",
+    "pagination_next": "הבא",
+    "pagination_page": "עמוד",
+    "pagination_of": "מתוך"
   },
   "PageTitles": {
     "coming_soon": "בקרוב",

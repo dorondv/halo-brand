@@ -2,9 +2,11 @@
 
 import { format } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
-import { ChevronDown, ChevronUp, FileText, Image } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, FileText, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import Image from 'next/image';
 import React from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type PostRow = {
@@ -15,6 +17,8 @@ type PostRow = {
   date: string;
   postContent: string;
   platform: string;
+  mediaUrls?: string[];
+  imageUrl?: string;
 };
 
 type PostsTableProps = {
@@ -110,6 +114,8 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const dfLocale = localeCode === 'he' ? dfHe : dfEnUS;
   const [sortColumn, setSortColumn] = React.useState<string | null>('date');
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const postsPerPage = 5;
 
   // Default dummy data if no posts provided
   const defaultPosts: PostRow[] = [
@@ -170,6 +176,29 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
     }
     return aVal < bVal ? 1 : -1;
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+  const startIndex = (currentPage - 1) * postsPerPage;
+  const endIndex = startIndex + postsPerPage;
+  const paginatedPosts = sortedPosts.slice(startIndex, endIndex);
+
+  // Reset to page 1 when sorting changes
+  React.useEffect(() => {
+    setCurrentPage(1);
+  }, [sortColumn, sortDirection]);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  const handlePageClick = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
@@ -251,7 +280,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
               </tr>
             </thead>
             <tbody>
-              {sortedPosts.map((post) => {
+              {paginatedPosts.map((post) => {
                 const postDate = new Date(post.date);
                 const dayName = format(postDate, 'EEEE', { locale: dfLocale });
                 const dateStr = format(postDate, 'dd/MM/yyyy');
@@ -267,11 +296,43 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                       </div>
                     </td>
                     <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
-                      <div className={`flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
-                        <span className="text-xs text-gray-500">{t('posts_table_post_media')}</span>
-                        <Image className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <div className={`mt-1 truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                      {/* Media Thumbnail */}
+                      {(post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl
+                        ? (
+                            <div className={`mb-2 flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
+                              {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl, idx) => {
+                                if (!mediaUrl) {
+                                  return null;
+                                }
+                                const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
+                                  || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
+                                  || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
+                                return (
+                                  <div key={idx} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
+                                    {isVideo
+                                      ? (
+                                          <div className="flex h-full w-full items-center justify-center bg-gray-900">
+                                            <Play className="h-6 w-6 text-white" fill="white" />
+                                          </div>
+                                        )
+                                      : (
+                                          <Image
+                                            src={mediaUrl}
+                                            alt="Post media"
+                                            fill
+                                            className="object-cover"
+                                            sizes="64px"
+                                            unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
+                                          />
+                                        )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )
+                        : null}
+                      {/* Post Content */}
+                      <div className={`truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
                         {post.postContent}
                       </div>
                     </td>
@@ -303,6 +364,79 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
             </tbody>
           </table>
         </div>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className={`mt-4 flex items-center justify-between border-t border-gray-200 pt-4 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1"
+              >
+                {localeCode === 'he'
+                  ? (
+                      <>
+                        <ChevronRight className="h-4 w-4" />
+                        {t('pagination_previous') || 'הקודם'}
+                      </>
+                    )
+                  : (
+                      <>
+                        <ChevronLeft className="h-4 w-4" />
+                        {t('pagination_previous') || 'Previous'}
+                      </>
+                    )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1"
+              >
+                {localeCode === 'he'
+                  ? (
+                      <>
+                        {t('pagination_next') || 'הבא'}
+                        <ChevronLeft className="h-4 w-4" />
+                      </>
+                    )
+                  : (
+                      <>
+                        {t('pagination_next') || 'Next'}
+                        <ChevronRight className="h-4 w-4" />
+                      </>
+                    )}
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                {t('pagination_page') || 'Page'}
+                {' '}
+                {currentPage}
+                {' '}
+                {t('pagination_of') || 'of'}
+                {' '}
+                {totalPages}
+              </span>
+            </div>
+            <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePageClick(page)}
+                  className="h-8 w-8 p-0"
+                >
+                  {page}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

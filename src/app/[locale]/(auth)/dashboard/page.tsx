@@ -1189,6 +1189,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         }
       }
 
+      // Extract media URLs from post metadata or image_url
+      const meta = (p as any)?.metadata as any;
+      const mediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const imageUrl = (p as any)?.image_url;
+
       return {
         score,
         engagementRate,
@@ -1197,6 +1202,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         date: analytics?.date ?? (p as any)?.created_at ?? new Date().toISOString(),
         postContent: (p as any)?.content ?? '',
         platform,
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : (imageUrl ? [imageUrl] : []),
+        imageUrl,
       };
     });
   }
