@@ -97,44 +97,48 @@ export async function POST(request: NextRequest) {
     // Normalize platform (x -> twitter for Getlate API)
     const getlatePlatform = platform === 'x' ? 'twitter' : platform;
 
-    // Build the callback URL - ensure it's a full URL
+    // Build the redirect URL - this is where Getlate will redirect after OAuth
     // Use the origin from headers if nextUrl.origin is not available
     const origin = request.nextUrl.origin
       || request.headers.get('origin')
       || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
       || 'http://localhost:3000';
 
-    const callbackUrl = redirectUrl || `${origin}/api/getlate/callback`;
+    // Default redirect URL points to our callback handler
+    // Getlate will append success/error parameters: ?connected=platform&profileId=...&username=...
+    const defaultRedirectUrl = `${origin}/api/getlate/callback?brandId=${brandId}`;
+    const finalRedirectUrl = redirectUrl || defaultRedirectUrl;
 
-    // Validate callback URL is a proper URL
+    // Validate redirect URL is a proper URL
     try {
       // eslint-disable-next-line no-new
-      new URL(callbackUrl);
+      new URL(finalRedirectUrl);
     } catch {
       return NextResponse.json(
-        { error: 'Invalid callback URL format' },
+        { error: 'Invalid redirect URL format' },
         { status: 400 },
       );
     }
 
-    // Use platform-invites endpoint instead of /connect (which returns 405)
-    const inviteResult = await getlateClient.createPlatformInvite({
-      profileId: brandRecord.getlate_profile_id,
-      platform: getlatePlatform as any,
-      redirectUrl: callbackUrl,
-    });
+    // Use the official /connect endpoint with redirect_url parameter
+    // Parameter order: (platform, profileId, redirectUrl)
+    const connectResult = await getlateClient.connectAccount(
+      getlatePlatform as any,
+      brandRecord.getlate_profile_id,
+      finalRedirectUrl,
+    );
 
-    // Validate that we got an invite URL
-    if (!inviteResult.inviteUrl) {
+    // Validate that we got an auth URL
+    if (!connectResult.authUrl) {
       return NextResponse.json(
-        { error: 'Failed to get OAuth URL from platform invite' },
+        { error: 'Failed to get OAuth URL from Getlate' },
         { status: 500 },
       );
     }
 
     return NextResponse.json({
-      authUrl: inviteResult.inviteUrl,
-      state: inviteResult.token, // Use token as state for tracking
+      authUrl: connectResult.authUrl,
+      state: connectResult.state, // May be undefined for GET endpoint
     });
   } catch (error) {
     console.error('Error initiating Getlate connection:', error);

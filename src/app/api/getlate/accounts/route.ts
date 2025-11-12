@@ -18,6 +18,7 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
+    const oauthReconnect = searchParams.get('oauthReconnect') === 'true';
 
     if (!brandId) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 422 });
@@ -87,6 +88,7 @@ export async function GET(request: NextRequest) {
 
       const platform = getlateAccount.platform;
       if (!platform) {
+        console.warn('[Getlate Accounts Sync] Account missing platform:', getlateAccount);
         continue;
       }
 
@@ -118,54 +120,82 @@ export async function GET(request: NextRequest) {
       const normalizedPlatform = platform === 'x' || platform === 'twitter' ? 'twitter' : platform.toLowerCase();
 
       // Check if account already exists
-      const { data: existingAccount } = await supabase
+      // First try to find by getlate_account_id and brand_id
+      let { data: existingAccount } = await supabase
         .from('social_accounts')
-        .select('id, platform_specific_data')
+        .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
         .eq('getlate_account_id', accountId)
         .eq('brand_id', brandId)
         .maybeSingle();
+
+      // If not found, try to find by getlate_account_id only (in case brand_id changed)
+      if (!existingAccount) {
+        const { data: accountByGetlateId } = await supabase
+          .from('social_accounts')
+          .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
+          .eq('getlate_account_id', accountId)
+          .maybeSingle();
+
+        if (accountByGetlateId) {
+          // Account exists but with different brand_id - update it to current brand
+          existingAccount = accountByGetlateId;
+        }
+      }
 
       if (existingAccount) {
         // Check if account was manually disconnected
         const platformData = existingAccount.platform_specific_data as Record<string, unknown> | null;
         const manuallyDisconnected = platformData?.manually_disconnected === true;
 
-        // If manually disconnected, don't reactivate it even if Getlate says it's connected
-        const shouldBeActive = manuallyDisconnected ? false : isConnected;
+        // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection
+        // OAuth reconnection (oauthReconnect=true) means user explicitly reconnected via OAuth button
+        // Regular syncs should not reactivate manually disconnected accounts
+        const shouldBeActive = manuallyDisconnected && !oauthReconnect ? false : isConnected;
 
         // Update existing account
-        const { data: updatedAccount } = await supabase
+        // Include brand_id in update to ensure it's correct (in case brand changed)
+        const platformSpecificData: Record<string, unknown> = {
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          follower_count: followerCount,
+          last_sync: lastSync,
+          ...metadata,
+        };
+
+        // If account was manually disconnected, preserve the flag UNLESS this is an OAuth reconnection
+        // OAuth reconnection means user explicitly reconnected, so clear the flag
+        if (manuallyDisconnected && !oauthReconnect) {
+          // Keep the flag - account should stay disconnected (regular sync)
+          platformSpecificData.manually_disconnected = true;
+          platformSpecificData.manually_disconnected_at = platformData?.manually_disconnected_at || new Date().toISOString();
+        } else if (manuallyDisconnected && oauthReconnect && isConnected) {
+          // Clear the flag - user explicitly reconnected via OAuth
+          // Don't add manually_disconnected to platformSpecificData (effectively removes it)
+        }
+        // If not manually disconnected, don't add the flag at all
+
+        const { data: updatedAccount, error: updateError } = await supabase
           .from('social_accounts')
           .update({
             account_name: accountName,
             account_id: accountIdValue,
             platform: normalizedPlatform,
-            platform_specific_data: {
-              display_name: displayName,
-              avatar_url: avatarUrl,
-              follower_count: followerCount,
-              last_sync: lastSync,
-              // Preserve manually_disconnected flag if it exists
-              ...(manuallyDisconnected
-                ? {
-                    manually_disconnected: true,
-                    manually_disconnected_at: platformData?.manually_disconnected_at,
-                  }
-                : {}),
-              ...metadata,
-            },
+            brand_id: brandId, // Ensure brand_id is correct
+            platform_specific_data: platformSpecificData,
             is_active: shouldBeActive,
           })
           .eq('id', existingAccount.id)
           .select()
           .single();
 
-        if (updatedAccount) {
+        if (updateError) {
+          console.error(`[Getlate Accounts Sync] Error updating account ${accountName}:`, updateError);
+        } else if (updatedAccount) {
           syncedAccounts.push(updatedAccount);
         }
       } else {
         // Create new account
-        const { data: newAccount } = await supabase
+        const { data: newAccount, error: insertError } = await supabase
           .from('social_accounts')
           .insert({
             user_id: user.id,
@@ -187,7 +217,9 @@ export async function GET(request: NextRequest) {
           .select()
           .single();
 
-        if (newAccount) {
+        if (insertError) {
+          console.error(`[Getlate Accounts Sync] Error inserting account ${accountName}:`, insertError);
+        } else if (newAccount) {
           syncedAccounts.push(newAccount);
         }
       }
@@ -195,6 +227,7 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ accounts: syncedAccounts });
   } catch (error) {
+    console.error('[Getlate Accounts Sync] Error:', error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Failed to sync accounts' },
       { status: 500 },

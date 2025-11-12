@@ -1,6 +1,5 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
-import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
@@ -19,14 +18,62 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    const { searchParams } = new URL(request.url);
-    const code = searchParams.get('code');
-    const state = searchParams.get('state');
-    const error = searchParams.get('error');
+    // Parse URL manually to handle malformed query strings
+    // Getlate may append ?connected=... instead of &connected=... to our redirect URL
+    // The brandId parameter may be URL-encoded and contain the connected parameter
+    const url = new URL(request.url);
+    const urlString = decodeURIComponent(request.url);
+
+    // Extract brandId first - it might be malformed if Getlate appended params with ? instead of &
+    let brandId: string | null = null;
+    const brandIdMatch = urlString.match(/[?&]brandId=([^&?]+)/);
+    if (brandIdMatch && brandIdMatch[1]) {
+      let rawBrandId = brandIdMatch[1];
+      // Decode URL encoding
+      try {
+        rawBrandId = decodeURIComponent(rawBrandId);
+      } catch {
+        // If decoding fails, use as-is
+      }
+
+      // If brandId contains a ? or encoded ?, Getlate appended params incorrectly
+      // Extract just the UUID (everything before the ? or %3F)
+      if (rawBrandId.includes('?')) {
+        const parts = rawBrandId.split('?');
+        brandId = parts[0] || null;
+      } else if (rawBrandId.includes('%3F')) {
+        const parts = rawBrandId.split('%3F');
+        brandId = parts[0] || null;
+      } else {
+        brandId = rawBrandId;
+      }
+    }
+
+    // Getlate API returns success params: connected, profileId, username
+    // Or error params: error, platform
+    // Note: brandId is our custom parameter, not from Getlate
+    let connected = url.searchParams.get('connected');
+    const profileId = url.searchParams.get('profileId');
+    const username = url.searchParams.get('username');
+    const error = url.searchParams.get('error');
+    const platform = url.searchParams.get('platform');
+
+    // If connected is null, try to extract from the URL string (Getlate may have appended it incorrectly)
+    if (!connected) {
+      // Try to find connected parameter in the URL string (could be ?connected= or &connected=)
+      const connectedMatch = urlString.match(/[?&]connected=([^&]+)/);
+      if (connectedMatch && connectedMatch[1]) {
+        try {
+          connected = decodeURIComponent(connectedMatch[1]);
+        } catch {
+          connected = connectedMatch[1];
+        }
+      }
+    }
 
     // Handle OAuth errors and cancellations
     if (error) {
-      console.error('OAuth error:', error);
+      console.error('OAuth error from Getlate:', error, 'platform:', platform);
       const redirectUrl = new URL(request.url);
       redirectUrl.pathname = '/connections';
 
@@ -35,21 +82,25 @@ export async function GET(request: NextRequest) {
         || error === 'user_cancelled'
         || error === 'user_cancelled_authorize'
         || error === 'cancelled'
+        || error === 'connection_failed'
         || error.toLowerCase().includes('cancel')
         || error.toLowerCase().includes('denied');
 
       if (isCancelled) {
         redirectUrl.search = '?cancelled=true';
       } else {
-        redirectUrl.search = `?error=${encodeURIComponent(error)}`;
+        redirectUrl.search = `?error=${encodeURIComponent(error)}${platform ? `&platform=${platform}` : ''}`;
       }
       return NextResponse.redirect(redirectUrl);
     }
 
-    if (!code || !state) {
+    // Handle success case - Getlate returns: connected, profileId, username
+    // Note: 'connected' might be the platform name (e.g., 'facebook') instead of 'true'
+    if (!connected || !profileId) {
+      console.error('Missing required parameters:', { connected, profileId, username, error, platform, brandId });
       const redirectUrl = new URL(request.url);
       redirectUrl.pathname = '/connections';
-      redirectUrl.search = '?error=missing_parameters';
+      redirectUrl.search = `?error=missing_parameters&connected=${connected || 'none'}&profileId=${profileId || 'none'}`;
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -68,85 +119,75 @@ export async function GET(request: NextRequest) {
     }
 
     // The OAuth flow is handled by Getlate, so we just need to sync accounts
-    // Get all brands for this user to sync their accounts
-    const { data: brands } = await supabase
-      .from('brands')
-      .select('id, getlate_profile_id')
-      .eq('user_id', user.id)
-      .not('getlate_profile_id', 'is', null);
+    // Sync accounts for the specific brand that was connected (if brandId provided)
+    // Otherwise sync all brands with matching profileId
+    let brandsToSync: Array<{ id: string; getlate_profile_id: string }> = [];
 
-    if (brands && brands.length > 0) {
-      const getlateClient = createGetlateClient(userRecord.getlate_api_key);
+    if (brandId) {
+      // Sync only the specific brand
+      const { data: brand } = await supabase
+        .from('brands')
+        .select('id, getlate_profile_id')
+        .eq('id', brandId)
+        .eq('user_id', user.id)
+        .single();
 
-      // Sync accounts for all brands
-      for (const brand of brands) {
-        if (brand.getlate_profile_id) {
-          try {
-            const getlateAccounts = await getlateClient.getAccounts(brand.getlate_profile_id);
+      if (brand && brand.getlate_profile_id === profileId) {
+        brandsToSync = [brand];
+      }
+    } else {
+      // Sync all brands with matching profileId
+      const { data: brands } = await supabase
+        .from('brands')
+        .select('id, getlate_profile_id')
+        .eq('user_id', user.id)
+        .eq('getlate_profile_id', profileId);
 
-            // Sync accounts to database
-            for (const getlateAccount of getlateAccounts) {
-              // Check if account already exists
-              const { data: existingAccount } = await supabase
-                .from('social_accounts')
-                .select('id')
-                .eq('getlate_account_id', getlateAccount.id)
-                .maybeSingle();
+      brandsToSync = brands || [];
+    }
 
-              if (existingAccount) {
-                // Update existing account
-                await supabase
-                  .from('social_accounts')
-                  .update({
-                    account_name: getlateAccount.accountName,
-                    account_id: getlateAccount.accountId,
-                    platform_specific_data: {
-                      display_name: getlateAccount.displayName,
-                      avatar_url: getlateAccount.avatarUrl,
-                      follower_count: getlateAccount.followerCount,
-                      last_sync: getlateAccount.lastSync,
-                      ...getlateAccount.metadata,
-                    },
-                    is_active: getlateAccount.isConnected,
-                  })
-                  .eq('id', existingAccount.id);
-              } else {
-                // Create new account
-                await supabase
-                  .from('social_accounts')
-                  .insert({
-                    user_id: user.id,
-                    brand_id: brand.id,
-                    platform: getlateAccount.platform,
-                    account_name: getlateAccount.accountName,
-                    account_id: getlateAccount.accountId,
-                    getlate_account_id: getlateAccount.id,
-                    access_token: 'getlate-managed',
-                    platform_specific_data: {
-                      display_name: getlateAccount.displayName,
-                      avatar_url: getlateAccount.avatarUrl,
-                      follower_count: getlateAccount.followerCount,
-                      last_sync: getlateAccount.lastSync,
-                      ...getlateAccount.metadata,
-                    },
-                    is_active: getlateAccount.isConnected,
-                  });
-              }
-            }
-          } catch (error) {
-            console.error(`Error syncing accounts for brand ${brand.id}:`, error);
-            // Continue with other brands even if one fails
+    // Sync accounts for the brand(s)
+    // Pass oauthReconnect=true to indicate this is an OAuth-initiated sync
+    // This allows the sync to clear manually_disconnected flags for reconnected accounts
+    let syncSuccess = false;
+    for (const brand of brandsToSync) {
+      if (brand.getlate_profile_id) {
+        try {
+          // Use the accounts sync API endpoint which handles all the logic
+          // Pass oauthReconnect=true to allow reconnection of manually disconnected accounts
+          const syncResponse = await fetch(`${request.nextUrl.origin}/api/getlate/accounts?brandId=${brand.id}&oauthReconnect=true`, {
+            method: 'GET',
+            headers: {
+              Cookie: request.headers.get('cookie') || '',
+            },
+          });
+
+          if (syncResponse.ok) {
+            syncSuccess = true;
+          } else {
+            console.error(`Failed to sync accounts for brand ${brand.id}:`, await syncResponse.text().catch(() => 'Unknown error'));
           }
+        } catch (error) {
+          console.error(`Error syncing accounts for brand ${brand.id}:`, error);
+          // Continue with redirect even if sync fails
         }
       }
     }
 
-    // Redirect to create-post page with success message (user requested this)
-    // The accounts will be synced and displayed automatically
-    // Use the origin from the request to build the redirect URL
+    // If no brands were found to sync, that's also an error
+    if (brandsToSync.length === 0) {
+      console.error('No brands found to sync for profileId:', profileId, 'brandId:', brandId);
+      const redirectUrl = new URL(request.url);
+      redirectUrl.pathname = '/connections';
+      redirectUrl.search = `?error=brand_not_found${brandId ? `&brandId=${brandId}` : ''}`;
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Redirect to connections page with success message
+    // Include brandId and sync status in redirect
     const redirectUrl = new URL(request.url);
-    redirectUrl.pathname = '/create-post';
-    redirectUrl.search = '?connected=true';
+    redirectUrl.pathname = '/connections';
+    redirectUrl.search = `?connected=${connected}${username ? `&username=${encodeURIComponent(username)}` : ''}${brandId ? `&brandId=${brandId}` : ''}&synced=${syncSuccess ? 'true' : 'false'}`;
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error('Error handling OAuth callback:', error);

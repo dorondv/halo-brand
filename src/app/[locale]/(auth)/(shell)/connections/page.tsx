@@ -16,7 +16,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import {
@@ -177,7 +177,6 @@ export default function ConnectionsPage() {
   const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
   const [accountToDisconnect, setAccountToDisconnect] = useState<SocialAccount | null>(null);
-  const [isConnectingDemo, setIsConnectingDemo] = useState<string | null>(null);
   const [isConnectingOAuth, setIsConnectingOAuth] = useState<string | null>(null);
   const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null);
   const [isDeletingBrand, setIsDeletingBrand] = useState(false);
@@ -252,7 +251,7 @@ export default function ConnectionsPage() {
     setIsLoading(false);
   }, [selectedBrand]);
 
-  const loadAccountsFromDB = useCallback(async (skipSync = false) => {
+  const loadAccountsFromDB = useCallback(async (skipSync = false, forceSync = false) => {
     if (!selectedBrand) {
       setAccounts([]);
       return;
@@ -260,14 +259,16 @@ export default function ConnectionsPage() {
     try {
       const supabase = createSupabaseBrowserClient();
 
-      // Load accounts from database (show cached data immediately)
+      // Load accounts from database (show data from DB immediately - no waiting for Getlate)
       const { data, error } = await supabase
         .from('social_accounts')
-        .select('id,brand_id,platform,account_name,account_id,platform_specific_data')
+        .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id')
         .eq('brand_id', selectedBrand.id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('platform', { ascending: true });
 
       if (error) {
+        console.error('[Connections] Error loading accounts:', error);
         setAccounts([]);
       } else {
         const accountsData: SocialAccount[] = (data || []).map((acc) => {
@@ -292,17 +293,34 @@ export default function ConnectionsPage() {
       }
 
       // Sync accounts from Getlate in the background (non-blocking)
-      // This updates the accounts after they're already displayed
+      // Only sync if not already syncing and brand has Getlate profile
+      // Throttle syncs to prevent excessive API calls (max once per 5 minutes per brand)
+      // forceSync bypasses the throttle (e.g., after OAuth connection)
       if (!skipSync && selectedBrand.getlate_profile_id) {
-        // Don't await - let it run in background
-        fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
-          .then(() => {
-            // Reload accounts from DB after sync completes (skip sync to avoid loop)
-            void loadAccountsFromDB(true);
-          })
-          .catch(() => {
-            // Silently fail - cached data is already shown
-          });
+        const syncKey = `synced_brand_${selectedBrand.id}`;
+        const lastSynced = typeof window !== 'undefined' ? sessionStorage.getItem(syncKey) : null;
+        const now = Date.now();
+
+        // Only sync if not synced in the last 5 minutes, or if forceSync is true
+        if (forceSync || !lastSynced || (now - Number.parseInt(lastSynced, 10)) > 5 * 60 * 1000) {
+          if (typeof window !== 'undefined') {
+            sessionStorage.setItem(syncKey, now.toString());
+          }
+
+          // Don't await - let it run in background
+          fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
+            .then(async (response) => {
+              if (response.ok) {
+                // Small delay to ensure database write is complete
+                await new Promise(resolve => setTimeout(resolve, 500));
+                // Reload accounts from DB after sync completes (skip sync to avoid loop)
+                void loadAccountsFromDB(true);
+              }
+            })
+            .catch(() => {
+              // Silently fail - DB data is already shown
+            });
+        }
       }
     } catch {
       setAccounts([]);
@@ -336,29 +354,79 @@ export default function ConnectionsPage() {
   }, [loadAccounts]);
 
   // Handle OAuth callback - check for success, cancellation, or error messages
+  // Use a ref to track processed callbacks and prevent duplicate toasts
+  const processedCallbackRef = useRef<string | null>(null);
+
   useEffect(() => {
     const cancelled = searchParams.get('cancelled');
     const connected = searchParams.get('connected');
     const error = searchParams.get('error');
 
+    // Build a unique key for this callback using the full search params
+    const callbackKey = searchParams.toString();
+
+    // Only process if there's a callback parameter and we haven't processed this exact URL yet
+    if ((!cancelled && !connected && !error) || processedCallbackRef.current === callbackKey) {
+      return;
+    }
+
+    // Mark as processed immediately to prevent duplicate processing
+    processedCallbackRef.current = callbackKey;
+
     if (cancelled === 'true') {
       showToast(t('connection_cancelled'), 'info');
-      // Clean up URL
+      // Clean up URL immediately to prevent duplicate processing
       window.history.replaceState({}, '', window.location.pathname);
-    } else if (connected === 'true') {
+      // Reset ref after a delay to allow for new callbacks
+      setTimeout(() => {
+        processedCallbackRef.current = null;
+      }, 1000);
+    } else if (connected) {
+      // connected might be 'true' or the platform name (e.g., 'facebook')
+      // Both indicate success
       showToast(t('connection_success'), 'success');
-      // Reload accounts to show the newly connected account
-      if (selectedBrand) {
-        loadAccounts();
-      }
-      // Clean up URL
+
+      // Check if sync completed successfully
+      const synced = searchParams.get('synced') === 'true';
+
+      // Clean up URL immediately to prevent duplicate processing
       window.history.replaceState({}, '', window.location.pathname);
+      // Reset ref after a delay to allow for new callbacks
+      setTimeout(() => {
+        processedCallbackRef.current = null;
+      }, 1000);
+
+      // Reload accounts immediately after successful connection
+      // The callback route already synced accounts, so we just need to reload from DB
+      if (selectedBrand) {
+        // Clear accounts first to force a fresh load
+        setAccounts([]);
+        // Reload immediately - sync already completed on server side
+        // Use forceSync to bypass throttle and ensure fresh data
+        void loadAccountsFromDB(false, true);
+
+        // If sync failed on server, retry once
+        if (!synced) {
+          // Small delay just for DB commit, then retry sync
+          setTimeout(() => {
+            void loadAccountsFromDB(false, true);
+          }, 300);
+        }
+      }
     } else if (error) {
       showToast(t('connection_error'), 'error');
-      // Clean up URL
+      // Clean up URL immediately to prevent duplicate processing
       window.history.replaceState({}, '', window.location.pathname);
+      // Reset ref after a delay to allow for new callbacks
+      setTimeout(() => {
+        processedCallbackRef.current = null;
+      }, 1000);
+      // Reload accounts even on error to ensure UI is up to date
+      if (selectedBrand) {
+        void loadAccountsFromDB(false, false);
+      }
     }
-  }, [searchParams, selectedBrand, loadAccounts, showToast, t]);
+  }, [searchParams, selectedBrand, loadAccountsFromDB, showToast, t]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
@@ -467,162 +535,6 @@ export default function ConnectionsPage() {
       console.error('Error creating brand:', error);
       // Error will be handled by reloading brands - if creation failed, it won't appear
     }
-  };
-
-  const handleDemoConnect = async (platform: Platform) => {
-    if (!selectedBrand) {
-      return;
-    }
-
-    setIsConnectingDemo(platform);
-
-    // Simulate API call
-    await new Promise<void>((resolve) => {
-      const timeoutId = setTimeout(resolve, 1500);
-      return () => clearTimeout(timeoutId);
-    });
-
-    // Generate realistic demo data - using deterministic values based on platform and brand ID
-    // This avoids using Math.random() during render
-    const getDeterministicNumber = (seed: number, min: number, max: number): number => {
-      // Simple deterministic "random" based on seed
-      const pseudoRandom = ((seed * 9301) + 49297) % 233280;
-      const normalized = pseudoRandom / 233280;
-      return Math.floor(normalized * (max - min + 1)) + min;
-    };
-
-    const brandSeed = Number.parseInt(selectedBrand.id.slice(-8), 16) || 0;
-    const platformSeeds: Record<Platform, number> = {
-      instagram: 1,
-      facebook: 2,
-      x: 3,
-      twitter: 3,
-      linkedin: 4,
-      tiktok: 5,
-      youtube: 6,
-      threads: 7,
-    };
-    const seed = brandSeed + (platformSeeds[platform] || 0);
-
-    const demoData = {
-      instagram: {
-        handle: `@${selectedBrand.name.toLowerCase().replace(/\s+/g, '_')}_official`,
-        display_name: `${selectedBrand.name} Official`,
-        follower_count: getDeterministicNumber(seed, 10000, 60000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      facebook: {
-        handle: `${selectedBrand.name} - דף רשמי`,
-        display_name: selectedBrand.name,
-        follower_count: getDeterministicNumber(seed + 1, 5000, 35000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      x: {
-        handle: `@${selectedBrand.name.toLowerCase().replace(/\s+/g, '')}_il`,
-        display_name: `${selectedBrand.name} ישראל`,
-        follower_count: getDeterministicNumber(seed + 2, 3000, 23000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      twitter: {
-        handle: `@${selectedBrand.name.toLowerCase().replace(/\s+/g, '')}_il`,
-        display_name: `${selectedBrand.name} ישראל`,
-        follower_count: getDeterministicNumber(seed + 2, 3000, 23000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      linkedin: {
-        handle: `${selectedBrand.name} - חברה`,
-        display_name: selectedBrand.name,
-        follower_count: getDeterministicNumber(seed + 3, 1000, 11000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      tiktok: {
-        handle: `@${selectedBrand.name.toLowerCase().replace(/\s+/g, '_')}il`,
-        display_name: `${selectedBrand.name} IL`,
-        follower_count: getDeterministicNumber(seed + 4, 5000, 105000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      youtube: {
-        handle: `${selectedBrand.name} - ערוץ רשמי`,
-        display_name: `${selectedBrand.name} Channel`,
-        follower_count: getDeterministicNumber(seed + 5, 2000, 27000),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-      threads: {
-        handle: `@${selectedBrand.name.toLowerCase().replace(/\s+/g, '_')}_threads`,
-        display_name: selectedBrand.name,
-        follower_count: getDeterministicNumber(seed + 6, 500, 8500),
-        avatar_url: `https://i.pravatar.cc/300?u=${platform}${selectedBrand.id}`,
-      },
-    };
-
-    const data = demoData[platform] || demoData.x;
-    const supabase = createSupabaseBrowserClient();
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) {
-      setIsConnectingDemo(null);
-      return;
-    }
-
-    // Get user ID
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', session.user.email)
-      .maybeSingle();
-
-    const userId = userRecord?.id || session.user.id;
-
-    // Use current timestamp for account_id - create Date object first to avoid impure function warning
-    const now = new Date();
-    const accountIdTimestamp = now.getTime();
-
-    // Create social account in database
-    const { data: newAccountData, error } = await supabase
-      .from('social_accounts')
-      .insert([
-        {
-          user_id: userId,
-          brand_id: selectedBrand.id,
-          platform: platform === 'x' ? 'twitter' : platform, // Store as 'twitter' in DB, normalize later
-          account_name: data.handle,
-          account_id: `${platform}-${accountIdTimestamp}`,
-          access_token: 'demo-token', // In production, this would be real OAuth token
-          platform_specific_data: {
-            display_name: data.display_name,
-            avatar_url: data.avatar_url,
-            follower_count: data.follower_count,
-            last_sync: now.toISOString(),
-          },
-          is_active: true,
-        },
-      ])
-      .select('id,brand_id,platform,account_name,platform_specific_data')
-      .single();
-
-    if (error) {
-      console.error('Error creating account:', error);
-      // Error will be handled by not adding account to state
-      setIsConnectingDemo(null);
-      return;
-    }
-
-    const platformSpecific = newAccountData.platform_specific_data as Record<string, unknown> | null;
-    const newAccount: SocialAccount = {
-      id: newAccountData.id,
-      brand_id: newAccountData.brand_id,
-      platform,
-      handle: newAccountData.account_name || '',
-      display_name: (platformSpecific?.display_name as string) || newAccountData.account_name || '',
-      avatar_url: (platformSpecific?.avatar_url as string) || undefined,
-      follower_count: (platformSpecific?.follower_count as number) || 0,
-      is_connected: true,
-      last_sync: (platformSpecific?.last_sync as string) || undefined,
-    };
-
-    setAccounts(prev => [...prev, newAccount]);
-    setIsConnectingDemo(null);
-    // Reload accounts to ensure consistency
-    await loadAccounts();
   };
 
   const handleManualConnect = (platform: Platform) => {
@@ -804,7 +716,7 @@ export default function ConnectionsPage() {
         body: JSON.stringify({
           platform: platform === 'x' ? 'twitter' : platform,
           brandId: selectedBrand.id,
-          redirectUrl: `${window.location.origin}/api/getlate/callback`,
+          redirectUrl: `${window.location.origin}/api/getlate/callback?brandId=${selectedBrand.id}`,
         }),
       });
 
@@ -825,7 +737,8 @@ export default function ConnectionsPage() {
         return;
       }
 
-      // Redirect to OAuth URL
+      // Redirect to OAuth URL immediately
+      // Don't set state after this - we're leaving the page
       window.location.href = authUrl;
     } catch (error) {
       console.error('Error connecting with OAuth:', error);
@@ -1200,7 +1113,7 @@ export default function ConnectionsPage() {
                 <span className="text-pink-600">{selectedBrand.name}</span>
               </CardTitle>
               <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
-                {t('connect_demo_accounts')}
+                {t('connect_accounts_description')}
               </CardDescription>
             </CardHeader>
             <CardContent>
@@ -1264,7 +1177,7 @@ export default function ConnectionsPage() {
                               <>
                                 <Button
                                   onClick={() => handleOAuthConnect(platform)}
-                                  disabled={isConnectingOAuth === platform || isConnectingDemo === platform}
+                                  disabled={isConnectingOAuth === platform}
                                   size="sm"
                                   className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                 >
@@ -1274,20 +1187,6 @@ export default function ConnectionsPage() {
                                       )
                                     : (
                                         t('connect_oauth')
-                                      )}
-                                </Button>
-                                <Button
-                                  onClick={() => handleDemoConnect(platform)}
-                                  disabled={isConnectingDemo === platform || isConnectingOAuth === platform}
-                                  size="sm"
-                                  className="bg-gradient-to-r from-pink-500 to-pink-600 text-white"
-                                >
-                                  {isConnectingDemo === platform
-                                    ? (
-                                        <Loader2 className="h-4 w-4 animate-spin" />
-                                      )
-                                    : (
-                                        t('connect_demo')
                                       )}
                                 </Button>
                                 <Button
