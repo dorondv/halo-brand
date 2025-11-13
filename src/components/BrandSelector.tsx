@@ -1,7 +1,7 @@
 'use client';
 
-import { Building2, Plus } from 'lucide-react';
-import { useTranslations } from 'next-intl';
+import { Building2, CheckCircle2, Plus } from 'lucide-react';
+import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 type Brand = {
@@ -33,6 +34,9 @@ type Brand = {
 
 export function BrandSelector() {
   const t = useTranslations('Common');
+  const tIntegrations = useTranslations('Integrations');
+  const locale = useLocale();
+  const isRTL = locale === 'he';
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -42,6 +46,8 @@ export function BrandSelector() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [brandName, setBrandName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
+  const [isUploadingLogo, setIsUploadingLogo] = useState(false);
 
   const fetchBrands = async () => {
     try {
@@ -134,48 +140,68 @@ export function BrandSelector() {
     setIsCreating(true);
     try {
       const supabase = createSupabaseBrowserClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (authError || !user) {
-        console.error('No user found');
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        console.error('No session found');
         setIsCreating(false);
         return;
       }
 
-      // Get or create user in users table
+      // Get user ID
       const { data: userRecord } = await supabase
         .from('users')
         .select('id')
-        .eq('email', user.email)
+        .eq('email', session.user.email)
         .maybeSingle();
 
-      let userId = userRecord?.id;
+      const userId = userRecord?.id || session.user.id;
 
-      // If user doesn't exist in users table, create it
-      if (!userId) {
-        const { data: newUser, error: createUserError } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: user.id,
-              email: user.email || '',
-              name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              plan: 'free',
-              is_active: true,
-            },
-          ])
-          .select('id')
-          .single();
+      let logoUrl: string | null = null;
 
-        if (createUserError) {
-          console.error('Error creating user record:', createUserError.message || createUserError.code || createUserError);
-          throw new Error('Failed to create user record. Please try again.');
+      // Upload logo if provided
+      if (brandLogoFile) {
+        setIsUploadingLogo(true);
+        try {
+          // Validate file type (only images)
+          if (!brandLogoFile.type.startsWith('image/')) {
+            throw new Error('Please upload an image file');
+          }
+
+          // Validate file size (5MB limit)
+          const maxSize = 5 * 1024 * 1024; // 5MB
+          if (brandLogoFile.size > maxSize) {
+            throw new Error('Image size exceeds 5MB limit');
+          }
+
+          // Generate unique file name
+          const fileExt = brandLogoFile.name.split('.').pop();
+          const fileName = `${userId}/brands/${Date.now()}-${Math.random().toString(36).substring(7)}.${fileExt}`;
+
+          // Upload to Supabase Storage (using post-media bucket or create a brands bucket)
+          const { error: uploadError } = await supabase.storage
+            .from('post-media')
+            .upload(fileName, brandLogoFile, {
+              cacheControl: '3600',
+              upsert: false,
+            });
+
+          if (uploadError) {
+            console.error('Logo upload error:', uploadError);
+            throw new Error(`Failed to upload logo: ${uploadError.message}`);
+          }
+
+          // Get public URL
+          const { data: { publicUrl } } = supabase.storage
+            .from('post-media')
+            .getPublicUrl(fileName);
+
+          logoUrl = publicUrl;
+        } catch (error) {
+          console.error('Error uploading logo:', error);
+          // Continue with brand creation even if logo upload fails
+        } finally {
+          setIsUploadingLogo(false);
         }
-
-        userId = newUser?.id;
-      }
-
-      if (!userId) {
-        throw new Error('Unable to determine user ID');
       }
 
       // Create brand via API to handle Getlate profile automatically
@@ -187,7 +213,7 @@ export function BrandSelector() {
         body: JSON.stringify({
           name: brandName.trim(),
           description: null,
-          logo_url: null,
+          logo_url: logoUrl,
         }),
       });
 
@@ -206,8 +232,7 @@ export function BrandSelector() {
       // Close modal and reset form
       setIsModalOpen(false);
       setBrandName('');
-      // Show success message (optional)
-      // alert(t('brand_create_success'));
+      setBrandLogoFile(null);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error creating brand:', errorMessage);
@@ -275,39 +300,75 @@ export function BrandSelector() {
               {t('brand_create_modal_description')}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6">
             <div className="space-y-2">
-              <Label htmlFor="brand-name">{t('brand_create_modal_label')}</Label>
+              <Label htmlFor="brand-name">{tIntegrations('brand_name')}</Label>
               <Input
                 id="brand-name"
-                placeholder={t('brand_create_modal_placeholder')}
+                placeholder={tIntegrations('brand_name_placeholder')}
                 value={brandName}
                 onChange={e => setBrandName(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter' && brandName.trim()) {
+                  if (e.key === 'Enter' && brandName.trim() && !isCreating && !isUploadingLogo) {
                     void handleCreateBrand();
                   }
                 }}
-                disabled={isCreating}
+                className="bg-white"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                disabled={isCreating || isUploadingLogo}
               />
             </div>
-            <div className="flex justify-end gap-2">
+            <div className="space-y-2">
+              <Label htmlFor="brand-logo">{tIntegrations('logo_optional')}</Label>
+              <div className="relative">
+                <input
+                  type="file"
+                  id="brand-logo"
+                  accept="image/*"
+                  onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
+                  className={cn(
+                    'block w-full text-sm bg-white rounded-md border border-gray-300',
+                    'file:border-0 file:bg-white file:text-gray-700 file:text-sm file:font-medium',
+                    'file:cursor-pointer hover:file:bg-gray-50',
+                    'text-gray-500',
+                    isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
+                  )}
+                  dir={isRTL ? 'rtl' : 'ltr'}
+                  disabled={isCreating || isUploadingLogo}
+                />
+              </div>
+            </div>
+            <div className={cn('flex gap-3 pt-2', isRTL ? 'justify-start' : 'justify-end')}>
               <Button
                 variant="outline"
                 onClick={() => {
                   setIsModalOpen(false);
                   setBrandName('');
+                  setBrandLogoFile(null);
                 }}
-                disabled={isCreating}
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                disabled={isCreating || isUploadingLogo}
               >
-                {t('brand_create_cancel')}
+                {tIntegrations('cancel')}
               </Button>
               <Button
                 onClick={() => void handleCreateBrand()}
-                disabled={!brandName.trim() || isCreating}
-                className="bg-gray-600 text-white hover:bg-gray-700"
+                className="bg-pink-600 text-white hover:bg-pink-700"
+                disabled={!brandName.trim() || isCreating || isUploadingLogo}
               >
-                {isCreating ? 'Creating...' : t('brand_create_button')}
+                {isRTL
+                  ? (
+                      <>
+                        {tIntegrations('create_brand')}
+                        <CheckCircle2 className="mr-2 h-4 w-4" />
+                      </>
+                    )
+                  : (
+                      <>
+                        <CheckCircle2 className="ml-2 h-4 w-4" />
+                        {tIntegrations('create_brand')}
+                      </>
+                    )}
               </Button>
             </div>
           </div>
