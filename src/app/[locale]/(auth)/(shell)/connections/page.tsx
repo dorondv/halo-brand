@@ -292,35 +292,22 @@ export default function ConnectionsPage() {
         setAccounts(accountsData);
       }
 
-      // Sync accounts from Getlate in the background (non-blocking)
-      // Only sync if not already syncing and brand has Getlate profile
-      // Throttle syncs to prevent excessive API calls (max once per 5 minutes per brand)
-      // forceSync bypasses the throttle (e.g., after OAuth connection)
-      if (!skipSync && selectedBrand.getlate_profile_id) {
-        const syncKey = `synced_brand_${selectedBrand.id}`;
-        const lastSynced = typeof window !== 'undefined' ? sessionStorage.getItem(syncKey) : null;
-        const now = Date.now();
-
-        // Only sync if not synced in the last 5 minutes, or if forceSync is true
-        if (forceSync || !lastSynced || (now - Number.parseInt(lastSynced, 10)) > 5 * 60 * 1000) {
-          if (typeof window !== 'undefined') {
-            sessionStorage.setItem(syncKey, now.toString());
-          }
-
-          // Don't await - let it run in background
-          fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
-            .then(async (response) => {
-              if (response.ok) {
-                // Small delay to ensure database write is complete
-                await new Promise(resolve => setTimeout(resolve, 500));
-                // Reload accounts from DB after sync completes (skip sync to avoid loop)
-                void loadAccountsFromDB(true);
-              }
-            })
-            .catch(() => {
-              // Silently fail - DB data is already shown
-            });
-        }
+      // Only sync from Getlate if explicitly requested (e.g., after OAuth connection)
+      // This prevents automatic polling/interval fetching
+      if (forceSync && !skipSync && selectedBrand.getlate_profile_id) {
+        // Don't await - let it run in background
+        fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
+          .then(async (response) => {
+            if (response.ok) {
+              // Small delay to ensure database write is complete
+              await new Promise(resolve => setTimeout(resolve, 500));
+              // Reload accounts from DB after sync completes (skip sync to avoid loop)
+              void loadAccountsFromDB(true);
+            }
+          })
+          .catch(() => {
+            // Silently fail - DB data is already shown
+          });
       }
     } catch {
       setAccounts([]);
@@ -343,15 +330,14 @@ export default function ConnectionsPage() {
   }, [loadBrands]);
 
   useEffect(() => {
-    // Load accounts when selected brand changes - using setTimeout to avoid cascading renders warning
-    const timeoutId = setTimeout(() => {
-      void loadAccounts();
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
-  }, [loadAccounts]);
+    // Load accounts when selected brand changes - only when brand actually changes
+    if (selectedBrand) {
+      void loadAccountsFromDB(false, false); // Don't auto-sync, only load from DB
+    } else {
+      setAccounts([]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedBrand?.id]); // Only depend on brand ID, not the entire object or loadAccounts
 
   // Handle OAuth callback - check for success, cancellation, or error messages
   // Use a ref to track processed callbacks and prevent duplicate toasts

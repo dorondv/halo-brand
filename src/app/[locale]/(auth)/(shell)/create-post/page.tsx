@@ -114,33 +114,9 @@ export default function CreatePostPage() {
         setAccounts(accountsData);
       }
 
-      // Sync accounts from Getlate in the background only once per brand selection
-      // This updates the database, but we're already showing DB data
-      // Only sync if brand changed or on initial load
-      if (selectedBrandId) {
-        const selectedBrand = brandsData?.find(b => b.id === selectedBrandId);
-        if (selectedBrand?.getlate_profile_id) {
-          // Use a ref or state to track if we've already synced for this brand
-          // For now, sync only on mount or brand change (not on every render)
-          const syncKey = `synced_${selectedBrandId}`;
-          const lastSynced = sessionStorage.getItem(syncKey);
-          const now = Date.now();
-
-          // Only sync if not synced in the last 5 minutes
-          if (!lastSynced || (now - Number.parseInt(lastSynced, 10)) > 5 * 60 * 1000) {
-            sessionStorage.setItem(syncKey, now.toString());
-            // Don't await - let it run in background
-            fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`)
-              .then(() => {
-                // Reload accounts from DB after sync (to show updated data)
-                void loadAccounts();
-              })
-              .catch(() => {
-                // Silently fail - DB data is already shown
-              });
-          }
-        }
-      }
+      // Removed automatic background sync to prevent interval polling
+      // Accounts are loaded from database only
+      // Sync from Getlate should only happen explicitly (e.g., after OAuth connection)
     } catch (err) {
       console.error('[CreatePost] Error loading accounts:', err);
       setAccounts([]);
@@ -149,7 +125,7 @@ export default function CreatePostPage() {
 
   useEffect(() => {
     void loadAccounts();
-  }, [loadAccounts, selectedBrandId]);
+  }, [selectedBrandId]); // Only depend on selectedBrandId, not loadAccounts to prevent re-renders
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
