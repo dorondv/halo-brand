@@ -7,7 +7,6 @@ import {
   Facebook,
   Instagram,
   Linkedin,
-  Link as LinkIcon,
   Loader2,
   Play,
   Plus,
@@ -169,9 +168,6 @@ export default function ConnectionsPage() {
   const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [showManualDialog, setShowManualDialog] = useState(false);
-  const [selectedPlatform, setSelectedPlatform] = useState<Platform | null>(null);
-  const [manualAccountData, setManualAccountData] = useState({ handle: '', display_name: '' });
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
   const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
@@ -331,10 +327,6 @@ export default function ConnectionsPage() {
       setAccounts([]);
     }
   }, [selectedBrand]);
-
-  const loadAccounts = useCallback(() => {
-    void loadAccountsFromDB(false);
-  }, [loadAccountsFromDB]);
 
   useEffect(() => {
     // Load brands on mount - using setTimeout to avoid cascading renders warning
@@ -594,12 +586,6 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleManualConnect = (platform: Platform) => {
-    setSelectedPlatform(platform);
-    setManualAccountData({ handle: '', display_name: '' });
-    setShowManualDialog(true);
-  };
-
   const handleOAuthConnect = async (platform: Platform) => {
     if (!selectedBrand) {
       return;
@@ -800,80 +786,6 @@ export default function ConnectionsPage() {
     } catch (error) {
       console.error('Error connecting with OAuth:', error);
       setIsConnectingOAuth(null);
-    }
-  };
-
-  const handleManualSubmit = async () => {
-    if (!manualAccountData.handle.trim() || !manualAccountData.display_name.trim() || !selectedPlatform || !selectedBrand) {
-      return;
-    }
-
-    try {
-      const supabase = createSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        return;
-      }
-
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
-
-      // Create social account in database
-      const { data: newAccountData, error } = await supabase
-        .from('social_accounts')
-        .insert([
-          {
-            user_id: userId,
-            brand_id: selectedBrand.id,
-            platform: selectedPlatform === 'x' ? 'twitter' : selectedPlatform, // Store as 'twitter' in DB
-            account_name: manualAccountData.handle,
-            account_id: `${selectedPlatform}-${Date.now()}`,
-            access_token: 'manual-account', // In production, this would be real OAuth token
-            platform_specific_data: {
-              display_name: manualAccountData.display_name,
-              follower_count: 0,
-              last_sync: new Date().toISOString(),
-            },
-            is_active: true,
-          },
-        ])
-        .select('id,brand_id,platform,account_name,platform_specific_data')
-        .single();
-
-      if (error) {
-        console.error('Error creating account:', error);
-        showToast(t('connection_error'), 'error');
-        setShowManualDialog(false); // Close modal on error
-        return;
-      }
-
-      const platformSpecific = newAccountData.platform_specific_data as Record<string, unknown> | null;
-      const newAccount: SocialAccount = {
-        id: newAccountData.id,
-        brand_id: newAccountData.brand_id,
-        platform: selectedPlatform,
-        handle: newAccountData.account_name || '',
-        display_name: (platformSpecific?.display_name as string) || newAccountData.account_name || '',
-        follower_count: (platformSpecific?.follower_count as number) || 0,
-        is_connected: true,
-        last_sync: (platformSpecific?.last_sync as string) || undefined,
-      };
-
-      setAccounts(prev => [...prev, newAccount]);
-      setShowManualDialog(false);
-      setManualAccountData({ handle: '', display_name: '' });
-      // Reload accounts to ensure consistency
-      await loadAccounts();
-    } catch (error) {
-      console.error('Error creating account:', error);
-      showToast(t('connection_error'), 'error');
-      setShowManualDialog(false); // Close modal on error
     }
   };
 
@@ -1349,14 +1261,6 @@ export default function ConnectionsPage() {
                                         t('connect_oauth')
                                       )}
                                 </Button>
-                                <Button
-                                  onClick={() => handleManualConnect(platform)}
-                                  variant="outline"
-                                  size="sm"
-                                >
-                                  <LinkIcon className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
-                                  {t('manual')}
-                                </Button>
                               </>
                             )}
                       </div>
@@ -1406,48 +1310,6 @@ export default function ConnectionsPage() {
                         {t('delete')}
                       </>
                     )}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Manual Connection Dialog */}
-        <Dialog open={showManualDialog} onOpenChange={setShowManualDialog}>
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
-            <DialogHeader>
-              <DialogTitle>
-                {t('manual_connection_to')}
-                {selectedPlatform && platformConfigs[selectedPlatform]?.name}
-              </DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="handle">{t('username_handle')}</Label>
-                <Input
-                  id="handle"
-                  placeholder={t('username_placeholder')}
-                  value={manualAccountData.handle}
-                  onChange={e =>
-                    setManualAccountData(prev => ({ ...prev, handle: e.target.value }))}
-                />
-              </div>
-              <div>
-                <Label htmlFor="displayName">{t('display_name')}</Label>
-                <Input
-                  id="displayName"
-                  placeholder={t('display_name_placeholder')}
-                  value={manualAccountData.display_name}
-                  onChange={e =>
-                    setManualAccountData(prev => ({ ...prev, display_name: e.target.value }))}
-                />
-              </div>
-            </div>
-            <DialogFooter className={cn(isRTL ? 'flex-row-reverse' : '')}>
-              <Button variant="outline" onClick={() => setShowManualDialog(false)}>
-                {t('cancel')}
-              </Button>
-              <Button onClick={handleManualSubmit} className="bg-pink-600 text-white">
-                {t('connect_account')}
               </Button>
             </DialogFooter>
           </DialogContent>
