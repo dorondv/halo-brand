@@ -68,6 +68,63 @@ export type GetlatePost = {
   updatedAt: string;
 };
 
+export type GetlateAnalyticsPost = {
+  _id: string;
+  content: string;
+  publishedAt: string;
+  scheduledFor: string;
+  status: string;
+  analytics: {
+    impressions: number;
+    reach: number;
+    likes: number;
+    comments: number;
+    shares: number;
+    clicks: number;
+    views: number;
+    lastUpdated: string;
+  };
+  platforms: Array<{
+    platform: string;
+    status: string;
+    analytics: {
+      impressions: number;
+      reach: number;
+      likes: number;
+      comments: number;
+      shares: number;
+      clicks: number;
+      views: number;
+      engagementRate: number;
+      lastUpdated: string;
+    };
+  }>;
+  platform: string;
+  platformPostUrl?: string;
+  isExternal?: boolean;
+  profileId: string;
+  thumbnailUrl?: string;
+  mediaType?: string;
+  mediaItems?: unknown[];
+};
+
+export type GetlateAnalyticsResponse = {
+  overview: {
+    totalPosts: number;
+    publishedPosts: number;
+    scheduledPosts: number;
+    lastSync: string;
+  };
+  posts: GetlateAnalyticsPost[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    pages: number;
+  };
+};
+
+// Legacy type for backward compatibility
 export type GetlateAnalytics = {
   postId: string;
   platform: GetlatePlatform;
@@ -551,7 +608,7 @@ export class GetlateClient {
    * Get analytics for posts
    * ⚠️ Requires Analytics add-on. Returns HTTP 402 if not enabled.
    * Rate limit: 30 requests per hour per user
-   * Note: Getlate API may return analytics in different formats (array or nested object)
+   * Returns structured response with overview, posts, and pagination
    */
   async getAnalytics(params: {
     profileId?: string;
@@ -563,7 +620,7 @@ export class GetlateClient {
     page?: number; // Default: 1
     sortBy?: 'date' | 'engagement'; // Default: 'date'
     order?: 'asc' | 'desc'; // Default: 'desc'
-  }): Promise<GetlateAnalytics[]> {
+  }): Promise<GetlateAnalyticsResponse> {
     const queryParams = new URLSearchParams();
     if (params.profileId) {
       queryParams.append('profileId', params.profileId);
@@ -594,21 +651,7 @@ export class GetlateClient {
     }
 
     const endpoint = `/analytics${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
-    const response = await this.request<any>(endpoint);
-
-    // Handle different response formats (array or nested object)
-    if (Array.isArray(response)) {
-      return response as GetlateAnalytics[];
-    } else if (response && typeof response === 'object') {
-      // Try to extract from common response formats
-      const analytics = response.analytics || response.data || response.results || [];
-      if (Array.isArray(analytics)) {
-        return analytics as GetlateAnalytics[];
-      }
-    }
-
-    // If we can't parse it, return empty array
-    return [];
+    return this.request<GetlateAnalyticsResponse>(endpoint);
   }
 
   /**

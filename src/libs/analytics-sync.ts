@@ -67,7 +67,7 @@ export async function syncAnalyticsFromGetlate(
 
     while (hasMorePages) {
       try {
-        const getlateAnalyticsResponse = await getlateClient.getAnalytics({
+        const analyticsResponse = await getlateClient.getAnalytics({
           profileId: brandRecord.getlate_profile_id,
           postId: getlatePostIdForQuery, // Use Getlate post ID for query
           platform: options?.platform as any,
@@ -79,37 +79,19 @@ export async function syncAnalyticsFromGetlate(
           order: 'desc', // Most recent first
         });
 
-        // Handle different response formats (array or nested object)
-        let pageAnalytics: any[] = [];
-        if (Array.isArray(getlateAnalyticsResponse)) {
-          pageAnalytics = getlateAnalyticsResponse;
-        } else if (getlateAnalyticsResponse && typeof getlateAnalyticsResponse === 'object') {
-          // Check for paginated response format
-          if ((getlateAnalyticsResponse as any)?.analytics) {
-            pageAnalytics = (getlateAnalyticsResponse as any).analytics;
-          } else if ((getlateAnalyticsResponse as any)?.data) {
-            pageAnalytics = (getlateAnalyticsResponse as any).data;
-          } else if ((getlateAnalyticsResponse as any)?.results) {
-            pageAnalytics = (getlateAnalyticsResponse as any).results;
-          } else if ((getlateAnalyticsResponse as any)?.items) {
-            pageAnalytics = (getlateAnalyticsResponse as any).items;
-          } else if (Array.isArray(getlateAnalyticsResponse)) {
-            pageAnalytics = getlateAnalyticsResponse;
-          }
-
-          // Check if there are more pages (if response includes pagination info)
-          const totalPages = (getlateAnalyticsResponse as any)?.totalPages;
-          const hasNext = (getlateAnalyticsResponse as any)?.hasNext;
-          if (totalPages && currentPage >= totalPages) {
-            hasMorePages = false;
-          } else if (hasNext === false) {
-            hasMorePages = false;
-          }
-        }
+        // Extract posts from the structured response
+        const pageAnalytics = analyticsResponse.posts || [];
 
         // If we got fewer results than pageSize, we've reached the last page
         if (pageAnalytics.length < pageSize) {
           hasMorePages = false;
+        }
+
+        // Also check pagination info if available
+        if (analyticsResponse.pagination) {
+          if (currentPage >= analyticsResponse.pagination.pages) {
+            hasMorePages = false;
+          }
         }
 
         allGetlateAnalytics = [...allGetlateAnalytics, ...pageAnalytics];
@@ -149,9 +131,9 @@ export async function syncAnalyticsFromGetlate(
     const getlateAnalytics = allGetlateAnalytics;
 
     // Sync analytics to database
-    for (const analytics of getlateAnalytics) {
-      // GetlateAnalytics uses postId (camelCase), handle both formats
-      const getlatePostId = analytics.postId || analytics.post_id || analytics._id;
+    for (const post of getlateAnalytics) {
+      // GetlateAnalyticsPost uses _id field
+      const getlatePostId = post._id || post.id;
       if (!getlatePostId) {
         continue;
       }
@@ -180,50 +162,31 @@ export async function syncAnalyticsFromGetlate(
       }
 
       if (foundPost) {
-        // Handle different field name formats from Getlate API
-        const platform = analytics.platform || analytics.platform_name || analytics.platformName;
-        const date = analytics.date || analytics.created_at || analytics.createdAt || new Date().toISOString().split('T')[0];
+        // Extract analytics from post structure
+        // Use platform-specific analytics if available, otherwise use post-level analytics
+        const platformAnalytics = post.platforms?.[0]?.analytics || post.analytics || {};
 
-        // Extract engagement metrics with comprehensive field name handling
-        // Getlate API may use: likes, like_count, likeCount, reactions, reaction_count, etc.
-        const likes = analytics.likes
-          ?? analytics.like_count
-          ?? analytics.likeCount
-          ?? analytics.reactions
-          ?? analytics.reaction_count
-          ?? analytics.reactionCount
-          ?? analytics.favorites
-          ?? analytics.favorite_count
-          ?? null;
+        // Get platform from post
+        const platform = post.platform || post.platforms?.[0]?.platform || 'unknown';
+        // Get date from publishedAt or scheduledFor
+        const date = post.publishedAt || post.scheduledFor || new Date().toISOString().split('T')[0];
 
-        // Comments: comments, comment_count, commentCount, replies, reply_count
-        const comments = analytics.comments
-          ?? analytics.comment_count
-          ?? analytics.commentCount
-          ?? analytics.replies
-          ?? analytics.reply_count
-          ?? analytics.replyCount
-          ?? null;
+        // Extract engagement metrics from platform analytics
+        const likes = platformAnalytics.likes ?? null;
+        const comments = platformAnalytics.comments ?? null;
+        const shares = platformAnalytics.shares ?? null;
+        const impressions = platformAnalytics.impressions ?? null;
+        const reach = platformAnalytics.reach ?? null;
+        const clicks = platformAnalytics.clicks ?? null;
+        const views = platformAnalytics.views ?? null;
+        const engagementRate = platformAnalytics.engagementRate ?? null;
 
-        // Shares: shares, share_count, shareCount, retweets, retweet_count (for Twitter/X)
-        const shares = analytics.shares
-          ?? analytics.share_count
-          ?? analytics.shareCount
-          ?? analytics.retweets
-          ?? analytics.retweet_count
-          ?? analytics.retweetCount
-          ?? analytics.reposts
-          ?? analytics.repost_count
-          ?? null;
-
-        // Impressions: impressions, impression_count, impressionCount, views, view_count
-        const impressions = analytics.impressions
-          ?? analytics.impression_count
-          ?? analytics.impressionCount
-          ?? analytics.views
-          ?? analytics.view_count
-          ?? analytics.viewCount
-          ?? null;
+        // Calculate engagement rate if not provided
+        const calculatedEngagementRate = engagementRate !== null
+          ? engagementRate
+          : (impressions && (likes || comments || shares))
+              ? ((likes || 0) + (comments || 0) + (shares || 0)) / impressions * 100
+              : null;
 
         // Check if analytics record already exists
         const { data: existingAnalytics } = await supabase
@@ -242,9 +205,15 @@ export async function syncAnalyticsFromGetlate(
           comments,
           shares,
           impressions,
-          engagement_rate: (analytics.engagementRate || analytics.engagement_rate || analytics.engagement_rate)?.toString() || null,
+          engagement_rate: calculatedEngagementRate !== null ? calculatedEngagementRate.toString() : null,
           date,
-          metadata: analytics.metadata || null,
+          metadata: {
+            reach,
+            clicks,
+            views,
+            lastUpdated: platformAnalytics.lastUpdated,
+            ...(post.metadata || {}),
+          },
         };
 
         if (existingAnalytics) {

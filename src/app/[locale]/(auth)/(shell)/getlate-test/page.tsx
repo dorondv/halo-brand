@@ -195,10 +195,8 @@ export default async function GetlateTestPage() {
         });
         // Store raw response for display
         analyticsRawResponses[profileId] = profileAnalyticsResponse;
-        // Ensure it's an array for processing
-        analytics[profileId] = Array.isArray(profileAnalyticsResponse)
-          ? profileAnalyticsResponse
-          : [];
+        // Extract posts from the structured response
+        analytics[profileId] = profileAnalyticsResponse.posts || [];
       } catch (error: any) {
         // Analytics might require add-on, so don't fail completely
         if (error.message?.includes('402') || error.message?.includes('add-on')) {
@@ -454,7 +452,9 @@ export default async function GetlateTestPage() {
                   {profiles.map((profile) => {
                     const profileId = profile.id || profile._id;
                     const profileAnalytics = analytics[profileId] || [];
-                    const rawResponse = analyticsRawResponses[profileId];
+                    const rawResponse = analyticsRawResponses[profileId] as any;
+                    const overview = rawResponse?.overview;
+                    const pagination = rawResponse?.pagination;
 
                     return (
                       <div key={profileId} className="rounded-lg border p-4">
@@ -465,7 +465,7 @@ export default async function GetlateTestPage() {
                             (
                             {profileAnalytics.length}
                             {' '}
-                            analytics records)
+                            posts)
                           </h3>
                           {rawResponse && (
                             <details className="text-sm">
@@ -478,75 +478,176 @@ export default async function GetlateTestPage() {
                             </details>
                           )}
                         </div>
+
+                        {/* Overview Stats */}
+                        {overview && (
+                          <div className="mb-4 rounded-lg bg-blue-50 p-3">
+                            <h4 className="mb-2 text-sm font-semibold text-blue-900">Overview</h4>
+                            <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                              <div>
+                                <span className="font-medium">Total Posts:</span>
+                                {' '}
+                                {overview.totalPosts}
+                              </div>
+                              <div>
+                                <span className="font-medium">Published:</span>
+                                {' '}
+                                {overview.publishedPosts}
+                              </div>
+                              <div>
+                                <span className="font-medium">Scheduled:</span>
+                                {' '}
+                                {overview.scheduledPosts}
+                              </div>
+                              <div>
+                                <span className="font-medium">Last Sync:</span>
+                                {' '}
+                                {overview.lastSync ? format(new Date(overview.lastSync), 'PPp') : 'N/A'}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Pagination Info */}
+                        {pagination && (
+                          <div className="mb-3 text-sm text-gray-600">
+                            Page
+                            {' '}
+                            {pagination.page}
+                            {' '}
+                            of
+                            {' '}
+                            {pagination.pages}
+                            {' '}
+                            (Total:
+                            {' '}
+                            {pagination.total}
+                            {' '}
+                            posts)
+                          </div>
+                        )}
+
                         {profileAnalytics.length === 0
                           ? (
-                              <p className="text-sm text-gray-500">No analytics records for this profile</p>
+                              <p className="text-sm text-gray-500">No posts found for this profile</p>
                             )
                           : (
                               <div className="space-y-2">
-                                {profileAnalytics.map((analytic: any) => {
-                                  const analyticKey = analytic.postId || analytic._id || analytic.id || `analytic-${analytic.platform}-${analytic.date}`;
+                                {profileAnalytics.map((post: any) => {
+                                  const postKey = post._id || post.id || `post-${post.publishedAt}`;
+                                  const postAnalytics = post.analytics || {};
+                                  const platformAnalytics = post.platforms?.[0]?.analytics || postAnalytics;
+
                                   return (
-                                    <div key={analyticKey} className="rounded bg-gray-50 p-3">
-                                      <div className="mb-2 flex items-center justify-between">
-                                        <Badge>{analytic.platform}</Badge>
-                                        {analytic.date && (
-                                          <span className="text-sm text-gray-600">
-                                            {format(new Date(analytic.date), 'PP')}
-                                          </span>
-                                        )}
+                                    <div key={postKey} className="rounded bg-gray-50 p-3">
+                                      <div className="mb-2 flex items-start justify-between">
+                                        <div className="flex-1">
+                                          <div className="mb-1 flex items-center gap-2">
+                                            <Badge>{post.platform || 'unknown'}</Badge>
+                                            <Badge variant={post.status === 'published' ? 'default' : 'secondary'}>
+                                              {post.status}
+                                            </Badge>
+                                          </div>
+                                          {post.content && (
+                                            <p className="mb-2 line-clamp-2 text-sm text-gray-700">
+                                              {post.content}
+                                            </p>
+                                          )}
+                                          {post.publishedAt && (
+                                            <span className="text-xs text-gray-600">
+                                              Published:
+                                              {' '}
+                                              {format(new Date(post.publishedAt), 'PPp')}
+                                            </span>
+                                          )}
+                                        </div>
                                       </div>
-                                      <div className="grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
-                                        {analytic.likes !== undefined && (
+                                      <div className="mt-3 grid grid-cols-2 gap-2 text-sm md:grid-cols-4">
+                                        {platformAnalytics.likes !== undefined && (
                                           <div>
                                             <span className="font-medium">Likes:</span>
                                             {' '}
-                                            {analytic.likes.toLocaleString()}
+                                            {platformAnalytics.likes.toLocaleString()}
                                           </div>
                                         )}
-                                        {analytic.comments !== undefined && (
+                                        {platformAnalytics.comments !== undefined && (
                                           <div>
                                             <span className="font-medium">Comments:</span>
                                             {' '}
-                                            {analytic.comments.toLocaleString()}
+                                            {platformAnalytics.comments.toLocaleString()}
                                           </div>
                                         )}
-                                        {analytic.shares !== undefined && (
+                                        {platformAnalytics.shares !== undefined && (
                                           <div>
                                             <span className="font-medium">Shares:</span>
                                             {' '}
-                                            {analytic.shares.toLocaleString()}
+                                            {platformAnalytics.shares.toLocaleString()}
                                           </div>
                                         )}
-                                        {analytic.impressions !== undefined && (
+                                        {platformAnalytics.impressions !== undefined && (
                                           <div>
                                             <span className="font-medium">Impressions:</span>
                                             {' '}
-                                            {analytic.impressions.toLocaleString()}
+                                            {platformAnalytics.impressions.toLocaleString()}
                                           </div>
                                         )}
-                                        {analytic.engagementRate !== undefined && (
+                                        {platformAnalytics.reach !== undefined && (
+                                          <div>
+                                            <span className="font-medium">Reach:</span>
+                                            {' '}
+                                            {platformAnalytics.reach.toLocaleString()}
+                                          </div>
+                                        )}
+                                        {platformAnalytics.clicks !== undefined && (
+                                          <div>
+                                            <span className="font-medium">Clicks:</span>
+                                            {' '}
+                                            {platformAnalytics.clicks.toLocaleString()}
+                                          </div>
+                                        )}
+                                        {platformAnalytics.views !== undefined && (
+                                          <div>
+                                            <span className="font-medium">Views:</span>
+                                            {' '}
+                                            {platformAnalytics.views.toLocaleString()}
+                                          </div>
+                                        )}
+                                        {platformAnalytics.engagementRate !== undefined && (
                                           <div>
                                             <span className="font-medium">Engagement Rate:</span>
                                             {' '}
-                                            {analytic.engagementRate.toFixed(2)}
+                                            {platformAnalytics.engagementRate.toFixed(2)}
                                             %
                                           </div>
                                         )}
-                                        {analytic.postId && (
-                                          <div className="col-span-2">
-                                            <span className="font-medium">Post ID:</span>
-                                            {' '}
-                                            <code className="rounded bg-gray-200 px-1 text-xs">{analytic.postId}</code>
-                                          </div>
-                                        )}
                                       </div>
+                                      {post.platformPostUrl && (
+                                        <div className="mt-2">
+                                          <a
+                                            href={post.platformPostUrl}
+                                            target="_blank"
+                                            rel="noopener noreferrer"
+                                            className="text-xs text-blue-600 hover:underline"
+                                          >
+                                            View on
+                                            {' '}
+                                            {post.platform}
+                                          </a>
+                                        </div>
+                                      )}
+                                      {post._id && (
+                                        <div className="mt-1 text-xs text-gray-500">
+                                          Post ID:
+                                          {' '}
+                                          {post._id}
+                                        </div>
+                                      )}
                                       <details className="mt-2">
                                         <summary className="cursor-pointer text-sm text-gray-500 hover:text-gray-700">
-                                          View Raw Record Data
+                                          View Raw Post Data
                                         </summary>
                                         <pre className="mt-2 overflow-auto rounded bg-gray-100 p-2 text-xs">
-                                          {JSON.stringify(analytic, null, 2)}
+                                          {JSON.stringify(post, null, 2)}
                                         </pre>
                                       </details>
                                     </div>
