@@ -37,6 +37,43 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Brand not found' }, { status: 404 });
     }
 
+    // Check if brand has any active connected accounts
+    // User must disconnect all accounts before deleting the brand
+    const { data: connectedAccounts, error: accountsError } = await supabase
+      .from('social_accounts')
+      .select('id, platform, account_name')
+      .eq('brand_id', brandId)
+      .eq('user_id', user.id)
+      .eq('is_active', true);
+
+    if (accountsError) {
+      console.error('Error checking connected accounts:', accountsError);
+      return NextResponse.json(
+        { error: 'Failed to check connected accounts' },
+        { status: 500 },
+      );
+    }
+
+    if (connectedAccounts && connectedAccounts.length > 0) {
+      const accountCount = connectedAccounts.length;
+      const accountList = connectedAccounts
+        .map(acc => `${acc.platform}: ${acc.account_name || 'Unknown'}`)
+        .join(', ');
+
+      return NextResponse.json(
+        {
+          error: 'Cannot delete brand with connected accounts',
+          message: `Please disconnect all ${accountCount} connected account${accountCount > 1 ? 's' : ''} before deleting this brand: ${accountList}`,
+          accounts: connectedAccounts.map(acc => ({
+            id: acc.id,
+            platform: acc.platform,
+            account_name: acc.account_name,
+          })),
+        },
+        { status: 400 },
+      );
+    }
+
     // Get user record to fetch API key
     const { data: userRecord } = await supabase
       .from('users')
@@ -50,6 +87,37 @@ export async function DELETE(request: NextRequest) {
         const profileId = brandRecord.getlate_profile_id;
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
+        // First, check Getlate directly for connected accounts
+        // This is important because accounts might exist in Getlate but not in our database
+        const getlateAccounts = await getlateClient.getAccounts(profileId);
+
+        // Filter for active/connected accounts
+        const activeGetlateAccounts = getlateAccounts.filter(
+          acc => acc.isActive !== false && acc.isConnected !== false,
+        );
+
+        if (activeGetlateAccounts.length > 0) {
+          const accountList = activeGetlateAccounts
+            .map(acc => `${acc.platform}: ${acc.accountName || acc.username || 'Unknown'}`)
+            .join(', ');
+
+          console.warn(`[Brand Deletion] Found ${activeGetlateAccounts.length} connected account(s) in Getlate: ${accountList}`);
+
+          return NextResponse.json(
+            {
+              error: 'Cannot delete brand with connected accounts in Getlate',
+              message: `This profile has ${activeGetlateAccounts.length} connected account${activeGetlateAccounts.length > 1 ? 's' : ''} in Getlate that must be disconnected first: ${accountList}`,
+              accounts: activeGetlateAccounts.map(acc => ({
+                platform: acc.platform,
+                accountName: acc.accountName || acc.username,
+                id: acc._id || acc.id,
+              })),
+              note: 'These accounts may exist in Getlate but not in your local database. Please disconnect them in Getlate first.',
+            },
+            { status: 400 },
+          );
+        }
+
         // Delete the Getlate profile using the client
         await getlateClient.deleteProfile(profileId);
       } catch (error) {
@@ -60,7 +128,21 @@ export async function DELETE(request: NextRequest) {
           stack: error instanceof Error ? error.stack : undefined,
         });
 
-        // If delete fails, we still want to delete the brand from our database
+        // Check if error is about connected accounts
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        if (errorMessage.includes('connected accounts') || errorMessage.includes('Cannot delete profile')) {
+          // Return a proper error response instead of continuing
+          return NextResponse.json(
+            {
+              error: 'Cannot delete Getlate profile',
+              message: errorMessage,
+              note: 'Please disconnect all accounts from this profile in Getlate before deleting the brand.',
+            },
+            { status: 400 },
+          );
+        }
+
+        // If delete fails for other reasons, we still want to delete the brand from our database
         // but we should log this as an error, not just a warning
         // The profile will remain in Getlate but will be unlinked from the brand
         console.warn('⚠️  Brand will be deleted from database, but Getlate profile deletion failed. Profile may still exist in Getlate.');
@@ -160,179 +242,98 @@ export async function POST(request: NextRequest) {
       userRecord.getlate_api_key = serviceApiKey;
     }
 
-    // Check for unused Getlate profiles (profiles not linked to any active brand)
+    // Always create a new Getlate profile for each brand
     let getlateProfileId: string | null = null;
-
-    // Special case: demo@hello.brand should use the default profile for the first brand
-    const isDemoUser = user.email === 'demo@hello.brand';
-    const DEFAULT_GETLATE_PROFILE_ID = '690c738f2e6c6b55e66c14e6';
-
-    // Check if this is the first brand in the entire system
-    const { count: totalBrandsCount } = await supabase
-      .from('brands')
-      .select('*', { count: 'exact', head: true })
-      .eq('is_active', true);
-
-    const isFirstBrandInSystem = (totalBrandsCount || 0) === 0;
 
     if (userRecord.getlate_api_key) {
       try {
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-        // If this is the first brand in the system, use the first existing Getlate profile
-        if (isFirstBrandInSystem) {
-          try {
-            const profilesResponse = await getlateClient.getProfiles();
+        // Always create a new profile with the brand name
+        const newProfile = await getlateClient.createProfile(name);
 
-            // Handle both array and object response formats
-            let allProfiles: any[] = [];
-            if (Array.isArray(profilesResponse)) {
-              allProfiles = profilesResponse;
-            } else if (profilesResponse && typeof profilesResponse === 'object') {
-              // Try to extract from common response formats
-              allProfiles = (profilesResponse as any)?.profiles
-                || (profilesResponse as any)?.data
-                || (profilesResponse as any)?.results
+        // Getlate API may return _id or id, handle both formats
+        // Also check if the response is nested
+        const extractedProfileId = (newProfile as any)?._id
+          || (newProfile as any)?.id
+          || newProfile?.id
+          || newProfile?._id;
+
+        if (!extractedProfileId) {
+          console.error('[Brand Creation] Created profile but missing ID. Full response:', JSON.stringify(newProfile, null, 2));
+          // Try to fetch profiles again to see if it was created
+          try {
+            const profilesAfterCreate = await getlateClient.getProfiles();
+            let allProfilesAfter: any[] = [];
+            if (Array.isArray(profilesAfterCreate)) {
+              allProfilesAfter = profilesAfterCreate;
+            } else if (profilesAfterCreate && typeof profilesAfterCreate === 'object') {
+              allProfilesAfter = (profilesAfterCreate as any)?.profiles
+                || (profilesAfterCreate as any)?.data
+                || (profilesAfterCreate as any)?.results
                 || [];
             }
 
-            if (Array.isArray(allProfiles) && allProfiles.length > 0) {
-              // Use the first existing profile (Getlate API uses _id format)
-              const firstProfile = allProfiles[0];
-              if (firstProfile) {
-                // Getlate API returns _id, but we'll handle both formats
-                getlateProfileId = firstProfile._id || firstProfile.id;
-              }
-            }
-          } catch (error) {
-            console.warn('Could not fetch Getlate profiles for first brand, will create new one:', error);
-          }
-        }
+            // Find the profile we just created by name (most recent match)
+            const createdProfile = allProfilesAfter
+              .filter((p: any) => p && (p.name === name || p.name?.includes(name)))
+              .sort((a: any, b: any) => {
+                // Sort by created_at if available, otherwise by _id (newer IDs might be later)
+                const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
+                const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
+                return bTime - aTime; // Most recent first
+              })[0];
 
-        // Check if this is the first brand for demo user
-        if (isDemoUser && !getlateProfileId) {
-          const { data: existingBrands } = await supabase
-            .from('brands')
-            .select('getlate_profile_id')
-            .eq('user_id', user.id)
-            .eq('is_active', true)
-            .not('getlate_profile_id', 'is', null);
-
-          // If no brands have the default profile yet, use it
-          const hasDefaultProfile = existingBrands?.some(
-            b => b.getlate_profile_id === DEFAULT_GETLATE_PROFILE_ID,
-          );
-
-          if (!hasDefaultProfile) {
-            // Verify the default profile exists
-            try {
-              const profilesResponse = await getlateClient.getProfiles();
-
-              // Handle both array and object response formats
-              let allProfiles: any[] = [];
-              if (Array.isArray(profilesResponse)) {
-                allProfiles = profilesResponse;
-              } else if (profilesResponse && typeof profilesResponse === 'object') {
-                // Try to extract from common response formats
-                allProfiles = (profilesResponse as any)?.profiles
-                  || (profilesResponse as any)?.data
-                  || (profilesResponse as any)?.results
-                  || [];
-              }
-
-              if (Array.isArray(allProfiles) && allProfiles.length > 0) {
-                const defaultProfile = allProfiles.find(
-                  p => p && (p.id === DEFAULT_GETLATE_PROFILE_ID || p._id === DEFAULT_GETLATE_PROFILE_ID),
-                );
-                if (defaultProfile) {
-                  getlateProfileId = DEFAULT_GETLATE_PROFILE_ID;
-                }
-              }
-            } catch (error) {
-              console.warn('Could not verify default profile, will create new one:', error);
-            }
-          }
-        }
-
-        // If we don't have a profile yet, check for unused or create new
-        if (!getlateProfileId) {
-          try {
-            const profilesResponse = await getlateClient.getProfiles();
-
-            // Debug logging
-
-            // Handle both array and object response formats
-            let allProfiles: any[] = [];
-            if (Array.isArray(profilesResponse)) {
-              allProfiles = profilesResponse;
-            } else if (profilesResponse && typeof profilesResponse === 'object') {
-              // Try to extract from common response formats
-              allProfiles = (profilesResponse as any)?.profiles
-                || (profilesResponse as any)?.data
-                || (profilesResponse as any)?.results
-                || [];
-            }
-
-            // Validate we have an array
-            if (!Array.isArray(allProfiles)) {
-              console.error('Getlate API returned invalid profiles format:', {
-                type: typeof profilesResponse,
-                response: JSON.stringify(profilesResponse).substring(0, 200),
-              });
-              throw new Error('Invalid response format from Getlate API: expected array or object with profiles/data property');
-            }
-
-            // Get all active brands for this user to see which profiles are in use
-            const { data: existingBrands } = await supabase
-              .from('brands')
-              .select('getlate_profile_id')
-              .eq('user_id', user.id)
-              .eq('is_active', true)
-              .not('getlate_profile_id', 'is', null);
-
-            const usedProfileIds = new Set(
-              existingBrands?.map(b => b.getlate_profile_id).filter(Boolean) || [],
-            );
-
-            // Find an unused profile
-            // For demo users, skip the default profile (already handled above)
-            // For other users, any unused profile is fine
-            // Double-check we have an array before calling .find()
-            const unusedProfile = Array.isArray(allProfiles) && allProfiles.length > 0
-              ? allProfiles.find(
-                  (profile) => {
-                    const profileId = profile?._id || profile?.id;
-                    return profileId
-                      && !usedProfileIds.has(profileId)
-                      && (isDemoUser ? profileId !== DEFAULT_GETLATE_PROFILE_ID : true);
-                  },
-                )
-              : null;
-
-            if (unusedProfile) {
-              // Reuse existing unused profile (Getlate API uses _id format)
-              getlateProfileId = unusedProfile._id || unusedProfile.id;
+            if (createdProfile) {
+              getlateProfileId = createdProfile._id || createdProfile.id;
             } else {
-              // Create new Getlate profile
-              const newProfile = await getlateClient.createProfile(name);
-              // Getlate API may return _id or id, handle both
-              const extractedProfileId = newProfile._id || newProfile.id;
-              if (!extractedProfileId) {
-                console.error('Created profile but missing ID:', newProfile);
-                throw new Error('Created Getlate profile but response missing ID');
-              }
-              getlateProfileId = extractedProfileId;
+              throw new Error('Created Getlate profile but could not find it in profiles list');
             }
-          } catch (error) {
-            console.error('Error managing Getlate profile:', error);
-            // Continue without Getlate profile - brand will be created without it
-            // User can link it later via the connections page
+          } catch (fetchError) {
+            console.error('[Brand Creation] Error fetching profiles after creation:', fetchError);
+            throw new Error('Created Getlate profile but response missing ID and could not verify creation');
           }
+        } else {
+          getlateProfileId = extractedProfileId;
         }
       } catch (error) {
-        console.error('Error managing Getlate profile:', error);
+        console.error('[Brand Creation] Error creating Getlate profile:', error);
+        // Log full error details for debugging
+        if (error instanceof Error) {
+          console.error('[Brand Creation] Error details:', {
+            message: error.message,
+            stack: error.stack,
+          });
+        }
         // Continue without Getlate profile - brand will be created without it
         // User can link it later via the connections page
+      }
+    }
+
+    // Verify profile exists if we have a profile ID
+    if (getlateProfileId && userRecord?.getlate_api_key) {
+      try {
+        const getlateClient = createGetlateClient(userRecord.getlate_api_key);
+        const verifyProfiles = await getlateClient.getProfiles();
+        let allProfilesVerify: any[] = [];
+        if (Array.isArray(verifyProfiles)) {
+          allProfilesVerify = verifyProfiles;
+        } else if (verifyProfiles && typeof verifyProfiles === 'object') {
+          allProfilesVerify = (verifyProfiles as any)?.profiles
+            || (verifyProfiles as any)?.data
+            || (verifyProfiles as any)?.results
+            || [];
+        }
+
+        const profileDetails = allProfilesVerify.find(
+          (p: any) => (p._id || p.id) === getlateProfileId,
+        );
+
+        if (!profileDetails) {
+          console.warn(`[Brand Creation] ⚠️ Profile ${getlateProfileId} not found in Getlate profiles list`);
+        }
+      } catch (verifyError) {
+        console.warn('[Brand Creation] Could not verify profile existence:', verifyError);
       }
     }
 
@@ -358,6 +359,34 @@ export async function POST(request: NextRequest) {
         { error: 'Failed to create brand' },
         { status: 500 },
       );
+    }
+
+    // Verify the profile ID was saved correctly
+    if (brand && getlateProfileId && userRecord?.getlate_api_key) {
+      // Double-check the profile exists in Getlate
+      try {
+        const getlateClient = createGetlateClient(userRecord.getlate_api_key);
+        const verifyProfiles = await getlateClient.getProfiles();
+        let allProfilesVerify: any[] = [];
+        if (Array.isArray(verifyProfiles)) {
+          allProfilesVerify = verifyProfiles;
+        } else if (verifyProfiles && typeof verifyProfiles === 'object') {
+          allProfilesVerify = (verifyProfiles as any)?.profiles
+            || (verifyProfiles as any)?.data
+            || (verifyProfiles as any)?.results
+            || [];
+        }
+
+        const profileExists = allProfilesVerify.some(
+          (p: any) => (p._id || p.id) === getlateProfileId,
+        );
+
+        if (!profileExists) {
+          console.warn(`[Brand Creation] WARNING: Profile ${getlateProfileId} not found in Getlate profiles list after creation`);
+        }
+      } catch (verifyError) {
+        console.warn('[Brand Creation] Could not verify profile existence:', verifyError);
+      }
     }
 
     return NextResponse.json({ brand });

@@ -244,7 +244,19 @@
     "platform_threads_desc": "Share in Meta community",
     "connection_cancelled": "Connection cancelled. The account was not connected.",
     "connection_success": "Account connected successfully!",
-    "connection_error": "Failed to connect account. Please try again."
+    "connection_error": "Failed to connect account. Please try again.",
+    "account_disconnected_success": "Account disconnected successfully",
+    "disconnect_getlate_failed": "Failed to disconnect from Getlate: {error}",
+    "disconnect_getlate_error": "Error disconnecting from Getlate. Account will be disconnected locally only.",
+    "disconnect_getlate_warning": "Account disconnected locally, but Getlate disconnect failed",
+    "delete_brand_has_accounts": "Please disconnect all connected accounts before deleting this brand.",
+    "delete_brand_failed": "Failed to delete brand. Please try again.",
+    "logo_upload_size_error": "Image size exceeds 5MB limit",
+    "logo_upload_failed": "Failed to upload logo: {error}",
+    "logo_upload_invalid_file": "Please upload an image file",
+    "brand_created_success": "Brand created successfully!",
+    "brand_creation_error": "Failed to create brand. Please try again.",
+    "unknown_error": "Unknown error"
   },
   "Settings": {
     "title": "Settings",

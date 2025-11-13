@@ -259,10 +259,28 @@ export default function ConnectionsPage() {
     try {
       const supabase = createSupabaseBrowserClient();
 
+      // Get current user to filter accounts by user_id
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        setAccounts([]);
+        return;
+      }
+
+      // Get user ID from users table
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      const userId = userRecord?.id || session.user.id;
+
       // Load accounts from database (show data from DB immediately - no waiting for Getlate)
+      // Filter by both user_id and brand_id to ensure only current user's accounts are shown
       const { data, error } = await supabase
         .from('social_accounts')
         .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id')
+        .eq('user_id', userId)
         .eq('brand_id', selectedBrand.id)
         .eq('is_active', true)
         .order('platform', { ascending: true });
@@ -334,85 +352,134 @@ export default function ConnectionsPage() {
     if (selectedBrand) {
       void loadAccountsFromDB(false, false); // Don't auto-sync, only load from DB
     } else {
-      setAccounts([]);
+      // Use a function to update state to avoid direct setState in useEffect
+      setAccounts(() => []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrand?.id]); // Only depend on brand ID, not the entire object or loadAccounts
 
   // Handle OAuth callback - check for success, cancellation, or error messages
   // Use a ref to track processed callbacks and prevent duplicate toasts
-  const processedCallbackRef = useRef<string | null>(null);
+  const processedCallbackRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     const cancelled = searchParams.get('cancelled');
     const connected = searchParams.get('connected');
     const error = searchParams.get('error');
 
-    // Build a unique key for this callback using the full search params
+    // Only process if there's a callback parameter
+    if (!cancelled && !connected && !error) {
+      return undefined;
+    }
+
+    // Build a unique key for this callback using the full search params BEFORE cleaning URL
     const callbackKey = searchParams.toString();
 
-    // Only process if there's a callback parameter and we haven't processed this exact URL yet
-    if ((!cancelled && !connected && !error) || processedCallbackRef.current === callbackKey) {
-      return;
+    // Check if we've already processed this exact callback
+    if (processedCallbackRef.current.has(callbackKey)) {
+      // URL might still have params, clean it up
+      if (cancelled || connected || error) {
+        window.history.replaceState({}, '', window.location.pathname);
+      }
+      return undefined;
     }
 
     // Mark as processed immediately to prevent duplicate processing
-    processedCallbackRef.current = callbackKey;
+    processedCallbackRef.current.add(callbackKey);
+
+    // Clean up URL immediately to prevent duplicate processing
+    window.history.replaceState({}, '', window.location.pathname);
 
     if (cancelled === 'true') {
       showToast(t('connection_cancelled'), 'info');
-      // Clean up URL immediately to prevent duplicate processing
-      window.history.replaceState({}, '', window.location.pathname);
       // Reset ref after a delay to allow for new callbacks
-      setTimeout(() => {
-        processedCallbackRef.current = null;
-      }, 1000);
+      const cancelTimeout = setTimeout(() => {
+        processedCallbackRef.current.delete(callbackKey);
+      }, 2000);
+      return () => {
+        clearTimeout(cancelTimeout);
+      };
     } else if (connected) {
       // connected might be 'true' or the platform name (e.g., 'facebook')
       // Both indicate success
       showToast(t('connection_success'), 'success');
 
-      // Check if sync completed successfully
+      // Check if sync completed successfully (get from original params before cleanup)
       const synced = searchParams.get('synced') === 'true';
 
-      // Clean up URL immediately to prevent duplicate processing
-      window.history.replaceState({}, '', window.location.pathname);
       // Reset ref after a delay to allow for new callbacks
-      setTimeout(() => {
-        processedCallbackRef.current = null;
-      }, 1000);
+      const successTimeout = setTimeout(() => {
+        processedCallbackRef.current.delete(callbackKey);
+      }, 2000);
 
       // Reload accounts immediately after successful connection
-      // The callback route already synced accounts, so we just need to reload from DB
-      if (selectedBrand) {
-        // Clear accounts first to force a fresh load
-        setAccounts([]);
-        // Reload immediately - sync already completed on server side
-        // Use forceSync to bypass throttle and ensure fresh data
-        void loadAccountsFromDB(false, true);
+      // The callback route already synced accounts, so we need to reload from DB
+      const brandIdFromUrl = searchParams.get('brandId');
 
-        // If sync failed on server, retry once
-        if (!synced) {
-          // Small delay just for DB commit, then retry sync
-          setTimeout(() => {
-            void loadAccountsFromDB(false, true);
-          }, 300);
+      // If brandId is in URL, make sure that brand is selected
+      if (brandIdFromUrl && brands.length > 0) {
+        const brandToSelect = brands.find(b => b.id === brandIdFromUrl);
+        if (brandToSelect && (!selectedBrand || selectedBrand.id !== brandIdFromUrl)) {
+          // Use a function to update state to avoid direct setState in useEffect
+          setSelectedBrand(() => brandToSelect);
         }
       }
+
+      // Wait a bit for database commit, then reload accounts
+      // Use a longer delay to ensure sync completed on server
+      const reloadTimeout = setTimeout(() => {
+        const currentBrand = brandIdFromUrl && brands.length > 0
+          ? brands.find(b => b.id === brandIdFromUrl)
+          : selectedBrand;
+
+        if (currentBrand) {
+          // Clear accounts first to force a fresh load
+          // Use a function to update state to avoid direct setState in useEffect
+          setAccounts(() => []);
+          // Reload from DB - sync already completed on server side
+          void loadAccountsFromDB(true, false); // skipSync=true to avoid double sync, forceSync=false
+        }
+      }, 1000); // Wait 1 second for DB commit
+
+      // If sync failed on server, retry sync once
+      let retryTimeout: NodeJS.Timeout | undefined;
+      if (!synced) {
+        retryTimeout = setTimeout(() => {
+          const currentBrand = brandIdFromUrl && brands.length > 0
+            ? brands.find(b => b.id === brandIdFromUrl)
+            : selectedBrand;
+
+          if (currentBrand) {
+            // Retry sync from Getlate
+            void loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
+          }
+        }, 1500);
+      }
+
+      return () => {
+        clearTimeout(successTimeout);
+        clearTimeout(reloadTimeout);
+        if (retryTimeout) {
+          clearTimeout(retryTimeout);
+        }
+      };
     } else if (error) {
       showToast(t('connection_error'), 'error');
-      // Clean up URL immediately to prevent duplicate processing
-      window.history.replaceState({}, '', window.location.pathname);
       // Reset ref after a delay to allow for new callbacks
-      setTimeout(() => {
-        processedCallbackRef.current = null;
-      }, 1000);
+      const errorTimeout = setTimeout(() => {
+        processedCallbackRef.current.delete(callbackKey);
+      }, 2000);
       // Reload accounts even on error to ensure UI is up to date
       if (selectedBrand) {
         void loadAccountsFromDB(false, false);
       }
+      return () => {
+        clearTimeout(errorTimeout);
+      };
     }
-  }, [searchParams, selectedBrand, loadAccountsFromDB, showToast, t]);
+
+    return undefined;
+  }, [searchParams, selectedBrand, brands, loadAccountsFromDB, showToast, t]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
@@ -443,13 +510,13 @@ export default function ConnectionsPage() {
         try {
           // Validate file type (only images)
           if (!brandLogoFile.type.startsWith('image/')) {
-            throw new Error('Please upload an image file');
+            throw new Error(t('logo_upload_invalid_file'));
           }
 
           // Validate file size (5MB limit)
           const maxSize = 5 * 1024 * 1024; // 5MB
           if (brandLogoFile.size > maxSize) {
-            throw new Error('Image size exceeds 5MB limit');
+            throw new Error(t('logo_upload_size_error'));
           }
 
           // Generate unique file name
@@ -466,7 +533,7 @@ export default function ConnectionsPage() {
 
           if (uploadError) {
             console.error('Logo upload error:', uploadError);
-            throw new Error(`Failed to upload logo: ${uploadError.message}`);
+            throw new Error(t('logo_upload_failed', { error: uploadError.message }));
           }
 
           // Get public URL
@@ -497,8 +564,9 @@ export default function ConnectionsPage() {
       });
 
       if (!brandResponse.ok) {
-        const error = await brandResponse.json().catch(() => ({ error: 'Failed to create brand' }));
+        const error = await brandResponse.json().catch(() => ({ error: t('brand_creation_error') }));
         console.error('Error creating brand:', error);
+        showToast(error.error || t('brand_creation_error'), 'error');
         return;
       }
 
@@ -515,10 +583,13 @@ export default function ConnectionsPage() {
       setNewBrandName('');
       setBrandLogoFile(null);
       setIsCreatingBrand(false);
+      showToast(t('brand_created_success'), 'success');
       // Reload brands to ensure consistency
       await loadBrands();
     } catch (error) {
       console.error('Error creating brand:', error);
+      const errorMessage = error instanceof Error ? error.message : t('brand_creation_error');
+      showToast(errorMessage, 'error');
       // Error will be handled by reloading brands - if creation failed, it won't appear
     }
   };
@@ -777,7 +848,8 @@ export default function ConnectionsPage() {
 
       if (error) {
         console.error('Error creating account:', error);
-        // Error will be handled by not adding account to state
+        showToast(t('connection_error'), 'error');
+        setShowManualDialog(false); // Close modal on error
         return;
       }
 
@@ -800,7 +872,8 @@ export default function ConnectionsPage() {
       await loadAccounts();
     } catch (error) {
       console.error('Error creating account:', error);
-      // Error will be handled by not adding account to state
+      showToast(t('connection_error'), 'error');
+      setShowManualDialog(false); // Close modal on error
     }
   };
 
@@ -809,12 +882,92 @@ export default function ConnectionsPage() {
       return;
     }
 
+    // Store account info before closing modal
+    const accountIdToDisconnect = accountToDisconnect.id;
+
     try {
       const supabase = createSupabaseBrowserClient();
 
+      // Get current user to ensure we only disconnect user's own accounts
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        showToast(t('connection_error'), 'error');
+        setAccountToDisconnect(null);
+        return;
+      }
+
+      // Get user ID from users table
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      const userId = userRecord?.id || session.user.id;
+
+      // Get Getlate account ID if available
+      // First, fetch the account with getlate_account_id to ensure we have it
+      const { data: accountWithGetlate } = await supabase
+        .from('social_accounts')
+        .select('id, getlate_account_id, platform, account_name')
+        .eq('id', accountIdToDisconnect)
+        .eq('user_id', userId)
+        .single();
+
+      const getlateAccountId = accountWithGetlate?.getlate_account_id;
+
+      // First, disconnect from Getlate if account is linked
+      if (getlateAccountId) {
+        try {
+          const disconnectResponse = await fetch('/api/getlate/disconnect', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              accountId: accountIdToDisconnect,
+              getlateAccountId,
+            }),
+          });
+
+          const disconnectResult = await disconnectResponse.json();
+
+          if (!disconnectResponse.ok) {
+            console.error('[Disconnect] ❌ Failed to disconnect from Getlate:', disconnectResult);
+            const errorMsg = disconnectResult.error || t('unknown_error');
+            showToast(
+              t('disconnect_getlate_failed', { error: errorMsg }),
+              'error',
+            );
+            setAccountToDisconnect(null); // Close modal on error
+            // Continue with local disconnect even if Getlate disconnect fails
+          } else if (disconnectResult.warning) {
+            console.warn('[Disconnect] ⚠️ Getlate disconnect warning:', disconnectResult.warning);
+            showToast(t('disconnect_getlate_warning'), 'info');
+          }
+        } catch (getlateError) {
+          console.error('[Disconnect] ❌ Error calling Getlate disconnect API:', getlateError);
+          showToast(
+            t('disconnect_getlate_error'),
+            'error',
+          );
+          setAccountToDisconnect(null); // Close modal on error
+          // Continue with local disconnect even if Getlate API call fails
+        }
+      }
+
+      // Get current platform data before updating
+      const { data: currentAccount } = await supabase
+        .from('social_accounts')
+        .select('platform_specific_data')
+        .eq('id', accountIdToDisconnect)
+        .eq('user_id', userId)
+        .single();
+
       // Deactivate account instead of deleting (soft delete)
       // Also set a flag to prevent Getlate sync from reactivating it
-      const currentPlatformData = (accountToDisconnect as any).platform_specific_data || {};
+      // Filter by both id and user_id to ensure user can only disconnect their own accounts
+      const currentPlatformData = (currentAccount?.platform_specific_data as Record<string, unknown>) || {};
       const { error } = await supabase
         .from('social_accounts')
         .update({
@@ -826,23 +979,27 @@ export default function ConnectionsPage() {
             manually_disconnected: true,
           },
         })
-        .eq('id', accountToDisconnect.id);
+        .eq('id', accountIdToDisconnect)
+        .eq('user_id', userId);
 
       if (error) {
         console.error('Error disconnecting account:', error);
-        // Error will be handled by not removing account from state
+        showToast(t('connection_error'), 'error');
+        setAccountToDisconnect(null); // Close modal on error
         return;
       }
 
       // Remove from UI immediately
-      setAccounts(prev => prev.filter(acc => acc.id !== accountToDisconnect.id));
+      setAccounts(prev => prev.filter(acc => acc.id !== accountIdToDisconnect));
       setAccountToDisconnect(null);
+      showToast(t('account_disconnected_success'), 'success');
 
       // Reload accounts with skipSync=true to prevent Getlate sync from reactivating it
       await loadAccountsFromDB(true);
     } catch (error) {
       console.error('Error disconnecting account:', error);
-      // Error will be handled by not removing account from state
+      showToast(t('connection_error'), 'error');
+      setAccountToDisconnect(null); // Close modal on error
     }
   };
 
@@ -858,9 +1015,24 @@ export default function ConnectionsPage() {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Failed to delete brand' }));
-        console.error('Error deleting brand:', error);
+        const errorData = await response.json().catch(() => ({ error: 'Failed to delete brand' }));
+        console.error('Error deleting brand:', errorData);
+
+        // Show user-friendly error message
+        if (errorData.error === 'Cannot delete brand with connected accounts') {
+          showToast(
+            errorData.message || t('delete_brand_has_accounts'),
+            'error',
+          );
+        } else {
+          showToast(
+            errorData.error || errorData.message || t('delete_brand_failed'),
+            'error',
+          );
+        }
+
         setIsDeletingBrand(false);
+        setBrandToDelete(null); // Close modal on error
         return;
       }
 
@@ -882,6 +1054,8 @@ export default function ConnectionsPage() {
       await loadBrands();
     } catch (error) {
       console.error('Error deleting brand:', error);
+      showToast(t('delete_brand_failed'), 'error');
+      setBrandToDelete(null); // Close modal on error
     } finally {
       setIsDeletingBrand(false);
     }

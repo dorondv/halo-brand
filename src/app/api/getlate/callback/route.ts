@@ -19,78 +19,99 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse URL manually to handle malformed query strings
-    // Getlate may append ?connected=... instead of &connected=... to our redirect URL
-    // The brandId parameter may be URL-encoded and contain the connected parameter
+    // Getlate may append ?error=... instead of &error=... to our redirect URL
+    // This creates URLs like: /callback?brandId=xxx?error=yyy&platform=zzz
     const url = new URL(request.url);
-    const urlString = decodeURIComponent(request.url);
+    const urlString = request.url;
+    const decodedUrlString = decodeURIComponent(urlString);
 
-    // Extract brandId first - it might be malformed if Getlate appended params with ? instead of &
-    let brandId: string | null = null;
-    const brandIdMatch = urlString.match(/[?&]brandId=([^&?]+)/);
-    if (brandIdMatch && brandIdMatch[1]) {
-      let rawBrandId = brandIdMatch[1];
-      // Decode URL encoding
-      try {
-        rawBrandId = decodeURIComponent(rawBrandId);
-      } catch {
-        // If decoding fails, use as-is
+    // Extract all parameters manually to handle malformed URLs with multiple ? characters
+    const extractParam = (paramName: string): string | null => {
+      // Try standard searchParams first
+      const standardValue = url.searchParams.get(paramName);
+      if (standardValue) {
+        return standardValue;
       }
 
-      // If brandId contains a ? or encoded ?, Getlate appended params incorrectly
-      // Extract just the UUID (everything before the ? or %3F)
-      if (rawBrandId.includes('?')) {
-        const parts = rawBrandId.split('?');
-        brandId = parts[0] || null;
-      } else if (rawBrandId.includes('%3F')) {
-        const parts = rawBrandId.split('%3F');
-        brandId = parts[0] || null;
-      } else {
-        brandId = rawBrandId;
-      }
-    }
+      // Try to extract from URL string (handles malformed URLs with multiple ?)
+      // Match both ?param=value and &param=value patterns
+      const patterns = [
+        new RegExp(`[?&]${paramName}=([^&?]+)`, 'i'),
+        new RegExp(`[?&]${paramName}=([^&?\\s]+)`, 'i'),
+      ];
 
-    // Getlate API returns success params: connected, profileId, username
-    // Or error params: error, platform
-    // Note: brandId is our custom parameter, not from Getlate
-    let connected = url.searchParams.get('connected');
-    const profileId = url.searchParams.get('profileId');
-    const username = url.searchParams.get('username');
-    const error = url.searchParams.get('error');
-    const platform = url.searchParams.get('platform');
-
-    // If connected is null, try to extract from the URL string (Getlate may have appended it incorrectly)
-    if (!connected) {
-      // Try to find connected parameter in the URL string (could be ?connected= or &connected=)
-      const connectedMatch = urlString.match(/[?&]connected=([^&]+)/);
-      if (connectedMatch && connectedMatch[1]) {
-        try {
-          connected = decodeURIComponent(connectedMatch[1]);
-        } catch {
-          connected = connectedMatch[1];
+      for (const pattern of patterns) {
+        const match = decodedUrlString.match(pattern);
+        if (match && match[1]) {
+          try {
+            return decodeURIComponent(match[1]);
+          } catch {
+            return match[1];
+          }
         }
       }
+
+      return null;
+    };
+
+    // Extract brandId first - it might be malformed if Getlate appended params with ? instead of &
+    let brandId: string | null = extractParam('brandId');
+    if (brandId) {
+      // If brandId contains a ? or encoded ?, Getlate appended params incorrectly
+      // Extract just the UUID (everything before the ? or %3F)
+      if (brandId.includes('?')) {
+        const parts = brandId.split('?');
+        brandId = parts[0] || null;
+      } else if (brandId.includes('%3F')) {
+        const parts = brandId.split('%3F');
+        brandId = parts[0] || null;
+      }
     }
 
+    // Extract all parameters using our custom extractor
+    // Getlate API returns success params: connected, profileId, username
+    // Or error params: error, platform
+    const connected = extractParam('connected');
+    const profileId = extractParam('profileId');
+    const username = extractParam('username');
+    const error = extractParam('error');
+    const platform = extractParam('platform');
+
     // Handle OAuth errors and cancellations
+    // Check for error parameter first (Getlate returns error on failure)
     if (error) {
-      console.error('OAuth error from Getlate:', error, 'platform:', platform);
-      const redirectUrl = new URL(request.url);
-      redirectUrl.pathname = '/connections';
+      console.error('OAuth error from Getlate:', error, 'platform:', platform, 'brandId:', brandId);
+
+      // Build redirect URL with proper origin
+      const origin = request.nextUrl.origin
+        || request.headers.get('origin')
+        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+        || 'http://localhost:3000';
+
+      const redirectUrl = new URL('/connections', origin);
 
       // Check if it's a cancellation (common OAuth cancellation error codes)
       const isCancelled = error === 'access_denied'
         || error === 'user_cancelled'
         || error === 'user_cancelled_authorize'
         || error === 'cancelled'
-        || error === 'connection_failed'
         || error.toLowerCase().includes('cancel')
         || error.toLowerCase().includes('denied');
 
       if (isCancelled) {
-        redirectUrl.search = '?cancelled=true';
+        redirectUrl.searchParams.set('cancelled', 'true');
       } else {
-        redirectUrl.search = `?error=${encodeURIComponent(error)}${platform ? `&platform=${platform}` : ''}`;
+        redirectUrl.searchParams.set('error', error);
+        if (platform) {
+          redirectUrl.searchParams.set('platform', platform);
+        }
       }
+
+      // Include brandId if available
+      if (brandId) {
+        redirectUrl.searchParams.set('brandId', brandId);
+      }
+
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -98,9 +119,23 @@ export async function GET(request: NextRequest) {
     // Note: 'connected' might be the platform name (e.g., 'facebook') instead of 'true'
     if (!connected || !profileId) {
       console.error('Missing required parameters:', { connected, profileId, username, error, platform, brandId });
-      const redirectUrl = new URL(request.url);
-      redirectUrl.pathname = '/connections';
-      redirectUrl.search = `?error=missing_parameters&connected=${connected || 'none'}&profileId=${profileId || 'none'}`;
+
+      // Build redirect URL with proper origin
+      const origin = request.nextUrl.origin
+        || request.headers.get('origin')
+        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+        || 'http://localhost:3000';
+
+      const redirectUrl = new URL('/connections', origin);
+      redirectUrl.searchParams.set('error', 'missing_parameters');
+      redirectUrl.searchParams.set('connected', connected || 'none');
+      redirectUrl.searchParams.set('profileId', profileId || 'none');
+      if (brandId) {
+        redirectUrl.searchParams.set('brandId', brandId);
+      }
+      if (platform) {
+        redirectUrl.searchParams.set('platform', platform);
+      }
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -112,9 +147,16 @@ export async function GET(request: NextRequest) {
       .single();
 
     if (userError || !userRecord || !userRecord.getlate_api_key) {
-      const redirectUrl = new URL(request.url);
-      redirectUrl.pathname = '/connections';
-      redirectUrl.search = '?error=integration_not_configured';
+      const origin = request.nextUrl.origin
+        || request.headers.get('origin')
+        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+        || 'http://localhost:3000';
+
+      const redirectUrl = new URL('/connections', origin);
+      redirectUrl.searchParams.set('error', 'integration_not_configured');
+      if (brandId) {
+        redirectUrl.searchParams.set('brandId', brandId);
+      }
       return NextResponse.redirect(redirectUrl);
     }
 
@@ -177,23 +219,45 @@ export async function GET(request: NextRequest) {
     // If no brands were found to sync, that's also an error
     if (brandsToSync.length === 0) {
       console.error('No brands found to sync for profileId:', profileId, 'brandId:', brandId);
-      const redirectUrl = new URL(request.url);
-      redirectUrl.pathname = '/connections';
-      redirectUrl.search = `?error=brand_not_found${brandId ? `&brandId=${brandId}` : ''}`;
+      const origin = request.nextUrl.origin
+        || request.headers.get('origin')
+        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+        || 'http://localhost:3000';
+
+      const redirectUrl = new URL('/connections', origin);
+      redirectUrl.searchParams.set('error', 'brand_not_found');
+      if (brandId) {
+        redirectUrl.searchParams.set('brandId', brandId);
+      }
       return NextResponse.redirect(redirectUrl);
     }
 
     // Redirect to connections page with success message
     // Include brandId and sync status in redirect
-    const redirectUrl = new URL(request.url);
-    redirectUrl.pathname = '/connections';
-    redirectUrl.search = `?connected=${connected}${username ? `&username=${encodeURIComponent(username)}` : ''}${brandId ? `&brandId=${brandId}` : ''}&synced=${syncSuccess ? 'true' : 'false'}`;
+    const origin = request.nextUrl.origin
+      || request.headers.get('origin')
+      || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+      || 'http://localhost:3000';
+
+    const redirectUrl = new URL('/connections', origin);
+    redirectUrl.searchParams.set('connected', connected);
+    if (username) {
+      redirectUrl.searchParams.set('username', username);
+    }
+    if (brandId) {
+      redirectUrl.searchParams.set('brandId', brandId);
+    }
+    redirectUrl.searchParams.set('synced', syncSuccess ? 'true' : 'false');
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error('Error handling OAuth callback:', error);
-    const redirectUrl = new URL(request.url);
-    redirectUrl.pathname = '/connections';
-    redirectUrl.search = `?error=${encodeURIComponent('callback_failed')}`;
+    const origin = request.nextUrl.origin
+      || request.headers.get('origin')
+      || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+      || 'http://localhost:3000';
+
+    const redirectUrl = new URL('/connections', origin);
+    redirectUrl.searchParams.set('error', 'callback_failed');
     return NextResponse.redirect(redirectUrl);
   }
 }

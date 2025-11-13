@@ -679,6 +679,7 @@ export class GetlateClient {
   /**
    * Create a new profile
    * Note: Getlate API returns { message: string, profile: GetlateProfile }
+   * or may return the profile directly
    */
   async createProfile(name: string): Promise<GetlateProfile> {
     const response = await this.request<any>('/profiles', {
@@ -688,16 +689,71 @@ export class GetlateClient {
 
     // Handle nested response format: { message: string, profile: GetlateProfile }
     if (response && response.profile) {
-      return response.profile;
+      const profile = response.profile;
+      // Ensure profile has an ID field (check both _id and id)
+      if (!profile._id && !profile.id) {
+        console.warn('[Getlate] Profile response missing ID:', JSON.stringify(profile, null, 2));
+      }
+      return profile;
+    }
+
+    // Handle response with data property: { data: GetlateProfile }
+    if (response && response.data) {
+      const profile = response.data;
+      if (!profile._id && !profile.id) {
+        console.warn('[Getlate] Profile data missing ID:', JSON.stringify(profile, null, 2));
+      }
+      return profile;
     }
 
     // Fallback: if response is already a profile object
-    return response as GetlateProfile;
+    const profile = response as GetlateProfile;
+    if (!profile._id && !profile.id) {
+      console.warn('[Getlate] Profile response missing ID (direct format):', JSON.stringify(response, null, 2));
+    }
+    return profile;
   }
 
   /**
    * Delete a profile by ID
    */
+  /**
+   * Disconnect/delete an account from Getlate
+   * DELETE /v1/accounts/:accountId
+   */
+  async disconnectAccount(accountId: string): Promise<void> {
+    const url = `${this.baseUrl}/accounts/${accountId}`;
+    const headers = {
+      'Authorization': `Bearer ${this.apiKey}`,
+      'Content-Type': 'application/json',
+    };
+
+    const response = await fetch(url, {
+      method: 'DELETE',
+      headers,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({
+        error: 'Unknown error',
+        message: `HTTP ${response.status}: ${response.statusText}`,
+      })) as GetlateError;
+
+      throw new Error(
+        errorData.message || errorData.error || `HTTP ${response.status}`,
+      );
+    }
+
+    // DELETE requests may return 204 No Content (empty body)
+    // Try to parse JSON only if there's content
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      await response.json().catch(() => {
+        // Ignore JSON parse errors for empty responses
+      });
+    }
+  }
+
   async deleteProfile(profileId: string): Promise<void> {
     const url = `${this.baseUrl}/profiles/${profileId}`;
     const headers = {
