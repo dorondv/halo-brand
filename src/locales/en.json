@@ -56,6 +56,7 @@
     "posts_table_post": "Post",
     "posts_table_platform": "Platform",
     "posts_table_post_media": "Post media",
+    "posts_table_no_posts": "No posts found in the selected date range.",
     "date_range_last_7_days": "Last 7 days",
     "date_range_last_14_days": "Last 14 days",
     "date_range_last_28_days": "Last 28 days",

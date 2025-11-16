@@ -119,38 +119,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const [currentPage, setCurrentPage] = React.useState(1);
   const postsPerPage = 5;
 
-  // Default dummy data if no posts provided
-  const defaultPosts: PostRow[] = [
-    {
-      score: 1492,
-      engagementRate: 8.70,
-      engagement: 1357,
-      impressions: 15600,
-      date: '2025-10-31T17:51:00',
-      postContent: 'השבוע השקנו את הקולקציה החדשה שלנו! 🌸 מה הפריט שהכי אהבתם? ספרו לנו בתגובות! #אופנה #קיץ #חדש',
-      platform: 'instagram',
-    },
-    {
-      score: 908,
-      engagementRate: 8.56,
-      engagement: 839,
-      impressions: 9800,
-      date: '2025-10-29T17:51:00',
-      postContent: 'מאחורי הקלעים של הצילומים האחרונים שלנו. היה יום מדהים עם צוות מנצח! תודה לכל מי שלקח חלק. 💪',
-      platform: 'facebook',
-    },
-    {
-      score: 842,
-      engagementRate: 8.47,
-      engagement: 618,
-      impressions: 7300,
-      date: '2025-10-26T17:51:00',
-      postContent: 'טיפ קטן ליום מוצלח: התחילו את הבוקר עם חיוך וקפה טוב. ☕ מה הטיפ שלכם לבוקר אנרגטי?',
-      platform: 'x',
-    },
-  ];
-
-  const displayPosts = posts.length > 0 ? posts : defaultPosts;
+  const displayPosts = posts;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -279,94 +248,102 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
               </tr>
             </thead>
             <tbody>
-              {paginatedPosts.map((post, index) => {
-                // Convert UTC date to local timezone for display
-                const postDate = utcToLocal(post.date);
-                const dayName = format(postDate, 'EEEE', { locale: dfLocale });
-                const dateStr = format(postDate, 'dd/MM/yyyy');
-                const timeStr = format(postDate, 'HH:mm');
+              {paginatedPosts.length === 0
+                ? (
+                    <tr>
+                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                        {t('posts_table_no_posts')}
+                      </td>
+                    </tr>
+                  )
+                : paginatedPosts.map((post, index) => {
+                  // Convert UTC date to local timezone for display
+                    const postDate = utcToLocal(post.date);
+                    const dayName = format(postDate, 'EEEE', { locale: dfLocale });
+                    const dateStr = format(postDate, 'dd/MM/yyyy');
+                    const timeStr = format(postDate, 'HH:mm');
 
-                // Generate unique key: prefer id, fallback to combination with index
-                const uniqueKey = post.id
-                  ? `post-${post.id}-${post.platform}-${post.date}`
-                  : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
+                    // Generate unique key: prefer id, fallback to combination with index
+                    const uniqueKey = post.id
+                      ? `post-${post.id}-${post.platform}-${post.date}`
+                      : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
 
-                return (
-                  <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
-                          <PlatformIcon platform={post.platform} className="h-5 w-5 text-white" />
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
-                      {/* Media Thumbnail */}
-                      {(post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl
-                        ? (
-                            <div className={`mb-2 flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
-                              {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl) => {
-                                if (!mediaUrl) {
-                                  return null;
-                                }
-                                const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
-                                  || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
-                                  || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
-                                const mediaKey = post.id ? `media-${post.id}-${mediaUrl}` : `media-${mediaUrl}`;
-                                return (
-                                  <div key={mediaKey} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
-                                    {isVideo
-                                      ? (
-                                          <div className="flex h-full w-full items-center justify-center bg-gray-900">
-                                            <Play className="h-6 w-6 text-white" fill="white" />
-                                          </div>
-                                        )
-                                      : (
-                                          <Image
-                                            src={mediaUrl}
-                                            alt="Post media"
-                                            fill
-                                            className="object-cover"
-                                            sizes="64px"
-                                            unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
-                                          />
-                                        )}
-                                  </div>
-                                );
-                              })}
+                    return (
+                      <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-center">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
+                              <PlatformIcon platform={post.platform} className="h-5 w-5 text-white" />
                             </div>
-                          )
-                        : null}
-                      {/* Post Content */}
-                      <div className={`truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
-                        {post.postContent}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      <div>
-                        <div>{dateStr}</div>
-                        <div className="text-gray-500">{timeStr}</div>
-                        <div className="text-xs text-gray-500">{dayName}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.impressions)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.engagement)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {post.engagementRate.toFixed(2)}
-                      %
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
-                        {post.score}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+                          </div>
+                        </td>
+                        <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                          {/* Media Thumbnail */}
+                          {(post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl
+                            ? (
+                                <div className={`mb-2 flex items-center gap-2 ${localeCode === 'he' ? 'flex-row justify-start' : 'justify-start'}`}>
+                                  {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl) => {
+                                    if (!mediaUrl) {
+                                      return null;
+                                    }
+                                    const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
+                                      || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
+                                      || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
+                                    const mediaKey = post.id ? `media-${post.id}-${mediaUrl}` : `media-${mediaUrl}`;
+                                    return (
+                                      <div key={mediaKey} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
+                                        {isVideo
+                                          ? (
+                                              <div className="flex h-full w-full items-center justify-center bg-gray-900">
+                                                <Play className="h-6 w-6 text-white" fill="white" />
+                                              </div>
+                                            )
+                                          : (
+                                              <Image
+                                                src={mediaUrl}
+                                                alt="Post media"
+                                                fill
+                                                className="object-cover"
+                                                sizes="64px"
+                                                unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
+                                              />
+                                            )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )
+                            : null}
+                          {/* Post Content */}
+                          <div className={`truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                            {post.postContent}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          <div>
+                            <div>{dateStr}</div>
+                            <div className="text-gray-500">{timeStr}</div>
+                            <div className="text-xs text-gray-500">{dayName}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {new Intl.NumberFormat('he-IL').format(post.impressions)}
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {new Intl.NumberFormat('he-IL').format(post.engagement)}
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {post.engagementRate.toFixed(2)}
+                          %
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
+                            {post.score}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
         </div>
