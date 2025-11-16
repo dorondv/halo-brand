@@ -2,11 +2,13 @@
 
 import { AnimatePresence, motion } from 'framer-motion';
 import { Facebook, Instagram, Linkedin, Mail, MessageSquare, Search, Youtube } from 'lucide-react';
+import { useLocale } from 'next-intl';
 import Image from 'next/image';
 import React, { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { formatDateForDisplay, getIntlLocale } from '@/libs/timezone';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -60,10 +62,12 @@ function ConversationItem({
   conversation,
   isSelected,
   onClick,
+  locale,
 }: {
   conversation: Conversation;
   isSelected: boolean;
   onClick: () => void;
+  locale: string;
 }) {
   const { icon: Icon, color } = platformIcons[conversation.platform] || { icon: MessageSquare, color: 'text-gray-500' };
 
@@ -92,7 +96,7 @@ function ConversationItem({
         <div className="flex items-center justify-between">
           <p className="truncate text-sm font-semibold text-gray-800">{conversation.contact_name}</p>
           <p className="flex-shrink-0 text-xs text-gray-400">
-            {new Date(conversation.last_message_timestamp).toLocaleDateString()}
+            {formatDateForDisplay(conversation.last_message_timestamp, { locale, format: 'short' })}
           </p>
         </div>
         <p className="truncate text-sm text-gray-500">{conversation.last_message_snippet}</p>
@@ -101,8 +105,9 @@ function ConversationItem({
   );
 }
 
-function ChatMessage({ message }: { message: Message }) {
+function ChatMessage({ message, locale }: { message: Message; locale: string }) {
   const isOutgoing = message.is_outgoing;
+  const intlLocale = getIntlLocale(locale);
   return (
     <div className={`my-2 flex items-end gap-2 ${isOutgoing ? 'justify-end' : 'justify-start'}`}>
       {!isOutgoing && <Image src={message.sender_avatar || '/default-avatar.png'} alt={message.sender_name} width={32} height={32} className="h-8 w-8 rounded-full" />}
@@ -115,7 +120,7 @@ function ChatMessage({ message }: { message: Message }) {
       >
         <p>{message.content}</p>
         <p className={`mt-1 text-xs ${isOutgoing ? 'text-pink-100' : 'text-gray-400'}`}>
-          {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+          {new Date(message.timestamp).toLocaleTimeString(intlLocale, { hour: '2-digit', minute: '2-digit' })}
         </p>
       </div>
       {isOutgoing && <Image src={message.sender_avatar || '/default-avatar.png'} alt={message.sender_name} width={32} height={32} className="h-8 w-8 rounded-full" />}
@@ -127,10 +132,12 @@ function ChatView({
   conversation,
   messages,
   onSendMessage,
+  locale,
 }: {
   conversation: Conversation | null;
   messages: Message[];
   onSendMessage: (content: string) => void;
+  locale: string;
 }) {
   const [newMessage, setNewMessage] = useState('');
 
@@ -178,7 +185,7 @@ function ChatView({
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -10 }}
             >
-              <ChatMessage message={msg} />
+              <ChatMessage message={msg} locale={locale} />
             </motion.div>
           ))}
         </AnimatePresence>
@@ -341,6 +348,7 @@ const mockMessages: Record<string, Message[]> = {
 };
 
 export default function InboxPage() {
+  const locale = useLocale();
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<Conversation | null>(null);
@@ -437,6 +445,7 @@ export default function InboxPage() {
                     conversation={convo}
                     isSelected={selectedConversation?.id === convo.id}
                     onClick={() => handleSelectConversation(convo)}
+                    locale={locale}
                   />
                 ))
               )}
@@ -444,7 +453,7 @@ export default function InboxPage() {
       </div>
 
       {/* Main Chat View */}
-      <ChatView conversation={selectedConversation} messages={messages} onSendMessage={handleSendMessage} />
+      <ChatView conversation={selectedConversation} messages={messages} onSendMessage={handleSendMessage} locale={locale} />
     </div>
   );
 }

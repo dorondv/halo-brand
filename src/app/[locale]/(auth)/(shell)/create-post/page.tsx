@@ -15,6 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
+import { localToUtc } from '@/libs/timezone';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -125,7 +126,7 @@ export default function CreatePostPage() {
 
   useEffect(() => {
     void loadAccounts();
-  }, [selectedBrandId]); // Only depend on selectedBrandId, not loadAccounts to prevent re-renders
+  }, [loadAccounts]); // loadAccounts is memoized with useCallback, so it's safe to include
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -185,7 +186,7 @@ export default function CreatePostPage() {
           hashtags: formData.hashtags,
           media_type: mediaType,
           brand_id: selectedBrandId,
-          scheduled_for: scheduleMode === 'later' && formData.scheduled_time ? formData.scheduled_time : undefined,
+          scheduled_for: scheduleMode === 'later' && formData.scheduled_time ? localToUtc(formData.scheduled_time) : undefined,
           timezone,
           platforms: platformsArray,
           use_getlate: useGetlate,
@@ -221,7 +222,7 @@ export default function CreatePostPage() {
             body: JSON.stringify({
               postId,
               socialAccountId: account.id,
-              scheduledFor: formData.scheduled_time,
+              scheduledFor: localToUtc(formData.scheduled_time),
               timezone,
             }),
           }),

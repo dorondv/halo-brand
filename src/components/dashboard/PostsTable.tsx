@@ -8,6 +8,7 @@ import Image from 'next/image';
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { utcToLocal } from '@/libs/timezone';
 
 type PostRow = {
   id?: string; // Optional unique identifier (post_id or analytics_id)
@@ -279,7 +280,8 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
             </thead>
             <tbody>
               {paginatedPosts.map((post, index) => {
-                const postDate = new Date(post.date);
+                // Convert UTC date to local timezone for display
+                const postDate = utcToLocal(post.date);
                 const dayName = format(postDate, 'EEEE', { locale: dfLocale });
                 const dateStr = format(postDate, 'dd/MM/yyyy');
                 const timeStr = format(postDate, 'HH:mm');
