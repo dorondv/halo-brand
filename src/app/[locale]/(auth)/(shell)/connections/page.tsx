@@ -1132,7 +1132,7 @@ export default function ConnectionsPage() {
                               tabIndex={0}
                               className="cursor-pointer"
                             >
-                              <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
+                              <div className={cn('flex items-center gap-3', isRTL ? 'flex-row' : '')}>
                                 {brand.logo_url
                                   ? (
                                       <Image
@@ -1161,7 +1161,7 @@ export default function ConnectionsPage() {
                               }}
                               className={cn(
                                 'absolute top-2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600',
-                                isRTL ? 'right-2' : 'right-2',
+                                isRTL ? 'left-2' : 'right-2',
                               )}
                               aria-label={`Delete ${brand.name}`}
                               title={`Delete ${brand.name}`}
@@ -1306,7 +1306,7 @@ export default function ConnectionsPage() {
                     )
                   : (
                       <>
-                        <Trash2 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                        <Trash2 className={cn('h-4 w-4', isRTL ? 'mr-2' : 'mr-2')} />
                         {t('delete')}
                       </>
                     )}
