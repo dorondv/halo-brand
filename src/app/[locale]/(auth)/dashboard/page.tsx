@@ -1120,6 +1120,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Generate filtered posts table data from actual posts if available, otherwise use dummy data
   let postsTableData: Array<{
+    id?: string;
     score: number;
     engagementRate: number;
     engagement: number;
@@ -1127,6 +1128,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     date: string;
     postContent: string;
     platform: string;
+    mediaUrls?: string[];
+    imageUrl?: string;
   }> | undefined;
 
   // Generate filtered posts table data from actual posts only (no dummy data)
@@ -1195,6 +1198,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const imageUrl = (p as any)?.image_url;
 
       return {
+        id: p.id, // Include post ID for unique key generation
         score,
         engagementRate,
         engagement,

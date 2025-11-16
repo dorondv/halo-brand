@@ -55,7 +55,20 @@ export async function GET(req: Request) {
   }
 
   // Fetch analytics from local database
+  // IMPORTANT: Always filter by user_id to ensure users only see their own analytics
   if (parsed.postId) {
+    // First verify the post belongs to the user
+    const { data: postCheck } = await supabase
+      .from('posts')
+      .select('id')
+      .eq('id', parsed.postId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!postCheck) {
+      return NextResponse.json({ error: 'Post not found or access denied' }, { status: 404 });
+    }
+
     const { data, error } = await supabase
       .from('post_analytics')
       .select('*')
@@ -72,21 +85,38 @@ export async function GET(req: Request) {
     .from('post_analytics')
     .select('post_id,likes,comments,shares,impressions,engagement_rate,platform,date');
 
-  if (parsed.brandId) {
-    // Filter by brand through posts
-    const { data: brandPosts } = await supabase
-      .from('posts')
-      .select('id')
-      .eq('brand_id', parsed.brandId);
+  // Always filter by user_id through posts to ensure security
+  // Get all posts for the user (and optionally filtered by brand)
+  let postsQuery = supabase
+    .from('posts')
+    .select('id')
+    .eq('user_id', user.id); // CRITICAL: Always filter by user_id
 
-    if (brandPosts && brandPosts.length > 0) {
-      const postIds = brandPosts.map(p => p.id);
-      query = query.in('post_id', postIds);
-    } else {
-      // No posts for this brand, return empty
-      return NextResponse.json({ data: [] });
+  if (parsed.brandId) {
+    // Also verify the brand belongs to the user
+    const { data: brandCheck } = await supabase
+      .from('brands')
+      .select('id')
+      .eq('id', parsed.brandId)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!brandCheck) {
+      return NextResponse.json({ error: 'Brand not found or access denied' }, { status: 404 });
     }
+
+    postsQuery = postsQuery.eq('brand_id', parsed.brandId);
   }
+
+  const { data: userPosts } = await postsQuery;
+
+  if (!userPosts || userPosts.length === 0) {
+    // No posts for this user/brand, return empty
+    return NextResponse.json({ data: [] });
+  }
+
+  const postIds = userPosts.map(p => p.id);
+  query = query.in('post_id', postIds);
 
   if (parsed.platform) {
     query = query.eq('platform', parsed.platform);

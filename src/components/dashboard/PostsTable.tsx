@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
 type PostRow = {
+  id?: string; // Optional unique identifier (post_id or analytics_id)
   score: number;
   engagementRate: number;
   engagement: number;
@@ -157,6 +158,8 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
       setSortColumn(column);
       setSortDirection('desc');
     }
+    // Reset to page 1 when sorting changes
+    setCurrentPage(1);
   };
 
   const sortedPosts = [...displayPosts].sort((a, b) => {
@@ -182,11 +185,6 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const startIndex = (currentPage - 1) * postsPerPage;
   const endIndex = startIndex + postsPerPage;
   const paginatedPosts = sortedPosts.slice(startIndex, endIndex);
-
-  // Reset to page 1 when sorting changes
-  React.useEffect(() => {
-    setCurrentPage(1);
-  }, [sortColumn, sortDirection]);
 
   const handlePreviousPage = () => {
     setCurrentPage(prev => Math.max(1, prev - 1));
@@ -280,14 +278,19 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
               </tr>
             </thead>
             <tbody>
-              {paginatedPosts.map((post) => {
+              {paginatedPosts.map((post, index) => {
                 const postDate = new Date(post.date);
                 const dayName = format(postDate, 'EEEE', { locale: dfLocale });
                 const dateStr = format(postDate, 'dd/MM/yyyy');
                 const timeStr = format(postDate, 'HH:mm');
 
+                // Generate unique key: prefer id, fallback to combination with index
+                const uniqueKey = post.id
+                  ? `post-${post.id}-${post.platform}-${post.date}`
+                  : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
+
                 return (
-                  <tr key={`post-${post.date}-${post.platform}-${post.engagement}-${post.postContent.slice(0, 20)}`} className="border-b border-gray-100 hover:bg-gray-50">
+                  <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
                     <td className="px-4 py-4">
                       <div className="flex items-center justify-center">
                         <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
@@ -300,15 +303,16 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                       {(post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl
                         ? (
                             <div className={`mb-2 flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
-                              {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl, idx) => {
+                              {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl) => {
                                 if (!mediaUrl) {
                                   return null;
                                 }
                                 const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
                                   || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
                                   || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
+                                const mediaKey = post.id ? `media-${post.id}-${mediaUrl}` : `media-${mediaUrl}`;
                                 return (
-                                  <div key={idx} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
+                                  <div key={mediaKey} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
                                     {isVideo
                                       ? (
                                           <div className="flex h-full w-full items-center justify-center bg-gray-900">
