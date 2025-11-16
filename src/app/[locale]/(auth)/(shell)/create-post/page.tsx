@@ -284,7 +284,7 @@ export default function CreatePostPage() {
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
                   <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                    <Send className="h-5 w-5 text-blue-500" />
+                    <Send className="h-5 w-5 text-pink-500" />
                     {t('post_content_title')}
                   </CardTitle>
                 </CardHeader>
@@ -293,7 +293,7 @@ export default function CreatePostPage() {
                     placeholder={t('content_placeholder')}
                     value={formData.content}
                     onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                    className="min-h-[120px] resize-none border-gray-200 transition-all duration-300 focus:border-blue-300"
+                    className="min-h-[120px] resize-none border-gray-200 transition-all duration-300 focus:border-pink-300"
                   />
 
                   <div className={cn('flex text-sm text-slate-500', isRTL ? 'flex-row-reverse justify-between' : 'justify-between')}>
@@ -315,7 +315,7 @@ export default function CreatePostPage() {
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
                   <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                    <Hash className="h-5 w-5 text-emerald-500" />
+                    <Hash className="h-5 w-5 text-pink-500" />
                     {t('hashtags_title')}
                   </CardTitle>
                 </CardHeader>
@@ -325,14 +325,14 @@ export default function CreatePostPage() {
                     value={hashtagInput}
                     onChange={e => setHashtagInput(e.target.value)}
                     onKeyPress={addHashtag}
-                    className="border-gray-200 focus:border-emerald-300"
+                    className="border-gray-200 focus:border-pink-300"
                   />
 
                   <div className="flex flex-wrap gap-2">
                     {formData.hashtags.map(tag => (
                       <span
                         key={tag}
-                        className="flex items-center gap-2 rounded-full border border-gray-200 bg-gradient-to-r from-emerald-100 to-blue-100 px-3 py-1 text-sm text-slate-700"
+                        className="flex items-center gap-2 rounded-full border border-gray-200 bg-gradient-to-r from-pink-100 to-pink-200 px-3 py-1 text-sm text-slate-700"
                       >
                         #
                         {tag}
@@ -409,7 +409,7 @@ export default function CreatePostPage() {
               <Button
                 type="submit"
                 disabled={!formData.content.trim() || formData.platforms.length === 0 || isSubmitting}
-                className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-blue-600 hover:to-emerald-600 hover:shadow-xl"
+                className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-pink-600 hover:to-pink-700 hover:shadow-xl"
               >
                 {isSubmitting
                   ? (
