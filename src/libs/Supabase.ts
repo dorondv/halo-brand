@@ -2,8 +2,11 @@ import type { CookieOptions } from '@supabase/ssr';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function createSupabaseServerClient() {
-  const cookieStore = await cookies();
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+
+export async function createSupabaseServerClient(cookieStore?: CookieStore) {
+  // Use provided cookieStore or create new one (Next.js 16: cookies() can only be called once per request)
+  const store = cookieStore || await cookies();
 
   return createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -11,12 +14,12 @@ export async function createSupabaseServerClient() {
     {
       cookies: {
         get(name: string) {
-          return cookieStore.get(name)?.value;
+          return store.get(name)?.value;
         },
         set(name: string, value: string, options: CookieOptions) {
           try {
-            if (typeof cookieStore.set === 'function') {
-              cookieStore.set(name, value, options);
+            if (typeof store.set === 'function') {
+              store.set(name, value, options);
             }
           } catch (error) {
             // Silently handle cookie errors - they're expected in some contexts
@@ -32,8 +35,8 @@ export async function createSupabaseServerClient() {
         },
         remove(name: string, _options: CookieOptions) {
           try {
-            if (typeof cookieStore.delete === 'function') {
-              cookieStore.delete(name);
+            if (typeof store.delete === 'function') {
+              store.delete(name);
             }
           } catch (error) {
             // Silently handle cookie errors - they're expected in some contexts

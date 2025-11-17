@@ -3,7 +3,7 @@
 import { Building2, CheckCircle2, Plus } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
@@ -40,9 +41,10 @@ export function BrandSelector() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { selectedBrandId, setSelectedBrandId } = useBrand();
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [selectedBrandId, setSelectedBrandId] = useState<string>('all');
   const [isLoading, setIsLoading] = useState(true);
+  const isUpdatingUrlRef = useRef(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [brandName, setBrandName] = useState('');
   const [isCreating, setIsCreating] = useState(false);
@@ -110,26 +112,82 @@ export function BrandSelector() {
     void fetchBrands();
   }, []);
 
+  // Sync URL params with context on mount (URL takes precedence for initial load)
   useEffect(() => {
-    // Get selected brand from URL params
     const brandParam = searchParams.get('brand');
-    const newBrandId = brandParam || 'all';
-    // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-    setSelectedBrandId(prev => prev !== newBrandId ? newBrandId : prev);
-  }, [searchParams]);
+    const pagesThatUseBrand = ['/dashboard', '/create-post', '/calendar', '/inbox'];
+    const shouldSyncURL = pagesThatUseBrand.some(page => pathname.includes(page));
 
-  const handleBrandChange = (brandId: string) => {
-    setSelectedBrandId(brandId);
-    const params = new URLSearchParams(searchParams.toString());
-    if (brandId === 'all') {
-      params.delete('brand');
-    } else {
-      params.set('brand', brandId);
+    if (brandParam && brandParam !== 'all') {
+      // URL has brand param (and it's not "all") - sync to context
+      if (selectedBrandId !== brandParam) {
+        setSelectedBrandId(brandParam);
+      }
+    } else if (brandParam === 'all') {
+      // URL explicitly has "all" - sync to null in context
+      if (selectedBrandId !== null) {
+        setSelectedBrandId(null);
+      }
+    } else if (shouldSyncURL && selectedBrandId !== null) {
+      // No brand param in URL but we have a selected brand in context - sync to URL
+      // This ensures URL always reflects the current selection
+      const params = new URLSearchParams(searchParams.toString());
+      params.set('brand', selectedBrandId);
+      const queryString = params.toString();
+      const url = queryString ? `${pathname}?${queryString}` : pathname;
+      router.replace(url, { scroll: false });
     }
-    const queryString = params.toString();
-    const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-    router.refresh();
+    // Note: If no brand param and selectedBrandId is null, that's "all brands" - don't add param to URL
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Only run on mount
+
+  // Only sync URL when user explicitly changes brand (not on every context change)
+  // This prevents unnecessary requests to pages the user isn't on
+  const handleBrandChange = (brandId: string) => {
+    // Prevent duplicate URL updates
+    if (isUpdatingUrlRef.current) {
+      return;
+    }
+
+    const normalizedBrandId = brandId === 'all' ? null : brandId;
+    setSelectedBrandId(normalizedBrandId);
+
+    // Only update URL if we're on a page that uses brand parameter
+    // Pages that use brand: dashboard, create-post, calendar, etc.
+    const pagesThatUseBrand = ['/dashboard', '/create-post', '/calendar', '/inbox'];
+    const shouldUpdateURL = pagesThatUseBrand.some(page => pathname.includes(page));
+
+    if (shouldUpdateURL) {
+      const params = new URLSearchParams(searchParams.toString());
+      const currentBrandParam = searchParams.get('brand');
+
+      // Only update URL if it actually changed
+      // This prevents unnecessary router.replace() calls that cause duplicate requests
+      // Compare: current param vs what the new param should be (null for "all", brandId otherwise)
+      const currentBrandValue = currentBrandParam === 'all' ? null : currentBrandParam;
+      const newBrandValue = brandId === 'all' ? null : brandId;
+
+      if (currentBrandValue !== newBrandValue) {
+        isUpdatingUrlRef.current = true;
+
+        // Remove brand param for "all brands", set it for specific brands
+        if (brandId === 'all') {
+          params.delete('brand');
+        } else {
+          params.set('brand', brandId);
+        }
+        const queryString = params.toString();
+        const url = queryString ? `${pathname}?${queryString}` : pathname;
+        // router.replace() automatically triggers a server component refresh in Next.js 16
+        // No need to call router.refresh() separately
+        router.replace(url, { scroll: false });
+        // Reset the flag after a short delay to allow navigation to complete
+        setTimeout(() => {
+          isUpdatingUrlRef.current = false;
+        }, 200);
+      }
+    }
+    // DashboardWrapper will handle URL sync for dashboard page
   };
 
   const handleCreateBrand = async () => {
@@ -228,6 +286,8 @@ export function BrandSelector() {
       // Refresh brands list
       await fetchBrands();
       // Select the newly created brand
+      const normalizedBrandId = data.id === 'all' ? null : data.id;
+      setSelectedBrandId(normalizedBrandId);
       handleBrandChange(data.id);
       // Close modal and reset form
       setIsModalOpen(false);
@@ -242,8 +302,9 @@ export function BrandSelector() {
     }
   };
 
+  const displayBrandId = selectedBrandId || 'all';
   const selectedBrand = brands.find(b => b.id === selectedBrandId);
-  const displayValue = selectedBrandId === 'all'
+  const displayValue = selectedBrandId === null || selectedBrandId === 'all'
     ? t('brand_selector_all')
     : selectedBrand?.name || t('brand_selector_placeholder');
 
@@ -260,7 +321,7 @@ export function BrandSelector() {
     <>
       <div className="mt-2 space-y-2">
         {/* Brand Dropdown */}
-        <Select value={selectedBrandId} onValueChange={handleBrandChange}>
+        <Select value={displayBrandId} onValueChange={handleBrandChange}>
           <SelectTrigger id="brand" className="w-full">
             <div className="flex min-w-0 flex-1 items-center gap-2">
               <Building2 className="h-4 w-4 shrink-0 text-gray-500" />

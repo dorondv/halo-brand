@@ -28,6 +28,7 @@ import {
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/toast';
+import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
@@ -164,9 +165,12 @@ export default function ConnectionsPage() {
   const isRTL = locale === 'he';
   const searchParams = useSearchParams();
   const { showToast } = useToast();
+  const { selectedBrandId, setSelectedBrandId } = useBrand();
   const [brands, setBrands] = useState<Brand[]>([]);
-  const [selectedBrand, setSelectedBrand] = useState<Brand | null>(null);
   const [accounts, setAccounts] = useState<SocialAccount[]>([]);
+
+  // Get the selected brand object from brands array
+  const selectedBrand = selectedBrandId ? brands.find(b => b.id === selectedBrandId) || null : null;
   const [isLoading, setIsLoading] = useState(true);
   const [isCreatingBrand, setIsCreatingBrand] = useState(false);
   const [newBrandName, setNewBrandName] = useState('');
@@ -236,19 +240,18 @@ export default function ConnectionsPage() {
           getlate_profile_id: brand.getlate_profile_id || undefined,
         }));
         setBrands(brandsData);
-        if (brandsData.length > 0 && !selectedBrand && brandsData[0]) {
-          setSelectedBrand(brandsData[0]);
-        }
+        // Don't auto-select - let context handle brand selection
+        // If no brand is selected in context and we have brands, context will handle it
       }
     } catch (error) {
       console.error('Error loading brands:', error);
       setBrands([]);
     }
     setIsLoading(false);
-  }, [selectedBrand]);
+  }, []);
 
   const loadAccountsFromDB = useCallback(async (skipSync = false, forceSync = false) => {
-    if (!selectedBrand) {
+    if (!selectedBrandId) {
       setAccounts([]);
       return;
     }
@@ -277,7 +280,7 @@ export default function ConnectionsPage() {
         .from('social_accounts')
         .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id')
         .eq('user_id', userId)
-        .eq('brand_id', selectedBrand.id)
+        .eq('brand_id', selectedBrandId)
         .eq('is_active', true)
         .order('platform', { ascending: true });
 
@@ -308,9 +311,9 @@ export default function ConnectionsPage() {
 
       // Only sync from Getlate if explicitly requested (e.g., after OAuth connection)
       // This prevents automatic polling/interval fetching
-      if (forceSync && !skipSync && selectedBrand.getlate_profile_id) {
+      if (forceSync && !skipSync && selectedBrand?.getlate_profile_id) {
         // Don't await - let it run in background
-        fetch(`/api/getlate/accounts?brandId=${selectedBrand.id}`)
+        fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`)
           .then(async (response) => {
             if (response.ok) {
               // Small delay to ensure database write is complete
@@ -326,7 +329,7 @@ export default function ConnectionsPage() {
     } catch {
       setAccounts([]);
     }
-  }, [selectedBrand]);
+  }, [selectedBrandId]);
 
   useEffect(() => {
     // Load brands on mount - using setTimeout to avoid cascading renders warning
@@ -341,14 +344,14 @@ export default function ConnectionsPage() {
 
   useEffect(() => {
     // Load accounts when selected brand changes - only when brand actually changes
-    if (selectedBrand) {
+    if (selectedBrandId) {
       void loadAccountsFromDB(false, false); // Don't auto-sync, only load from DB
     } else {
       // Use a function to update state to avoid direct setState in useEffect
       setAccounts(() => []);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrand?.id]); // Only depend on brand ID, not the entire object or loadAccounts
+  }, [selectedBrandId]); // Depend on brand ID from context
 
   // Handle OAuth callback - check for success, cancellation, or error messages
   // Use a ref to track processed callbacks and prevent duplicate toasts
@@ -408,23 +411,20 @@ export default function ConnectionsPage() {
       // The callback route already synced accounts, so we need to reload from DB
       const brandIdFromUrl = searchParams.get('brandId');
 
-      // If brandId is in URL, make sure that brand is selected
+      // If brandId is in URL, sync it to context
       if (brandIdFromUrl && brands.length > 0) {
         const brandToSelect = brands.find(b => b.id === brandIdFromUrl);
-        if (brandToSelect && (!selectedBrand || selectedBrand.id !== brandIdFromUrl)) {
-          // Use a function to update state to avoid direct setState in useEffect
-          setSelectedBrand(() => brandToSelect);
+        if (brandToSelect && selectedBrandId !== brandIdFromUrl) {
+          setSelectedBrandId(brandIdFromUrl);
         }
       }
 
       // Wait a bit for database commit, then reload accounts
       // Use a longer delay to ensure sync completed on server
       const reloadTimeout = setTimeout(() => {
-        const currentBrand = brandIdFromUrl && brands.length > 0
-          ? brands.find(b => b.id === brandIdFromUrl)
-          : selectedBrand;
+        const currentBrandId = brandIdFromUrl || selectedBrandId;
 
-        if (currentBrand) {
+        if (currentBrandId) {
           // Clear accounts first to force a fresh load
           // Use a function to update state to avoid direct setState in useEffect
           setAccounts(() => []);
@@ -437,11 +437,9 @@ export default function ConnectionsPage() {
       let retryTimeout: NodeJS.Timeout | undefined;
       if (!synced) {
         retryTimeout = setTimeout(() => {
-          const currentBrand = brandIdFromUrl && brands.length > 0
-            ? brands.find(b => b.id === brandIdFromUrl)
-            : selectedBrand;
+          const currentBrandId = brandIdFromUrl || selectedBrandId;
 
-          if (currentBrand) {
+          if (currentBrandId) {
             // Retry sync from Getlate
             void loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
           }
@@ -462,7 +460,7 @@ export default function ConnectionsPage() {
         processedCallbackRef.current.delete(callbackKey);
       }, 2000);
       // Reload accounts even on error to ensure UI is up to date
-      if (selectedBrand) {
+      if (selectedBrandId) {
         void loadAccountsFromDB(false, false);
       }
       return () => {
@@ -471,7 +469,7 @@ export default function ConnectionsPage() {
     }
 
     return undefined;
-  }, [searchParams, selectedBrand, brands, loadAccountsFromDB, showToast, t]);
+  }, [searchParams, selectedBrandId, brands, loadAccountsFromDB, showToast, t, setSelectedBrandId]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
@@ -571,7 +569,7 @@ export default function ConnectionsPage() {
       };
 
       setBrands(prev => [...prev, newBrand]);
-      setSelectedBrand(newBrand);
+      setSelectedBrandId(newBrand.id);
       setNewBrandName('');
       setBrandLogoFile(null);
       setIsCreatingBrand(false);
@@ -587,7 +585,7 @@ export default function ConnectionsPage() {
   };
 
   const handleOAuthConnect = async (platform: Platform) => {
-    if (!selectedBrand) {
+    if (!selectedBrandId || !selectedBrand) {
       return;
     }
 
@@ -634,7 +632,7 @@ export default function ConnectionsPage() {
       let { data: brandData, error: brandError } = await supabase
         .from('brands')
         .select('id, getlate_profile_id, name, user_id')
-        .eq('id', selectedBrand.id)
+        .eq('id', selectedBrandId)
         .eq('user_id', userId)
         .maybeSingle();
 
@@ -644,7 +642,7 @@ export default function ConnectionsPage() {
         const { data: brandDataWithoutGetlate, error: brandErrorWithoutGetlate } = await supabase
           .from('brands')
           .select('id, name, user_id')
-          .eq('id', selectedBrand.id)
+          .eq('id', selectedBrandId)
           .eq('user_id', userId)
           .maybeSingle();
 
@@ -656,7 +654,7 @@ export default function ConnectionsPage() {
 
         if (!brandDataWithoutGetlate) {
           console.error('Brand not found or does not belong to current user', {
-            brandId: selectedBrand.id,
+            brandId: selectedBrandId,
             userId,
           });
           setIsConnectingOAuth(null);
@@ -675,7 +673,7 @@ export default function ConnectionsPage() {
 
       if (!brandData) {
         console.error('Brand not found or does not belong to current user', {
-          brandId: selectedBrand.id,
+          brandId: selectedBrandId,
           userId,
         });
         setIsConnectingOAuth(null);
@@ -691,8 +689,8 @@ export default function ConnectionsPage() {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: brandData.name || selectedBrand.name,
-            brandId: selectedBrand.id,
+            name: brandData.name || selectedBrand?.name || '',
+            brandId: selectedBrandId,
           }),
         });
 
@@ -730,7 +728,7 @@ export default function ConnectionsPage() {
           const { data: updatedBrand, error: reloadError } = await supabase
             .from('brands')
             .select('id, getlate_profile_id')
-            .eq('id', selectedBrand.id)
+            .eq('id', selectedBrandId)
             .maybeSingle(); // Use maybeSingle to avoid throwing if not found
 
           if (!reloadError && updatedBrand?.getlate_profile_id) {
@@ -741,7 +739,7 @@ export default function ConnectionsPage() {
         if (!profileIdToUse) {
           console.error('Failed to get Getlate profile ID after creation', {
             responseData,
-            brandId: selectedBrand.id,
+            brandId: selectedBrandId,
           });
           setIsConnectingOAuth(null);
           return;
@@ -758,8 +756,8 @@ export default function ConnectionsPage() {
         },
         body: JSON.stringify({
           platform: platform === 'x' ? 'twitter' : platform,
-          brandId: selectedBrand.id,
-          redirectUrl: `${window.location.origin}/api/getlate/callback?brandId=${selectedBrand.id}`,
+          brandId: selectedBrandId,
+          redirectUrl: `${window.location.origin}/api/getlate/callback?brandId=${selectedBrandId}`,
         }),
       });
 
@@ -952,12 +950,12 @@ export default function ConnectionsPage() {
       setBrands(prev => prev.filter(b => b.id !== brandToDelete.id));
 
       // If deleted brand was selected, select another one or clear selection
-      if (selectedBrand?.id === brandToDelete.id) {
+      if (selectedBrandId === brandToDelete.id) {
         const remainingBrands = brands.filter(b => b.id !== brandToDelete.id);
         if (remainingBrands.length > 0 && remainingBrands[0]) {
-          setSelectedBrand(remainingBrands[0]);
+          setSelectedBrandId(remainingBrands[0].id);
         } else {
-          setSelectedBrand(null);
+          setSelectedBrandId(null);
         }
       }
 
@@ -1115,17 +1113,17 @@ export default function ConnectionsPage() {
                             key={brand.id}
                             dir={isRTL ? 'rtl' : 'ltr'}
                             className={`relative rounded-lg border-2 p-4 transition-all duration-300 ${
-                              selectedBrand?.id === brand.id
+                              selectedBrandId === brand.id
                                 ? 'border-pink-500 bg-pink-50'
                                 : 'border-gray-200 bg-white/50 hover:border-pink-300'
                             }`}
                           >
                             <div
-                              onClick={() => setSelectedBrand(brand)}
+                              onClick={() => setSelectedBrandId(brand.id)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
                                   e.preventDefault();
-                                  setSelectedBrand(brand);
+                                  setSelectedBrandId(brand.id);
                                 }
                               }}
                               role="button"
@@ -1182,7 +1180,7 @@ export default function ConnectionsPage() {
               <CardTitle className={isRTL ? 'text-right' : 'text-left'}>
                 {t('connected_accounts_for')}
                 {' '}
-                <span className="text-pink-600">{selectedBrand.name}</span>
+                <span className="text-pink-600">{selectedBrand?.name || ''}</span>
               </CardTitle>
               <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
                 {t('connect_accounts_description')}
@@ -1210,7 +1208,7 @@ export default function ConnectionsPage() {
                       const platformMatch = accPlatform === searchPlatform
                         || accPlatform === searchNormalized
                         || isTwitterMatch;
-                      const brandMatch = acc.brand_id === selectedBrand.id;
+                      const brandMatch = acc.brand_id === selectedBrandId;
 
                       return platformMatch && brandMatch;
                     },

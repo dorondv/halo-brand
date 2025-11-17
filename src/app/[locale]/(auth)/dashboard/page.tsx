@@ -7,6 +7,7 @@ import {
   Users,
 } from 'lucide-react';
 import { getLocale, getTranslations } from 'next-intl/server';
+import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
 import DemographicsCharts from '@/components/dashboard/DemographicsCharts';
@@ -26,6 +27,7 @@ import {
 } from '@/libs/dashboard-cache';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
+import { DashboardWrapper } from './DashboardWrapper';
 import { MetricCardsClient } from './MetricCardsClient';
 
 export const metadata: Metadata = {
@@ -51,14 +53,38 @@ export const dynamic = 'force-dynamic';
 export default async function Dashboard({ searchParams }: DashboardProps) {
   const params = await searchParams;
   const selectedPlatform = params.platform || null;
-  const selectedBrandId = params.brand || null;
+
+  // In Next.js 16, cookies() can only be called once per request
+  // We need to share the cookie store between brand reading and Supabase client
+  // Read brand from URL first, fallback to cookie (for initial load before URL sync)
+  // Note: "all brands" is represented as null (no brand parameter in URL, no cookie)
+  let selectedBrandId: string | null = null;
+
+  // Get cookie store once (must be shared with createSupabaseServerClient)
+  const cookieStore = await cookies();
+
+  // Read brand from URL - URL is the source of truth
+  // If brand param exists, use it (never "all" since we remove it from URL)
+  // If brand param is missing, it means "all brands" was selected (or initial load)
+  // For initial load, fall back to cookie; otherwise use null (all brands)
+  if (params.brand && params.brand !== 'all') {
+    // Brand param exists in URL - use it
+    selectedBrandId = params.brand;
+  } else {
+    // No brand param in URL - means "all brands" was selected
+    // On brand-aware pages like dashboard, missing brand param = "all brands"
+    // This works because BrandSelector removes the param when "all" is selected
+    selectedBrandId = null;
+  }
+
   const selectedMetric = params.metric || 'followers';
   const dateRange = params.range || 'last7';
   const granularity = params.granularity || 'day';
   const customFrom = params.from;
   const customTo = params.to;
 
-  const supabase = await createSupabaseServerClient();
+  // Create Supabase client with shared cookie store (Next.js 16 best practice)
+  const supabase = await createSupabaseServerClient(cookieStore);
   const t = await getTranslations('DashboardPage');
   const locale = await getLocale();
   const isRTL = locale === 'he';
@@ -1214,149 +1240,151 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // If no posts, postsTableData remains undefined and component shows empty state
 
   return (
-    <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
-      <div className="w-full space-y-8 p-6">
-        {/* Header */}
-        <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+    <DashboardWrapper>
+      <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+        <div className="w-full space-y-8 p-6">
+          {/* Header */}
+          <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <DateRangePicker />
+            </div>
           </div>
-          <div className="flex flex-wrap items-center gap-4">
-            <DateRangePicker />
-          </div>
+
+          {/* Row 1: KPI Cards */}
+          <MetricCardsClient
+            followers={formatted(finalTotalFollowers)}
+            impressions={formatted(finalTotalImpressions)}
+            engagement={formatted(finalTotalEngagement)}
+            posts={formatted(finalTotalPosts)}
+            followersChange={finalFollowersChange}
+            impressionsChange={finalImpressionsChange}
+            engagementChange={finalEngagementChange}
+            postsChange={finalPostsChange}
+            vsLabel={t('vs_last_month')}
+          />
+
+          {/* Row 2: Platform Cards */}
+          <PlatformCards
+            platformData={platformData}
+            platformDataWithAllMetrics={platformDataWithAllMetrics}
+            allPlatformMetrics={allPlatformMetrics}
+            selectedPlatform={selectedPlatform}
+            selectedMetric={selectedMetric}
+            isRTL={isRTL}
+          />
+
+          {/* Row 3: Engagement, Impressions, Follower Trend Charts */}
+          {/* Order for LTR: Engagement, Impressions, Followers Trend */}
+          {/* Order for RTL: Followers Trend, Impressions, Engagement (reversed) */}
+          {(() => {
+            const chartCards1 = [
+              <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <Heart className="h-5 w-5 text-pink-600" />
+                    {t('chart_engagement')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EngagementAreaChart data={engagementSeries} />
+                </CardContent>
+              </Card>,
+              <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <Eye className="h-5 w-5 text-pink-600" />
+                    {t('chart_impressions')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <ImpressionsAreaChart data={impressionsSeriesData} />
+                </CardContent>
+              </Card>,
+              <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <Users className="h-5 w-5 text-pink-600" />
+                    {t('chart_followers_trend')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <FollowersTrendChart data={followerTrendSeries} />
+                </CardContent>
+              </Card>,
+            ];
+            return (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {isRTL ? [...chartCards1].reverse() : chartCards1}
+              </div>
+            );
+          })()}
+
+          {/* Row 4: Net Follower Growth, Posts by Platform, Engagement Rate */}
+          {/* Order for LTR: Net Follower Growth, Posts by Platform, Engagement Rate */}
+          {/* Order for RTL: Engagement Rate, Posts by Platform, Net Follower Growth (reversed) */}
+          {(() => {
+            const chartCards2 = [
+              <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <Users className="h-5 w-5 text-pink-600" />
+                    {t('chart_net_follower_growth')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <NetFollowerGrowthChart data={netGrowthSeries} />
+                </CardContent>
+              </Card>,
+              <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <FileText className="h-5 w-5 text-pink-600" />
+                    {t('chart_posts_by_platform')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <PostsByPlatformChart data={filteredPostsByPlatform} />
+                </CardContent>
+              </Card>,
+              <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+                    <Heart className="h-5 w-5 text-pink-600" />
+                    {t('chart_engagement_rate')}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <EngagementRateChart data={engagementRateSeries} />
+                </CardContent>
+              </Card>,
+            ];
+            return (
+              <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+                {isRTL ? [...chartCards2].reverse() : chartCards2}
+              </div>
+            );
+          })()}
+
+          {/* Row 5: Demographics Charts */}
+          {/* Order for LTR: Countries, Gender, Age */}
+          {/* Order for RTL: Age, Gender, Countries (reversed) */}
+          <DemographicsCharts
+            countries={countriesData}
+            genders={gendersData}
+            ages={agesData}
+            countriesTitle={t('chart_countries_mix')}
+            genderTitle={t('chart_gender_mix')}
+            ageTitle={t('chart_age_mix')}
+            isRTL={isRTL}
+          />
+
+          {/* Row 6: Posts Table */}
+          <PostsTable posts={postsTableData} />
         </div>
-
-        {/* Row 1: KPI Cards */}
-        <MetricCardsClient
-          followers={formatted(finalTotalFollowers)}
-          impressions={formatted(finalTotalImpressions)}
-          engagement={formatted(finalTotalEngagement)}
-          posts={formatted(finalTotalPosts)}
-          followersChange={finalFollowersChange}
-          impressionsChange={finalImpressionsChange}
-          engagementChange={finalEngagementChange}
-          postsChange={finalPostsChange}
-          vsLabel={t('vs_last_month')}
-        />
-
-        {/* Row 2: Platform Cards */}
-        <PlatformCards
-          platformData={platformData}
-          platformDataWithAllMetrics={platformDataWithAllMetrics}
-          allPlatformMetrics={allPlatformMetrics}
-          selectedPlatform={selectedPlatform}
-          selectedMetric={selectedMetric}
-          isRTL={isRTL}
-        />
-
-        {/* Row 3: Engagement, Impressions, Follower Trend Charts */}
-        {/* Order for LTR: Engagement, Impressions, Followers Trend */}
-        {/* Order for RTL: Followers Trend, Impressions, Engagement (reversed) */}
-        {(() => {
-          const chartCards1 = [
-            <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-pink-600" />
-                  {t('chart_engagement')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EngagementAreaChart data={engagementSeries} />
-              </CardContent>
-            </Card>,
-            <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Eye className="h-5 w-5 text-pink-600" />
-                  {t('chart_impressions')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <ImpressionsAreaChart data={impressionsSeriesData} />
-              </CardContent>
-            </Card>,
-            <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-pink-600" />
-                  {t('chart_followers_trend')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <FollowersTrendChart data={followerTrendSeries} />
-              </CardContent>
-            </Card>,
-          ];
-          return (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {isRTL ? [...chartCards1].reverse() : chartCards1}
-            </div>
-          );
-        })()}
-
-        {/* Row 4: Net Follower Growth, Posts by Platform, Engagement Rate */}
-        {/* Order for LTR: Net Follower Growth, Posts by Platform, Engagement Rate */}
-        {/* Order for RTL: Engagement Rate, Posts by Platform, Net Follower Growth (reversed) */}
-        {(() => {
-          const chartCards2 = [
-            <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Users className="h-5 w-5 text-pink-600" />
-                  {t('chart_net_follower_growth')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <NetFollowerGrowthChart data={netGrowthSeries} />
-              </CardContent>
-            </Card>,
-            <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <FileText className="h-5 w-5 text-pink-600" />
-                  {t('chart_posts_by_platform')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <PostsByPlatformChart data={filteredPostsByPlatform} />
-              </CardContent>
-            </Card>,
-            <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                  <Heart className="h-5 w-5 text-pink-600" />
-                  {t('chart_engagement_rate')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <EngagementRateChart data={engagementRateSeries} />
-              </CardContent>
-            </Card>,
-          ];
-          return (
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              {isRTL ? [...chartCards2].reverse() : chartCards2}
-            </div>
-          );
-        })()}
-
-        {/* Row 5: Demographics Charts */}
-        {/* Order for LTR: Countries, Gender, Age */}
-        {/* Order for RTL: Age, Gender, Countries (reversed) */}
-        <DemographicsCharts
-          countries={countriesData}
-          genders={gendersData}
-          ages={agesData}
-          countriesTitle={t('chart_countries_mix')}
-          genderTitle={t('chart_gender_mix')}
-          ageTitle={t('chart_age_mix')}
-          isRTL={isRTL}
-        />
-
-        {/* Row 6: Posts Table */}
-        <PostsTable posts={postsTableData} />
       </div>
-    </div>
+    </DashboardWrapper>
   );
 }

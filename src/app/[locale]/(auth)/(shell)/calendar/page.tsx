@@ -29,6 +29,7 @@ import { useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 
 // Force dynamic rendering - this page requires authentication
@@ -151,6 +152,7 @@ export default function CalendarPage() {
   const t = useTranslations('Calendar');
   const locale = useLocale();
   const isRTL = locale === 'he';
+  const { selectedBrandId } = useBrand();
   const [currentDate, setCurrentDate] = useState(() => startOfMonth(new Date()));
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
@@ -175,8 +177,9 @@ export default function CalendarPage() {
         nextWeekEnd.setDate(nextWeekEnd.getDate() + 7); // Include next week
 
         // Fetch scheduled posts from database
+        const brandParam = selectedBrandId ? `&brandId=${selectedBrandId}` : '';
         const response = await fetch(
-          `/api/scheduled-posts?start=${monthStart.toISOString()}&end=${nextWeekEnd.toISOString()}`,
+          `/api/scheduled-posts?start=${monthStart.toISOString()}&end=${nextWeekEnd.toISOString()}${brandParam}`,
         );
 
         if (!response.ok) {
@@ -219,7 +222,7 @@ export default function CalendarPage() {
     return () => {
       isMounted = false;
     };
-  }, [currentDate]);
+  }, [currentDate, selectedBrandId]);
 
   const toggleCategory = (categoryType: string) => {
     setSelectedCategories(prev =>
