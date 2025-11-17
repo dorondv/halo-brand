@@ -8,6 +8,7 @@ import Image from 'next/image';
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/libs/cn';
 import { utcToLocal } from '@/libs/timezone';
 
 type PostRow = {
@@ -435,7 +436,10 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                   variant={currentPage === page ? 'default' : 'outline'}
                   size="sm"
                   onClick={() => handlePageClick(page)}
-                  className="h-8 w-8 p-0"
+                  className={cn(
+                    'h-8 w-8 p-0',
+                    currentPage === page && 'bg-pink-600 text-white hover:bg-pink-700 border-pink-600',
+                  )}
                 >
                   {page}
                 </Button>
