@@ -420,6 +420,19 @@ export async function syncAnalyticsFromGetlate(
         const views = platformAnalytics.views ?? null;
         const engagementRate = platformAnalytics.engagementRate ?? null;
 
+        // Extract platformPostUrl from the platform data in platforms array
+        // Getlate stores platformPostUrl in platforms[].platformPostUrl
+        let platformPostUrlFromPlatform = null;
+        if (post.platforms && Array.isArray(post.platforms)) {
+          const platformData = post.platforms.find((p: any) => {
+            const pPlatform = typeof p === 'object' ? p.platform : p;
+            return pPlatform === platform;
+          });
+          if (platformData && typeof platformData === 'object' && platformData.platformPostUrl) {
+            platformPostUrlFromPlatform = platformData.platformPostUrl;
+          }
+        }
+
         // Calculate engagement rate if not provided
         const calculatedEngagementRate = engagementRate !== null
           ? engagementRate
@@ -433,7 +446,7 @@ export async function syncAnalyticsFromGetlate(
         const normalizedDate = publishedDate.toISOString();
         const { data: existingAnalytics } = await supabase
           .from('post_analytics')
-          .select('id')
+          .select('id, metadata')
           .eq('post_id', foundPost.id)
           .eq('getlate_post_id', getlatePostId)
           .eq('platform', platform)
@@ -449,6 +462,38 @@ export async function syncAnalyticsFromGetlate(
           ? platformStatus.status
           : null;
 
+        // Get existing metadata to preserve platformPostUrl if it exists
+        const existingMetadata = (existingAnalytics?.metadata as Record<string, any>) || {};
+
+        // Build metadata object, preserving existing platformPostUrl if new one is not available
+        // Start with existing metadata as base, then merge new data, then explicitly set critical fields
+        const metadata = {
+          // Start with existing metadata (preserves all existing fields)
+          ...existingMetadata,
+          // Merge in new metadata from Getlate (overwrites existing with new values)
+          ...(post.metadata || {}),
+          // Core analytics metrics (always update with latest)
+          reach,
+          clicks,
+          views,
+          lastUpdated: platformAnalytics.lastUpdated,
+          // Post metadata - preserve existing values if new ones are not available
+          profileId: post.profileId || existingMetadata.profileId || null,
+          // CRITICAL: Preserve platformPostUrl if it exists, only update if new one is provided
+          // Priority: platformPostUrl from platforms array > post.platformPostUrl > existing > null
+          platformPostUrl: platformPostUrlFromPlatform ?? post.platformPostUrl ?? existingMetadata.platformPostUrl ?? null,
+          isExternal: post.isExternal !== undefined ? post.isExternal : (existingMetadata.isExternal !== undefined ? existingMetadata.isExternal : false),
+          thumbnailUrl: post.thumbnailUrl || existingMetadata.thumbnailUrl || null,
+          mediaType: post.mediaType || existingMetadata.mediaType || null,
+          // Platform-specific data
+          platformStatus: platformStatusValue || existingMetadata.platformStatus || null,
+          // Dates - preserve existing if new ones are not available
+          publishedAt: post.publishedAt || existingMetadata.publishedAt || null,
+          scheduledFor: post.scheduledFor || existingMetadata.scheduledFor || null,
+          // Media data - preserve existing if new ones are not available
+          mediaItems: post.mediaItems || existingMetadata.mediaItems || null,
+        };
+
         const analyticsData = {
           post_id: foundPost.id,
           getlate_post_id: getlatePostId,
@@ -459,28 +504,7 @@ export async function syncAnalyticsFromGetlate(
           impressions,
           engagement_rate: calculatedEngagementRate !== null ? calculatedEngagementRate.toString() : null,
           date: publishedDate.toISOString(), // Store as timestamp (normalized to midnight UTC)
-          metadata: {
-            // Core analytics metrics
-            reach,
-            clicks,
-            views,
-            lastUpdated: platformAnalytics.lastUpdated,
-            // Post metadata
-            profileId: post.profileId,
-            platformPostUrl: post.platformPostUrl,
-            isExternal: post.isExternal,
-            thumbnailUrl: post.thumbnailUrl,
-            mediaType: post.mediaType,
-            // Platform-specific data
-            platformStatus: platformStatusValue,
-            // Dates
-            publishedAt: post.publishedAt || null,
-            scheduledFor: post.scheduledFor || null,
-            // Media data
-            mediaItems: post.mediaItems || null,
-            // Additional metadata from Getlate
-            ...(post.metadata || {}),
-          },
+          metadata,
         };
 
         try {

@@ -1163,11 +1163,19 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     // Create a map of post_id -> latest analytics for quick lookup
     type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any; platform?: string | null };
     const latestAnalyticsByPost = new Map<string, AnalyticsEntry>();
+    // Also create a map of post_id -> all analytics entries to search for platformPostUrl
+    const allAnalyticsByPost = new Map<string, AnalyticsEntry[]>();
     for (const analytics of finalFilteredAnalytics) {
+      // Track latest entry
       const existing = latestAnalyticsByPost.get(analytics.post_id);
       if (!existing || (analytics.date && existing.date && new Date(analytics.date) > new Date(existing.date))) {
         latestAnalyticsByPost.set(analytics.post_id, analytics);
       }
+      // Track all entries
+      if (!allAnalyticsByPost.has(analytics.post_id)) {
+        allAnalyticsByPost.set(analytics.post_id, []);
+      }
+      allAnalyticsByPost.get(analytics.post_id)!.push(analytics);
     }
 
     postsTableData = finalFilteredPosts.slice(0, 10).map((p) => {
@@ -1223,6 +1231,46 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const mediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
       const imageUrl = (p as any)?.image_url;
 
+      // Extract platformPostUrl from multiple sources (priority order):
+      // 1. Analytics metadata (from Getlate sync)
+      // 2. Post platforms array (direct from Getlate API response stored in post.platforms)
+      let platformPostUrl: string | null = null;
+
+      // Priority 1: Search through all analytics entries for this post
+      const allPostAnalytics = allAnalyticsByPost.get(p.id) || [];
+      for (const analyticsEntry of allPostAnalytics) {
+        const analyticsMetadata = analyticsEntry?.metadata as any;
+        if (analyticsMetadata?.platformPostUrl) {
+          platformPostUrl = analyticsMetadata.platformPostUrl;
+          break; // Found it, no need to continue searching
+        }
+      }
+
+      // Priority 2: If not found in analytics, check post's platforms array
+      // This is where Getlate stores platformPostUrl in the original API response
+      if (!platformPostUrl) {
+        const postPlatforms = (p as any)?.platforms;
+        if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+          // Find the platform that matches the current platform
+          for (const platformData of postPlatforms) {
+            // Handle both object and string formats
+            const platformObj = typeof platformData === 'object' ? platformData : null;
+            if (platformObj?.platformPostUrl) {
+              platformPostUrl = platformObj.platformPostUrl;
+              break; // Found it
+            }
+          }
+          // If still not found, try the first platform's platformPostUrl regardless of match
+          if (!platformPostUrl) {
+            const firstPlatform = postPlatforms[0];
+            const firstPlatformObj = typeof firstPlatform === 'object' ? firstPlatform : null;
+            if (firstPlatformObj?.platformPostUrl) {
+              platformPostUrl = firstPlatformObj.platformPostUrl;
+            }
+          }
+        }
+      }
+
       return {
         id: p.id, // Include post ID for unique key generation
         score,
@@ -1234,6 +1282,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         platform,
         mediaUrls: mediaUrls.length > 0 ? mediaUrls : (imageUrl ? [imageUrl] : []),
         imageUrl,
+        platformPostUrl, // Add platform post URL for linking
       };
     });
   }

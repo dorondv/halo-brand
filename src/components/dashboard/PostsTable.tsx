@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, FileText, Play } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FileText, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import React from 'react';
@@ -21,6 +21,7 @@ type PostRow = {
   platform: string;
   mediaUrls?: string[];
   imageUrl?: string;
+  platformPostUrl?: string | null; // URL to the post on the platform
 };
 
 type PostsTableProps = {
@@ -245,13 +246,16 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                     )}
                   </div>
                 </th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                  {t('posts_table_link') || 'Link'}
+                </th>
               </tr>
             </thead>
             <tbody>
               {paginatedPosts.length === 0
                 ? (
                     <tr>
-                      <td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500">
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
                         {t('posts_table_no_posts')}
                       </td>
                     </tr>
@@ -340,6 +344,25 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                           <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
                             {post.score}
                           </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          {post.platformPostUrl
+                            ? (
+                                <a
+                                  href={post.platformPostUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center text-pink-600 transition-colors hover:text-pink-700"
+                                  title={t('posts_table_open_link') || 'Open post on platform'}
+                                >
+                                  <ExternalLink className="h-5 w-5" />
+                                </a>
+                              )
+                            : (
+                                <span className="text-gray-400">
+                                  <ExternalLink className="h-5 w-5" />
+                                </span>
+                              )}
                         </td>
                       </tr>
                     );
