@@ -30,83 +30,190 @@ export async function GET(request: NextRequest) {
   });
   const parsed = QuerySchema.parse({ start, end, brandId });
 
-  // Build query for scheduled posts from database
-  // Include both pending scheduled posts and published posts
-  let query = supabase
-    .from('scheduled_posts')
-    .select(`
-      id,
-      post_id,
-      scheduled_for,
-      published_at,
-      timezone,
-      status,
-      posts (
-        id,
-        content,
-        image_url,
-        platforms,
-        brand_id
-      )
-    `)
-    .in('status', ['pending', 'completed', 'published']);
+  // First, get user's posts filtered by brand (if provided)
+  // This ensures we only get scheduled posts for the correct brand
+  let postsQuery = supabase
+    .from('posts')
+    .select('id, brand_id')
+    .eq('user_id', user.id);
 
   // Filter by brand if provided
   if (parsed.brandId) {
-    query = query.eq('posts.brand_id', parsed.brandId);
+    postsQuery = postsQuery.eq('brand_id', parsed.brandId);
   }
 
-  // Also filter by user's posts
-  const { data: userPosts } = await supabase
-    .from('posts')
-    .select('id')
-    .eq('user_id', user.id);
+  const { data: userPosts, error: postsError } = await postsQuery;
+
+  if (postsError) {
+    console.error('Error fetching user posts:', postsError);
+  }
 
   let dbPosts: any[] = [];
   if (userPosts && userPosts.length > 0) {
     const postIds = userPosts.map(p => p.id);
-    query = query.in('post_id', postIds);
 
-    const { data, error } = await query;
+    // Get full post details with brand info
+    const { data: postsWithDetails, error: postsDetailsError } = await supabase
+      .from('posts')
+      .select(`
+        id,
+        content,
+        image_url,
+        platforms,
+        brand_id,
+        created_at,
+        status,
+        brands (
+          id,
+          name,
+          logo_url
+        )
+      `)
+      .in('id', postIds);
 
-    if (error) {
-      console.error('Error fetching scheduled posts:', error);
-    } else {
-      // Filter by date range in memory (check both scheduled_for and published_at)
-      const filteredData = (data || []).filter((item: any) => {
-        const displayDate = item.published_at || item.scheduled_for;
-        if (!displayDate) {
-          return false;
-        }
+    if (postsDetailsError) {
+      console.error('Error fetching post details:', postsDetailsError);
+    }
 
-        const date = new Date(displayDate);
-        const startDate = parsed.start ? new Date(parsed.start) : null;
-        const endDate = parsed.end ? new Date(parsed.end) : null;
+    // Now get scheduled posts for these filtered posts
+    // Include both pending scheduled posts and published posts
+    const { data: scheduledPostsData, error: scheduledError } = await supabase
+      .from('scheduled_posts')
+      .select(`
+        id,
+        post_id,
+        scheduled_for,
+        published_at,
+        timezone,
+        status
+      `)
+      .in('post_id', postIds)
+      .in('status', ['pending', 'completed', 'published']);
 
+    if (scheduledError) {
+      console.error('Error fetching scheduled posts:', scheduledError);
+    }
+
+    // Create a map of post_id -> scheduled_post data
+    const scheduledPostsMap = new Map<string, any>();
+    (scheduledPostsData || []).forEach((sp: any) => {
+      scheduledPostsMap.set(sp.post_id, sp);
+    });
+
+    // Create a map of post_id -> post details
+    const postsMap = new Map<string, any>();
+    (postsWithDetails || []).forEach((p: any) => {
+      postsMap.set(p.id, p);
+    });
+
+    // Combine posts with their scheduled_post data
+    // Include posts that have scheduled_posts entries OR posts that should appear on calendar
+    const allCombinedPosts: any[] = [];
+
+    for (const postId of postIds) {
+      const postDetails = postsMap.get(postId);
+      const scheduledPost = scheduledPostsMap.get(postId);
+
+      if (!postDetails) {
+        continue;
+      }
+
+      // Use scheduled_post data if available, otherwise use post created_at
+      const displayDate = scheduledPost?.published_at
+        || scheduledPost?.scheduled_for
+        || postDetails.created_at;
+
+      if (!displayDate) {
+        continue;
+      }
+
+      const date = new Date(displayDate);
+      const startDate = parsed.start ? new Date(parsed.start) : null;
+      const endDate = parsed.end ? new Date(parsed.end) : null;
+
+      // Check date range
+      // If post has scheduled_post entry, enforce date range strictly
+      // If post doesn't have scheduled_post entry, be very lenient (include if within 1 year of range)
+      if (scheduledPost) {
+        // Strict date filtering for scheduled posts
         if (startDate && date < startDate) {
-          return false;
+          continue;
         }
         if (endDate && date > endDate) {
+          continue;
+        }
+      } else {
+        // Very lenient filtering for posts without scheduled_posts entries
+        // Include posts within the date range OR within 1 year before/after
+        // This ensures posts without scheduled_posts entries still show up
+        if (startDate && endDate) {
+          const oneYearBefore = new Date(startDate);
+          oneYearBefore.setFullYear(oneYearBefore.getFullYear() - 1);
+          const oneYearAfter = new Date(endDate);
+          oneYearAfter.setFullYear(oneYearAfter.getFullYear() + 1);
+
+          if (date < oneYearBefore || date > oneYearAfter) {
+            continue;
+          }
+        }
+      }
+
+      // Normalize platforms array - handle both string and object formats
+      const normalizedPlatforms = (postDetails.platforms || []).map((p: any) => {
+        if (typeof p === 'string') {
+          return p;
+        }
+        if (typeof p === 'object' && p !== null) {
+          // Handle object format: {platform: 'instagram', account_id: '...'}
+          return p.platform || p.name || String(p);
+        }
+        return String(p);
+      }).filter((p: any) => p && typeof p === 'string');
+
+      // Build the combined post object
+      const combinedPost = {
+        id: scheduledPost?.id || `post-${postId}`,
+        post_id: postId,
+        scheduled_for: displayDate,
+        scheduled_time: displayDate,
+        published_at: scheduledPost?.published_at || null,
+        timezone: scheduledPost?.timezone || null,
+        status: scheduledPost?.status || postDetails.status || 'draft',
+        post: {
+          id: postId,
+          content: postDetails.content,
+          image_url: postDetails.image_url,
+          platforms: normalizedPlatforms,
+          brand_id: postDetails.brand_id,
+          brands: postDetails.brands
+            ? {
+                id: postDetails.brands.id,
+                name: postDetails.brands.name,
+                logo_url: postDetails.brands.logo_url,
+              }
+            : null,
+        },
+      };
+
+      allCombinedPosts.push(combinedPost);
+    }
+
+    // Filter by brand if provided
+    const filteredData = allCombinedPosts.filter((item: any) => {
+      if (parsed.brandId) {
+        const postBrandId = item.post?.brand_id;
+        if (!postBrandId || postBrandId !== parsed.brandId) {
           return false;
         }
+      }
+      return true;
+    });
 
-        return true;
-      });
-
-      dbPosts = filteredData.map((item: any) => {
-        // Use published_at if available, otherwise use scheduled_for
-        const displayDate = item.published_at || item.scheduled_for;
-        return {
-          ...item,
-          scheduled_for: displayDate,
-          scheduled_time: displayDate,
-        };
-      }).sort((a, b) => {
-        const dateA = new Date(a.scheduled_for || 0).getTime();
-        const dateB = new Date(b.scheduled_for || 0).getTime();
-        return dateA - dateB;
-      });
-    }
+    dbPosts = filteredData.sort((a, b) => {
+      const dateA = new Date(a.scheduled_for || 0).getTime();
+      const dateB = new Date(b.scheduled_for || 0).getTime();
+      return dateA - dateB;
+    });
   }
 
   // Fetch posts from Getlate API
@@ -169,6 +276,13 @@ export async function GET(request: NextRequest) {
                     (!startDate || scheduledDate >= startDate)
                     && (!endDate || scheduledDate <= endDate)
                   ) {
+                    // Get brand info for Getlate posts
+                    const { data: brandInfo } = await supabase
+                      .from('brands')
+                      .select('id, name, logo_url')
+                      .eq('id', brand.id)
+                      .single();
+
                     // Transform Getlate post to calendar format
                     const uniqueId = `getlate-${brand.id}-${postId}-${index}`;
                     getlatePosts.push({
@@ -188,6 +302,13 @@ export async function GET(request: NextRequest) {
                           return typeof p === 'string' ? p : (p.platform || p.name || 'unknown');
                         }) || [],
                         brand_id: brand.id,
+                        brands: brandInfo
+                          ? {
+                              id: brandInfo.id,
+                              name: brandInfo.name,
+                              logo_url: brandInfo.logo_url,
+                            }
+                          : null,
                         getlate_post_id: postId,
                       },
                       is_getlate: true,
@@ -207,7 +328,15 @@ export async function GET(request: NextRequest) {
   }
 
   // Merge database posts and Getlate posts
-  const allPosts = [...dbPosts, ...getlatePosts];
+  let allPosts = [...dbPosts, ...getlatePosts];
+
+  // Final brand filter to ensure consistency (in case any posts slipped through)
+  if (parsed.brandId) {
+    allPosts = allPosts.filter((item: any) => {
+      const postBrandId = item.post?.brand_id || item.posts?.brand_id;
+      return postBrandId === parsed.brandId;
+    });
+  }
 
   // Sort by scheduled_for date
   allPosts.sort((a, b) => {
