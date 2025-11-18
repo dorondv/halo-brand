@@ -192,12 +192,45 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return normalized;
   };
 
+  // Helper function to deduplicate analytics entries
+  // Only keeps one entry per post_id + platform + date combination
+  const deduplicateAnalytics = (analytics: Array<any>) => {
+    const deduplicationMap = new Map<string, typeof analytics[0]>();
+    for (const entry of analytics) {
+      const platform = entry.platform || 'unknown';
+      const dateKey = entry.date ? new Date(entry.date).toISOString().split('T')[0] : '';
+      const uniqueKey = `${entry.post_id}:${platform}:${dateKey}`;
+
+      const existing = deduplicationMap.get(uniqueKey);
+      if (!existing) {
+        deduplicationMap.set(uniqueKey, entry);
+      } else {
+        // If we have an updated_at field, prefer the more recent entry
+        // Otherwise, prefer the one with higher engagement values (more complete data)
+        const existingUpdated = (existing as any).updated_at ? new Date((existing as any).updated_at) : null;
+        const currentUpdated = (entry as any).updated_at ? new Date((entry as any).updated_at) : null;
+
+        if (currentUpdated && existingUpdated && currentUpdated > existingUpdated) {
+          deduplicationMap.set(uniqueKey, entry);
+        } else if (!existingUpdated && !currentUpdated) {
+          // If no updated_at, prefer entry with higher total engagement
+          const existingEngagement = (Number(existing.likes ?? 0) + Number(existing.comments ?? 0) + Number(existing.shares ?? 0));
+          const currentEngagement = (Number(entry.likes ?? 0) + Number(entry.comments ?? 0) + Number(entry.shares ?? 0));
+          if (currentEngagement > existingEngagement) {
+            deduplicationMap.set(uniqueKey, entry);
+          }
+        }
+      }
+    }
+    return Array.from(deduplicationMap.values());
+  };
+
   // Posts are already filtered by date range from cache
   const dateFilteredPosts = postsData || [];
 
   // Filter analytics by date range
   // Include analytics that are within the date range (regardless of post publish date)
-  const dateFilteredAnalytics = (analyticsData || []).filter((a) => {
+  const dateFilteredAnalyticsRaw = (analyticsData || []).filter((a) => {
     if (!a.date) {
       return false;
     }
@@ -205,30 +238,48 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return analyticsDate >= rangeFrom && analyticsDate <= rangeTo;
   });
 
+  // Deduplicate analytics entries: only keep one entry per post_id + platform + date combination
+  // This prevents double-counting when sync creates duplicate entries
+  const dateFilteredAnalytics = deduplicateAnalytics(dateFilteredAnalyticsRaw);
+
   // Aggregate metric sums from date-filtered post_analytics
   let totalImpressions = 0;
   let totalEngagement = 0;
   let totalFollowers = 0;
-  let totalPosts = 0;
 
+  // Count unique posts from both posts table and analytics (to include external posts synced from Getlate)
+  const uniquePostIds = new Set<string>();
   if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
-    totalPosts = dateFilteredPosts.length;
-
-    // Calculate totals from date-filtered analytics
-    // Engagement = likes + comments + shares (all engagement types)
-    for (const analytics of dateFilteredAnalytics) {
-      totalImpressions += Number(analytics.impressions ?? 0);
-      // Ensure we're using the correct field names and handling null/undefined
-      const likes = Number(analytics.likes ?? 0);
-      const comments = Number(analytics.comments ?? 0);
-      const shares = Number(analytics.shares ?? 0);
-      totalEngagement += likes + comments + shares;
+    for (const post of dateFilteredPosts) {
+      if (post?.id) {
+        uniquePostIds.add(post.id);
+      }
     }
+  }
+  // Also include posts that have analytics but might not be in posts table
+  for (const analytics of dateFilteredAnalytics) {
+    if (analytics.post_id) {
+      uniquePostIds.add(analytics.post_id);
+    }
+  }
+  const totalPosts = uniquePostIds.size;
 
-    // Get followers from platform_specific_data - sum across all accounts/platforms
-    // Group by platform and take max per platform (in case multiple accounts on same platform)
-    const followersByPlatform = new Map<string, number>();
-    for (const acc of _accountsData || []) {
+  // Calculate totals from date-filtered analytics (now deduplicated)
+  // Engagement = likes + comments + shares (all engagement types)
+  for (const analytics of dateFilteredAnalytics) {
+    totalImpressions += Number(analytics.impressions ?? 0);
+    // Ensure we're using the correct field names and handling null/undefined
+    const likes = Number(analytics.likes ?? 0);
+    const comments = Number(analytics.comments ?? 0);
+    const shares = Number(analytics.shares ?? 0);
+    totalEngagement += likes + comments + shares;
+  }
+
+  // Get followers from platform_specific_data - sum across all accounts/platforms
+  // Group by platform and take max per platform (in case multiple accounts on same platform)
+  const followersByPlatform = new Map<string, number>();
+  if (_accountsData && Array.isArray(_accountsData)) {
+    for (const acc of _accountsData) {
       const platform = (acc as any)?.platform ?? 'unknown';
       const platformData = (acc as any)?.platform_specific_data as any;
       // Try follower_count first (from Getlate), then followers
@@ -241,11 +292,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         }
       }
     }
+  }
 
-    // Sum followers across all platforms
-    for (const followers of followersByPlatform.values()) {
-      totalFollowers += followers;
-    }
+  // Sum followers across all platforms
+  for (const followers of followersByPlatform.values()) {
+    totalFollowers += followers;
   }
 
   // Build per-platform metrics from analytics and accounts
@@ -550,9 +601,23 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   let filteredImpressions = 0;
   let filteredEngagement = 0;
   let filteredFollowers = 0;
-  let filteredPostsCount = 0;
 
-  filteredPostsCount = finalFilteredPosts.length;
+  // Count unique filtered posts from both posts table and analytics
+  const uniqueFilteredPostIds = new Set<string>();
+  if (finalFilteredPosts && Array.isArray(finalFilteredPosts)) {
+    for (const post of finalFilteredPosts) {
+      if (post?.id) {
+        uniqueFilteredPostIds.add(post.id);
+      }
+    }
+  }
+  // Also include posts that have analytics but might not be in posts table
+  for (const analytics of finalFilteredAnalytics) {
+    if (analytics.post_id) {
+      uniqueFilteredPostIds.add(analytics.post_id);
+    }
+  }
+  const filteredPostsCount = uniqueFilteredPostIds.size;
 
   // Calculate from filtered analytics (only analytics for the selected platform)
   for (const a of finalFilteredAnalytics) {
@@ -810,13 +875,16 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Calculate previous period metrics for comparison
   // Filter previous analytics by date range
-  const previousDateFilteredAnalytics = (previousAnalyticsData || []).filter((a) => {
+  const previousDateFilteredAnalyticsRaw = (previousAnalyticsData || []).filter((a) => {
     if (!a.date) {
       return false;
     }
     const analyticsDate = new Date(a.date);
     return analyticsDate >= previousRangeFrom && analyticsDate <= previousRangeTo;
   });
+
+  // Deduplicate previous period analytics entries
+  const previousDateFilteredAnalytics = deduplicateAnalytics(previousDateFilteredAnalyticsRaw);
 
   // Calculate previous period totals
   let previousTotalImpressions = 0;
@@ -842,7 +910,22 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return publishDate >= previousRangeFrom && publishDate <= previousRangeTo;
   });
 
-  previousTotalPosts = previousDateFilteredPosts.length;
+  // Count unique previous period posts from both posts table and analytics
+  const uniquePreviousPostIds = new Set<string>();
+  if (previousDateFilteredPosts && Array.isArray(previousDateFilteredPosts)) {
+    for (const post of previousDateFilteredPosts) {
+      if (post?.id) {
+        uniquePreviousPostIds.add(post.id);
+      }
+    }
+  }
+  // Also include posts that have analytics but might not be in posts table
+  for (const analytics of previousDateFilteredAnalytics) {
+    if (analytics.post_id) {
+      uniquePreviousPostIds.add(analytics.post_id);
+    }
+  }
+  previousTotalPosts = uniquePreviousPostIds.size;
 
   // Calculate previous period analytics totals
   for (const analytics of previousDateFilteredAnalytics) {
@@ -1158,8 +1241,9 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     imageUrl?: string;
   }> | undefined;
 
-  // Generate filtered posts table data from actual posts only (no dummy data)
-  if (finalFilteredPosts && finalFilteredPosts.length > 0) {
+  // Generate filtered posts table data from actual posts AND analytics
+  // Include posts that exist only in analytics (external posts synced from Getlate)
+  if ((finalFilteredPosts && finalFilteredPosts.length > 0) || (finalFilteredAnalytics && finalFilteredAnalytics.length > 0)) {
     // Create a map of post_id -> latest analytics for quick lookup
     type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any; platform?: string | null };
     const latestAnalyticsByPost = new Map<string, AnalyticsEntry>();
@@ -1178,12 +1262,53 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       allAnalyticsByPost.get(analytics.post_id)!.push(analytics);
     }
 
-    postsTableData = finalFilteredPosts.slice(0, 10).map((p) => {
+    // Create a map of post_id -> post for quick lookup
+    const postsById = new Map<string, any>();
+    if (finalFilteredPosts && Array.isArray(finalFilteredPosts)) {
+      for (const post of finalFilteredPosts) {
+        if (post?.id) {
+          postsById.set(post.id, post);
+        }
+      }
+    }
+
+    // Get all unique post IDs from analytics (includes posts that might not be in posts table)
+    const allPostIds = new Set<string>();
+    for (const analytics of finalFilteredAnalytics) {
+      if (analytics.post_id) {
+        allPostIds.add(analytics.post_id);
+      }
+    }
+    // Also add posts from posts table
+    if (finalFilteredPosts && Array.isArray(finalFilteredPosts)) {
+      for (const post of finalFilteredPosts) {
+        if (post?.id) {
+          allPostIds.add(post.id);
+        }
+      }
+    }
+
+    // Generate table data for all posts (from both posts table and analytics)
+    postsTableData = Array.from(allPostIds).map((postId) => {
+      // Get post from posts table if it exists, otherwise create from analytics
+      const p = postsById.get(postId);
+      const analytics = latestAnalyticsByPost.get(postId);
+
+      // If post doesn't exist in posts table, create a minimal post object from analytics
+      const postData = p || {
+        id: postId,
+        content: (analytics?.metadata as any)?.content || 'Post from Getlate',
+        created_at: analytics?.date || new Date().toISOString(),
+        image_url: (analytics?.metadata as any)?.thumbnailUrl || null,
+        metadata: analytics?.metadata || {},
+        platforms: analytics?.platform ? [{ platform: analytics.platform }] : null,
+      };
+
       // Get analytics for this post (latest entry)
-      const analytics = latestAnalyticsByPost.get(p.id);
-      const impressions = analytics ? Number(analytics.impressions ?? 0) : 0;
-      const engagement = analytics
-        ? Number(analytics.likes ?? 0) + Number(analytics.comments ?? 0) + Number(analytics.shares ?? 0)
+      const postAnalytics = latestAnalyticsByPost.get(postId);
+      const impressions = postAnalytics ? Number(postAnalytics.impressions ?? 0) : 0;
+      const engagement = postAnalytics
+        ? Number(postAnalytics.likes ?? 0) + Number(postAnalytics.comments ?? 0) + Number(postAnalytics.shares ?? 0)
         : 0;
       const engagementRate = impressions > 0 ? (engagement / impressions) * 100 : 0;
       const score = Math.floor(engagementRate * 100 + engagement / 10); // Simple score calculation
@@ -1196,19 +1321,19 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       let platform = 'unknown';
 
       // Priority 1: Analytics platform
-      const platformsFromAnalytics = postPlatformMap.get(p.id);
+      const platformsFromAnalytics = postPlatformMap.get(postId);
       if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
         const platformsArray = Array.from(platformsFromAnalytics);
         platform = platformsArray[0] || 'unknown';
       } else {
         // Priority 2: Scheduled posts -> social accounts
-        const platformsFromScheduled = postPlatformMapFromScheduled.get(p.id);
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(postId);
         if (platformsFromScheduled && platformsFromScheduled.size > 0) {
           const platformsArray = Array.from(platformsFromScheduled);
           platform = platformsArray[0] || 'unknown';
         } else {
           // Priority 3: Post platforms array (from Getlate)
-          const postPlatforms = (p as any)?.platforms;
+          const postPlatforms = (postData as any)?.platforms;
           if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
             const firstPlatform = postPlatforms[0];
             if (typeof firstPlatform === 'string') {
@@ -1220,16 +1345,16 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
           // Priority 4: Post metadata
           if (platform === 'unknown') {
-            const meta = (p as any)?.metadata as any;
-            platform = normalizePlatform(meta?.platform ?? 'unknown');
+            const meta = (postData as any)?.metadata as any;
+            platform = normalizePlatform(meta?.platform ?? (postAnalytics?.platform || 'unknown'));
           }
         }
       }
 
       // Extract media URLs from post metadata or image_url
-      const meta = (p as any)?.metadata as any;
+      const meta = (postData as any)?.metadata as any;
       const mediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
-      const imageUrl = (p as any)?.image_url;
+      const imageUrl = (postData as any)?.image_url;
 
       // Extract platformPostUrl from multiple sources (priority order):
       // 1. Analytics metadata (from Getlate sync)
@@ -1237,7 +1362,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       let platformPostUrl: string | null = null;
 
       // Priority 1: Search through all analytics entries for this post
-      const allPostAnalytics = allAnalyticsByPost.get(p.id) || [];
+      const allPostAnalytics = allAnalyticsByPost.get(postId) || [];
       for (const analyticsEntry of allPostAnalytics) {
         const analyticsMetadata = analyticsEntry?.metadata as any;
         if (analyticsMetadata?.platformPostUrl) {
@@ -1249,7 +1374,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       // Priority 2: If not found in analytics, check post's platforms array
       // This is where Getlate stores platformPostUrl in the original API response
       if (!platformPostUrl) {
-        const postPlatforms = (p as any)?.platforms;
+        const postPlatforms = (postData as any)?.platforms;
         if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
           // Find the platform that matches the current platform
           for (const platformData of postPlatforms) {
@@ -1272,13 +1397,13 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       }
 
       return {
-        id: p.id, // Include post ID for unique key generation
+        id: postId, // Include post ID for unique key generation
         score,
         engagementRate,
         engagement,
         impressions,
-        date: analytics?.date ?? (p as any)?.created_at ?? new Date().toISOString(),
-        postContent: (p as any)?.content ?? '',
+        date: postAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
+        postContent: (postData as any)?.content ?? '',
         platform,
         mediaUrls: mediaUrls.length > 0 ? mediaUrls : (imageUrl ? [imageUrl] : []),
         imageUrl,
