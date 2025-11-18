@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, subDays } from 'date-fns';
+import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, startOfYear, subDays } from 'date-fns';
 import {
   Eye,
   FileText,
@@ -130,6 +130,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         const lastMonth = subDays(startOfMonth(today), 1);
         return { from: startOfMonth(lastMonth), to: endOfMonth(lastMonth) };
       }
+      case 'currentMonth': {
+        return { from: startOfMonth(today), to: today };
+      }
+      case 'currentYear': {
+        return { from: startOfYear(today), to: today };
+      }
       default:
         return { from: startOfDay(subDays(today, 6)), to: today };
     }
@@ -230,12 +236,26 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Filter analytics by date range
   // Include analytics that are within the date range (regardless of post publish date)
+  // Normalize analytics dates to date-only (midnight) for accurate comparison
+  // rangeFrom is already startOfDay, rangeTo is endOfDay, so we compare dates properly
+  const normalizeAnalyticsDateToDateOnly = (date: Date) => {
+    const d = new Date(date);
+    d.setHours(0, 0, 0, 0);
+    return d;
+  };
+
+  // Normalize rangeFrom to start of day (it already is, but ensure consistency)
+  const normalizedRangeFrom = normalizeAnalyticsDateToDateOnly(rangeFrom);
+  // For rangeTo, we want to include the entire end day, so compare with start of that day
+  const normalizedRangeTo = normalizeAnalyticsDateToDateOnly(rangeTo);
+
   const dateFilteredAnalyticsRaw = (analyticsData || []).filter((a) => {
     if (!a.date) {
       return false;
     }
-    const analyticsDate = new Date(a.date);
-    return analyticsDate >= rangeFrom && analyticsDate <= rangeTo;
+    const analyticsDate = normalizeAnalyticsDateToDateOnly(new Date(a.date));
+    // Include analytics if date is >= rangeFrom and <= rangeTo (inclusive)
+    return analyticsDate >= normalizedRangeFrom && analyticsDate <= normalizedRangeTo;
   });
 
   // Deduplicate analytics entries: only keep one entry per post_id + platform + date combination
@@ -875,12 +895,16 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Calculate previous period metrics for comparison
   // Filter previous analytics by date range
+  // Use same normalization function for consistency
+  const normalizedPreviousRangeFrom = normalizeAnalyticsDateToDateOnly(previousRangeFrom);
+  const normalizedPreviousRangeTo = normalizeAnalyticsDateToDateOnly(previousRangeTo);
+
   const previousDateFilteredAnalyticsRaw = (previousAnalyticsData || []).filter((a) => {
     if (!a.date) {
       return false;
     }
-    const analyticsDate = new Date(a.date);
-    return analyticsDate >= previousRangeFrom && analyticsDate <= previousRangeTo;
+    const analyticsDate = normalizeAnalyticsDateToDateOnly(new Date(a.date));
+    return analyticsDate >= normalizedPreviousRangeFrom && analyticsDate <= normalizedPreviousRangeTo;
   });
 
   // Deduplicate previous period analytics entries
