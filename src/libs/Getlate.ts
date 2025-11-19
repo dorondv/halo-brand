@@ -45,6 +45,28 @@ export type GetlateAccount = {
   tokenExpiresAt?: string; // Getlate API includes token expiration
   permissions?: string[]; // Getlate API includes permissions array
   metadata?: Record<string, unknown>;
+  accessToken?: string;
+  tempToken?: string;
+};
+
+export type GetlateFacebookPage = {
+  id?: string;
+  name: string;
+  pageId?: string;
+  pageName?: string;
+  pictureUrl?: string;
+  accessToken?: string;
+  metadata?: Record<string, unknown>;
+};
+
+export type GetlateLinkedInOrganization = {
+  id?: string;
+  name: string;
+  urn?: string;
+  logoUrl?: string;
+  vanityName?: string;
+  metadata?: Record<string, unknown>;
+  sourceUrl?: string;
 };
 
 export type GetlatePost = {
@@ -185,6 +207,26 @@ export class GetlateClient {
   }
 
   /**
+   * Get raw account data from Getlate API (includes availablePages, etc.)
+   * Used internally to access fields not mapped by getAccounts()
+   */
+  async getRawAccounts(profileId?: string): Promise<any[]> {
+    const endpoint = profileId
+      ? `/accounts?profileId=${profileId}`
+      : '/accounts';
+    const response = await this.request<any>(endpoint);
+
+    // Handle different response formats
+    if (Array.isArray(response)) {
+      return response;
+    } else if (response && typeof response === 'object') {
+      return response.accounts || response.data || response.results || [];
+    }
+
+    return [];
+  }
+
+  /**
    * Get all connected accounts for a profile
    * Note: Getlate API returns accounts in format: { accounts: [...] }
    * Each account has: _id, profileId, platform, username, displayName, profilePicture, isActive, etc.
@@ -229,7 +271,17 @@ export class GetlateClient {
       lastSync: account.lastSync,
       tokenExpiresAt: account.tokenExpiresAt,
       permissions: account.permissions,
-      metadata: account.metadata || {},
+      // Preserve accessToken and tempToken if present in the account object
+      accessToken: account.accessToken || account.access_token,
+      tempToken: account.tempToken || account.temp_token,
+      metadata: {
+        ...(account.metadata || {}),
+        // Also include accessToken/tempToken in metadata if they exist
+        ...(account.accessToken ? { accessToken: account.accessToken } : {}),
+        ...(account.tempToken ? { tempToken: account.tempToken } : {}),
+        ...(account.access_token ? { accessToken: account.access_token } : {}),
+        ...(account.temp_token ? { tempToken: account.temp_token } : {}),
+      },
     })) as GetlateAccount[];
   }
 
@@ -949,6 +1001,199 @@ export class GetlateClient {
   async deleteApiKey(keyId: string): Promise<void> {
     await this.request(`/api-keys/${keyId}`, {
       method: 'DELETE',
+    });
+  }
+
+  /**
+   * Get Facebook pages for selection during OAuth flow
+   * Used when connecting Facebook account to select which page to use
+   */
+  async getFacebookSelectPage(profileId: string, tempToken: string): Promise<GetlateFacebookPage[]> {
+    if (!profileId || !tempToken) {
+      return [];
+    }
+
+    const endpoint = `/connect/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+    });
+
+    const rawPages = Array.isArray(response?.pages)
+      ? response.pages
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawPages)) {
+      return [];
+    }
+
+    return rawPages
+      .map((page: any) => ({
+        id: page._id || page.id || page.pageId || page.facebookPageId,
+        name: page.name || page.pageName || page.title || 'Page',
+        pageId: page.pageId || page.facebookPageId || page.id,
+        pageName: page.pageName || page.name || page.title,
+        pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
+        accessToken: page.pageAccessToken || page.accessToken,
+        metadata: page.metadata || {},
+      }))
+      .filter(page => !!page.id && !!page.name);
+  }
+
+  /**
+   * Get Facebook pages for an already-connected account
+   * Uses account's stored token internally (no tempToken required)
+   * Similar to getLinkedInOrganizations but for Facebook pages
+   */
+  async getFacebookPages(accountId: string): Promise<GetlateFacebookPage[]> {
+    if (!accountId) {
+      return [];
+    }
+
+    const endpoint = `/accounts/${encodeURIComponent(accountId)}/facebook-pages`;
+    try {
+      const response = await this.request<any>(endpoint, {
+        method: 'GET',
+      });
+
+      const rawPages = Array.isArray(response?.pages)
+        ? response.pages
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.results)
+            ? response.results
+            : [];
+
+      if (!Array.isArray(rawPages)) {
+        return [];
+      }
+
+      return rawPages
+        .map((page: any) => ({
+          id: page._id || page.id || page.pageId || page.facebookPageId,
+          name: page.name || page.pageName || page.title || 'Page',
+          pageId: page.pageId || page.facebookPageId || page.id,
+          pageName: page.pageName || page.name || page.title,
+          pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
+          accessToken: page.pageAccessToken || page.accessToken,
+          metadata: page.metadata || {},
+        }))
+        .filter(page => !!page.id && !!page.name);
+    } catch (error) {
+      // If endpoint doesn't exist or returns 404, return empty array
+      if (error instanceof Error && error.message.includes('HTTP 404')) {
+        return [];
+      }
+      throw error;
+    }
+  }
+
+  /**
+   * Select a Facebook page for an account
+   */
+  async selectFacebookPage(
+    accountId: string,
+    payload: {
+      pageId: string;
+      pageName?: string;
+      pageAccessToken?: string;
+    },
+  ): Promise<void> {
+    if (!accountId || !payload.pageId) {
+      throw new Error('Missing accountId or pageId');
+    }
+
+    await this.request(`/accounts/${encodeURIComponent(accountId)}/facebook-page`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        pageId: payload.pageId,
+        page_id: payload.pageId,
+        facebookPageId: payload.pageId,
+        facebook_page_id: payload.pageId,
+        selectedPageId: payload.pageId,
+        pageName: payload.pageName,
+        pageAccessToken: payload.pageAccessToken,
+        page_access_token: payload.pageAccessToken,
+      }),
+    });
+  }
+
+  /**
+   * Get LinkedIn organizations for an account
+   * @param accountId - The Getlate account ID
+   * @param tempToken - Optional access token to use as tempToken for the request
+   */
+  async getLinkedInOrganizations(accountId: string, tempToken?: string): Promise<GetlateLinkedInOrganization[]> {
+    if (!accountId) {
+      return [];
+    }
+
+    let endpoint = `/accounts/${encodeURIComponent(accountId)}/linkedin-organizations`;
+    if (tempToken) {
+      endpoint += `?tempToken=${encodeURIComponent(tempToken)}`;
+    }
+
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+    });
+
+    const rawOrgs = Array.isArray(response?.organizations)
+      ? response.organizations
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawOrgs)) {
+      return [];
+    }
+
+    return rawOrgs
+      .map((org: any) => ({
+        id: org._id || org.id || org.organizationId,
+        name: org.name || org.organizationName || org.title || 'Organization',
+        urn: org.urn || org.organizationUrn,
+        logoUrl: org.logoUrl || org.pictureUrl,
+        vanityName: org.vanityName,
+        sourceUrl: org.sourceUrl || org.url || org.profileUrl,
+        metadata: org.metadata || {},
+      }))
+      .filter(org => !!org.id && !!org.name);
+  }
+
+  /**
+   * Select a LinkedIn organization for an account
+   */
+  async selectLinkedInOrganization(
+    accountId: string,
+    payload: {
+      organizationId: string;
+      organizationName?: string;
+      organizationUrn?: string;
+      manual?: boolean;
+      sourceUrl?: string;
+    },
+  ): Promise<void> {
+    if (!accountId || !payload.organizationId) {
+      throw new Error('Missing accountId or organizationId');
+    }
+
+    await this.request(`/accounts/${encodeURIComponent(accountId)}/linkedin-organization`, {
+      method: 'PUT',
+      body: JSON.stringify({
+        accountType: 'organization',
+        selectedOrganization: {
+          id: payload.organizationId,
+          urn: payload.organizationUrn,
+          name: payload.organizationName,
+          manual: payload.manual ?? true,
+          sourceUrl: payload.sourceUrl,
+        },
+      }),
     });
   }
 }

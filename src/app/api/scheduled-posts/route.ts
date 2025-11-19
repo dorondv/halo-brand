@@ -63,6 +63,7 @@ export async function GET(request: NextRequest) {
         brand_id,
         created_at,
         status,
+        getlate_post_id,
         brands (
           id,
           name,
@@ -185,6 +186,7 @@ export async function GET(request: NextRequest) {
           image_url: postDetails.image_url,
           platforms: normalizedPlatforms,
           brand_id: postDetails.brand_id,
+          getlate_post_id: postDetails.getlate_post_id || null,
           brands: postDetails.brands
             ? {
                 id: postDetails.brands.id,
@@ -284,13 +286,18 @@ export async function GET(request: NextRequest) {
                       .single();
 
                     // Transform Getlate post to calendar format
+                    // Determine published_at: if published, use scheduledFor or createdAt
+                    const publishedAt = post.status === 'published' ? (post.scheduledFor || post.createdAt) : null;
+                    // Use published_at if available, otherwise scheduled_for for display
+                    const displayDate = publishedAt || post.scheduledFor || post.createdAt;
+
                     const uniqueId = `getlate-${brand.id}-${postId}-${index}`;
                     getlatePosts.push({
                       id: uniqueId,
                       post_id: uniqueId,
                       scheduled_for: post.scheduledFor || post.createdAt,
-                      scheduled_time: post.scheduledFor || post.createdAt,
-                      published_at: post.status === 'published' ? (post.scheduledFor || post.createdAt) : null,
+                      scheduled_time: displayDate, // Prioritize published_at for display
+                      published_at: publishedAt,
                       timezone: post.timezone,
                       status: post.status === 'published' ? 'completed' : 'pending',
                       post: {
@@ -328,7 +335,43 @@ export async function GET(request: NextRequest) {
   }
 
   // Merge database posts and Getlate posts
-  let allPosts = [...dbPosts, ...getlatePosts];
+  // Deduplicate: if a post has getlate_post_id, prefer Getlate version (source of truth)
+  // Create a map of getlate_post_id -> post to track Getlate posts
+  const getlatePostIdMap = new Map<string, any>();
+  getlatePosts.forEach((post: any) => {
+    const getlateId = post.post?.getlate_post_id;
+    if (getlateId) {
+      getlatePostIdMap.set(getlateId, post);
+    }
+  });
+
+  // Filter out database posts that have a corresponding Getlate post
+  const filteredDbPosts = dbPosts.filter((dbPost: any) => {
+    const dbGetlateId = dbPost.post?.getlate_post_id;
+    // If this database post has a getlate_post_id and we have it from Getlate API, exclude it
+    if (dbGetlateId && getlatePostIdMap.has(dbGetlateId)) {
+      return false;
+    }
+    return true;
+  });
+
+  // Merge filtered database posts with Getlate posts
+  let allPosts = [...filteredDbPosts, ...getlatePosts];
+
+  // Additional deduplication: remove duplicates based on post_id + scheduled_time combination
+  // This handles cases where the same post might appear multiple times with the same scheduled time
+  const seenPosts = new Map<string, boolean>();
+  allPosts = allPosts.filter((post: any) => {
+    const postId = post.post_id || post.post?.id;
+    const scheduledTime = post.scheduled_for || post.scheduled_time;
+    const dedupeKey = `${postId}-${scheduledTime}`;
+
+    if (seenPosts.has(dedupeKey)) {
+      return false; // Duplicate, exclude it
+    }
+    seenPosts.set(dedupeKey, true);
+    return true;
+  });
 
   // Final brand filter to ensure consistency (in case any posts slipped through)
   if (parsed.brandId) {
