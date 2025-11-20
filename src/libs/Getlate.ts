@@ -1177,12 +1177,12 @@ export class GetlateClient {
       manual?: boolean;
       sourceUrl?: string;
     },
-  ): Promise<void> {
+  ): Promise<any> {
     if (!accountId || !payload.organizationId) {
       throw new Error('Missing accountId or organizationId');
     }
 
-    await this.request(`/accounts/${encodeURIComponent(accountId)}/linkedin-organization`, {
+    const response = await this.request(`/accounts/${encodeURIComponent(accountId)}/linkedin-organization`, {
       method: 'PUT',
       body: JSON.stringify({
         accountType: 'organization',
@@ -1195,6 +1195,8 @@ export class GetlateClient {
         },
       }),
     });
+
+    return response;
   }
 }
 

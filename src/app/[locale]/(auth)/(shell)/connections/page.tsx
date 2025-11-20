@@ -209,6 +209,7 @@ export default function ConnectionsPage() {
     pageType?: LinkedInPageType;
     organizationUrl?: string;
     organizationUrn?: string;
+    organizationName?: string;
   };
 
   const [linkedInPostingConfig, setLinkedInPostingConfig] = useState<LinkedInPostingConfig>({
@@ -361,36 +362,40 @@ export default function ConnectionsPage() {
             }
           }
 
-          // For LinkedIn, use organization ID if posting as organization
+          // For LinkedIn, use organization name if posting as organization
           if (acc.platform === 'linkedin' && platformSpecific?.linkedinPostingType === 'organization') {
             const linkedinOrg = platformSpecific.linkedinOrganization as Record<string, unknown> | undefined;
-            // Extract company ID from various sources
-            let companyId: string | undefined;
 
-            if (linkedinOrg?.id) {
-              companyId = String(linkedinOrg.id);
-            } else if (linkedinOrg?.urn) {
-              // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
-              const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
-              if (urnMatch) {
-                companyId = urnMatch[1];
-              }
-            } else if (platformSpecific?.linkedinOrganizationUrl) {
-              // Extract ID from URL format: linkedin.com/company/123456
-              const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
-              if (urlMatch) {
-                companyId = urlMatch[1];
-              }
-            }
+            // Prioritize company name over ID
+            if (linkedinOrg?.name && String(linkedinOrg.name).trim()) {
+              // Use the company name if available
+              displayName = String(linkedinOrg.name).trim();
+              handle = String(linkedinOrg.name).trim();
+            } else {
+              // Fallback to company ID if name is not available
+              let companyId: string | undefined;
 
-            if (companyId) {
-              // Display company ID in compact format (just the number)
-              displayName = companyId;
-              handle = companyId;
-            } else if (linkedinOrg?.name) {
-              // Fallback to name if ID not available
-              displayName = linkedinOrg.name as string;
-              handle = linkedinOrg.name as string;
+              if (linkedinOrg?.id) {
+                companyId = String(linkedinOrg.id);
+              } else if (linkedinOrg?.urn) {
+                // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
+                const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
+                if (urnMatch) {
+                  companyId = urnMatch[1];
+                }
+              } else if (platformSpecific?.linkedinOrganizationUrl) {
+                // Extract ID from URL format: linkedin.com/company/123456
+                const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
+                if (urlMatch) {
+                  companyId = urlMatch[1];
+                }
+              }
+
+              if (companyId) {
+                // Display company ID as fallback if name not available
+                displayName = companyId;
+                handle = companyId;
+              }
             }
           }
 
@@ -1173,6 +1178,7 @@ export default function ConnectionsPage() {
         pageType: platformData?.linkedinPageType as 'company' | 'showcase' | undefined,
         organizationUrl: platformData?.linkedinOrganizationUrl as string | undefined,
         organizationUrn: platformData?.linkedinOrganizationUrn as string | undefined,
+        organizationName: linkedinOrg?.name as string | undefined,
       };
       setLinkedInPostingConfig(currentConfig);
 
@@ -1222,6 +1228,15 @@ export default function ConnectionsPage() {
         );
         return;
       }
+
+      // Validate that company name is provided
+      if (!linkedInPostingConfig.organizationName || !linkedInPostingConfig.organizationName.trim()) {
+        showToast(
+          (tLinkedIn('missing_company_name') as string) || 'Please provide the company name',
+          'error',
+        );
+        return;
+      }
     }
 
     setIsSavingLinkedInOrg(true);
@@ -1248,6 +1263,7 @@ export default function ConnectionsPage() {
                 ...prev,
                 organizationUrl: prev.organizationUrl || selectedOrg.urn || '',
                 organizationUrn: prev.organizationUrn || selectedOrg.urn,
+                organizationName: prev.organizationName || selectedOrg.name || '',
               }));
             }
           }
@@ -1260,23 +1276,18 @@ export default function ConnectionsPage() {
           const urlMatch = organizationUrlValue.match(/\/company\/(\d+)/);
           const urnMatch = organizationUrlValue.match(/urn:li:organization(?:Brand)?:(\d+)/);
           organizationId = urlMatch?.[1] || urnMatch?.[1];
-          // Store the numeric ID as the organization ID (not the full URL)
-          if (organizationId) {
-            // Use the numeric ID as the organization identifier
-            // The name will be the ID itself for display purposes
-            organizationName = organizationId;
-          } else {
-            // Fallback: try to extract from URN if available
-            if (organizationUrn) {
-              const urnIdMatch = organizationUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
-              if (urnIdMatch) {
-                organizationId = urnIdMatch[1];
-                organizationName = organizationId;
-              }
-            }
-            // If still no ID, use URL as fallback
-            if (!organizationId) {
-              organizationName = organizationUrlValue;
+          // Use the manually entered company name
+          organizationName = linkedInPostingConfig.organizationName?.trim();
+          if (!organizationName) {
+            // Fallback: use ID if name not provided (shouldn't happen due to validation)
+            organizationName = organizationId || organizationUrlValue;
+          }
+
+          // If still no ID, try to extract from URN if available
+          if (!organizationId && organizationUrn) {
+            const urnIdMatch = organizationUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
+            if (urnIdMatch) {
+              organizationId = urnIdMatch[1];
             }
           }
         }
@@ -1291,7 +1302,7 @@ export default function ConnectionsPage() {
             body: JSON.stringify({
               accountId: linkedinAccountForOrgs.getlate_account_id,
               organizationId,
-              organizationName: organizationName || organizationUrlValue || 'LinkedIn Organization',
+              organizationName: organizationName || linkedInPostingConfig.organizationName || organizationUrlValue || 'LinkedIn Organization',
               organizationUrn,
               sourceUrl: organizationUrlValue || organizationUrn,
             }),
@@ -1300,6 +1311,12 @@ export default function ConnectionsPage() {
           if (!response.ok) {
             const error = await response.json().catch(() => ({ error: 'Failed to save organization selection' }));
             throw new Error(error.error || 'Failed to save organization selection');
+          }
+
+          // Update organization name from API response if available
+          const responseData = await response.json();
+          if (responseData.organization?.name && responseData.organization.name !== organizationName) {
+            organizationName = responseData.organization.name;
           }
         }
       } else {
@@ -1328,8 +1345,7 @@ export default function ConnectionsPage() {
         updatedData.linkedinOrganizationUrn = organizationUrn;
         updatedData.linkedinOrganization = {
           id: organizationId,
-          // Store the numeric ID as the name for display (compact format)
-          name: organizationId || organizationName || organizationUrlValue || 'LinkedIn Organization',
+          name: organizationName || linkedInPostingConfig.organizationName || organizationId || organizationUrlValue || 'LinkedIn Organization',
           urn: organizationUrn,
           sourceUrl: organizationUrlValue || organizationUrn,
           updatedAt: new Date().toISOString(),
@@ -2019,6 +2035,11 @@ export default function ConnectionsPage() {
                             >
                               <SelectTrigger id="linkedin-page-type" dir={isRTL ? 'rtl' : 'ltr'}>
                                 <SelectValue
+                                  selectedLabel={
+                                    linkedInPostingConfig.pageType === 'showcase'
+                                      ? (tLinkedIn('showcase_page') as string) || 'Showcase Page'
+                                      : (tLinkedIn('company_page') as string) || 'Company Page'
+                                  }
                                   placeholder={(tLinkedIn('select_page_type') as string) || 'Select page type'}
                                 />
                               </SelectTrigger>
@@ -2073,6 +2094,33 @@ export default function ConnectionsPage() {
                                 {(tLinkedIn('invalid_url') as string) || 'Invalid URL format. Please provide a URL with numeric ID or a URN.'}
                               </p>
                             )}
+                          </div>
+
+                          {/* Company Name Input */}
+                          <div className="space-y-2">
+                            <Label htmlFor="linkedin-org-name" className="text-sm font-medium text-gray-900">
+                              {(tLinkedIn('company_name_label') as string) || 'Company Name:'}
+                              {' '}
+                              <span className="text-red-500">*</span>
+                            </Label>
+                            <Input
+                              id="linkedin-org-name"
+                              type="text"
+                              placeholder={(tLinkedIn('company_name_placeholder') as string) || 'Enter company name'}
+                              value={linkedInPostingConfig.organizationName || ''}
+                              onChange={(e) => {
+                                setLinkedInPostingConfig({
+                                  ...linkedInPostingConfig,
+                                  organizationName: e.target.value,
+                                });
+                              }}
+                              className="border-gray-300 focus:border-pink-500"
+                              dir={isRTL ? 'rtl' : 'ltr'}
+                              required
+                            />
+                            <p className="text-xs text-gray-500">
+                              {(tLinkedIn('company_name_hint') as string) || 'Enter the official name of the LinkedIn company page'}
+                            </p>
                           </div>
 
                           {/* Help Text */}

@@ -188,7 +188,11 @@
       "invalid_example": "❌ לא תקין: כתובות URL עם שם כמו linkedin.com/company/company-name/",
       "tip": "💡 הזן את כתובת ה-URL או URN של דף LinkedIn שלך עם מזהה מספרי למעלה",
       "missing_url": "אנא ספק כתובת URL או URN של ארגון LinkedIn",
-      "invalid_url_toast": "כתובת URL של LinkedIn חייבת להכיל מזהה מספרי. אנא בדוק את הפורמט."
+      "invalid_url_toast": "כתובת URL של LinkedIn חייבת להכיל מזהה מספרי. אנא בדוק את הפורמט.",
+      "company_name_label": "שם החברה",
+      "company_name_placeholder": "הזן שם חברה",
+      "company_name_hint": "הזן את השם הרשמי של דף החברה ב-LinkedIn",
+      "missing_company_name": "אנא ספק את שם החברה"
     }
   },
   "Calendar": {

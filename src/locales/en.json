@@ -188,7 +188,11 @@
       "invalid_example": "❌ Invalid: vanity URLs like linkedin.com/company/company-name/",
       "tip": "💡 Enter your LinkedIn page URL or URN with numeric ID above",
       "missing_url": "Please provide a LinkedIn organization URL or URN",
-      "invalid_url_toast": "LinkedIn organization URL must contain a numeric ID. Please check the URL format."
+      "invalid_url_toast": "LinkedIn organization URL must contain a numeric ID. Please check the URL format.",
+      "company_name_label": "Company Name",
+      "company_name_placeholder": "Enter company name",
+      "company_name_hint": "Enter the official name of the LinkedIn company page",
+      "missing_company_name": "Please provide the company name"
     }
   },
   "Calendar": {

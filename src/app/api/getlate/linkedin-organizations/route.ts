@@ -377,19 +377,27 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    await getlateClient.selectLinkedInOrganization(getlateAccountId, {
+    const getlateResponse = await getlateClient.selectLinkedInOrganization(getlateAccountId, {
       organizationId,
       organizationName,
       organizationUrn,
       sourceUrl,
     });
 
+    // Extract company name from Getlate response if available
+    const responseOrganizationName = getlateResponse?.organization?.name
+      || getlateResponse?.selectedOrganization?.name
+      || getlateResponse?.data?.organization?.name
+      || getlateResponse?.data?.selectedOrganization?.name
+      || getlateResponse?.name
+      || organizationName;
+
     const platformData = (socialAccount.platform_specific_data as Record<string, any>) || {};
     const updatedData = {
       ...platformData,
       linkedinOrganization: {
         id: organizationId,
-        name: organizationName || platformData.linkedinOrganization?.name || '',
+        name: responseOrganizationName || platformData.linkedinOrganization?.name || '',
         urn: organizationUrn || platformData.linkedinOrganization?.urn,
         sourceUrl: sourceUrl || platformData.linkedinOrganization?.sourceUrl,
         updatedAt: new Date().toISOString(),
@@ -416,9 +424,10 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       organization: {
         id: organizationId,
-        name: organizationName,
+        name: responseOrganizationName || organizationName,
         urn: organizationUrn,
       },
+      getlateResponse, // Include full response for debugging
     });
   } catch (error) {
     console.error('[Getlate LinkedIn Organizations] Error saving selection:', error);
