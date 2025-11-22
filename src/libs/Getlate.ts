@@ -1166,20 +1166,41 @@ export class GetlateClient {
   }
 
   /**
-   * Select a LinkedIn organization for an account
+   * Select a LinkedIn organization for an account or switch to personal mode
    */
   async selectLinkedInOrganization(
     accountId: string,
     payload: {
-      organizationId: string;
+      organizationId?: string;
       organizationName?: string;
       organizationUrn?: string;
       manual?: boolean;
       sourceUrl?: string;
+      accountName?: string;
+      accountType?: 'personal' | 'organization';
     },
   ): Promise<any> {
-    if (!accountId || !payload.organizationId) {
-      throw new Error('Missing accountId or organizationId');
+    if (!accountId) {
+      throw new Error('Missing accountId');
+    }
+
+    const accountType = payload.accountType || (payload.organizationId ? 'organization' : 'personal');
+
+    // If switching to personal mode
+    if (accountType === 'personal') {
+      const response = await this.request(`/accounts/${encodeURIComponent(accountId)}/linkedin-organization`, {
+        method: 'PUT',
+        body: JSON.stringify({
+          accountType: 'personal',
+          accountName: payload.accountName,
+        }),
+      });
+      return response;
+    }
+
+    // If setting organization mode
+    if (!payload.organizationId) {
+      throw new Error('Missing organizationId for organization mode');
     }
 
     const response = await this.request(`/accounts/${encodeURIComponent(accountId)}/linkedin-organization`, {

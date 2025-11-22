@@ -197,6 +197,7 @@ export default function ConnectionsPage() {
 
   // LinkedIn organizations dialog state
   const [linkedinAccountForOrgs, setLinkedinAccountForOrgs] = useState<SocialAccount | null>(null);
+  const [linkedinAccountName, setLinkedinAccountName] = useState<string | null>(null); // Store personal account name
   const [linkedinOrganizations, setLinkedinOrganizations] = useState<Array<{ id: string; name: string; urn?: string }>>([]);
   const [isLoadingLinkedInOrgs, setIsLoadingLinkedInOrgs] = useState(false);
   const [isSavingLinkedInOrg, setIsSavingLinkedInOrg] = useState(false);
@@ -362,40 +363,46 @@ export default function ConnectionsPage() {
             }
           }
 
-          // For LinkedIn, use organization name if posting as organization
-          if (acc.platform === 'linkedin' && platformSpecific?.linkedinPostingType === 'organization') {
-            const linkedinOrg = platformSpecific.linkedinOrganization as Record<string, unknown> | undefined;
+          // For LinkedIn, use organization name if posting as organization, otherwise use account name
+          if (acc.platform === 'linkedin') {
+            if (platformSpecific?.linkedinPostingType === 'organization') {
+              const linkedinOrg = platformSpecific.linkedinOrganization as Record<string, unknown> | undefined;
 
-            // Prioritize company name over ID
-            if (linkedinOrg?.name && String(linkedinOrg.name).trim()) {
-              // Use the company name if available
-              displayName = String(linkedinOrg.name).trim();
-              handle = String(linkedinOrg.name).trim();
+              // Prioritize company name over ID
+              if (linkedinOrg?.name && String(linkedinOrg.name).trim()) {
+                // Use the company name if available
+                displayName = String(linkedinOrg.name).trim();
+                handle = String(linkedinOrg.name).trim();
+              } else {
+                // Fallback to company ID if name is not available
+                let companyId: string | undefined;
+
+                if (linkedinOrg?.id) {
+                  companyId = String(linkedinOrg.id);
+                } else if (linkedinOrg?.urn) {
+                  // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
+                  const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
+                  if (urnMatch) {
+                    companyId = urnMatch[1];
+                  }
+                } else if (platformSpecific?.linkedinOrganizationUrl) {
+                  // Extract ID from URL format: linkedin.com/company/123456
+                  const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
+                  if (urlMatch) {
+                    companyId = urlMatch[1];
+                  }
+                }
+
+                if (companyId) {
+                  // Display company ID as fallback if name not available
+                  displayName = companyId;
+                  handle = companyId;
+                }
+              }
             } else {
-              // Fallback to company ID if name is not available
-              let companyId: string | undefined;
-
-              if (linkedinOrg?.id) {
-                companyId = String(linkedinOrg.id);
-              } else if (linkedinOrg?.urn) {
-                // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
-                const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
-                if (urnMatch) {
-                  companyId = urnMatch[1];
-                }
-              } else if (platformSpecific?.linkedinOrganizationUrl) {
-                // Extract ID from URL format: linkedin.com/company/123456
-                const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
-                if (urlMatch) {
-                  companyId = urlMatch[1];
-                }
-              }
-
-              if (companyId) {
-                // Display company ID as fallback if name not available
-                displayName = companyId;
-                handle = companyId;
-              }
+              // For personal mode, explicitly use account name
+              displayName = acc.account_name || '';
+              handle = acc.account_name || '';
             }
           }
 
@@ -1136,13 +1143,14 @@ export default function ConnectionsPage() {
     setIsLoadingLinkedInOrgs(true);
 
     try {
-      // Fetch current account data to get platform_specific_data
+      // Fetch current account data to get platform_specific_data and account_name
       let accountData = null;
+      let accountName = null;
       try {
         const supabase = createSupabaseBrowserClient();
         const { data, error: accountError } = await supabase
           .from('social_accounts')
-          .select('platform_specific_data')
+          .select('platform_specific_data, account_name')
           .eq('id', account.id)
           .maybeSingle();
 
@@ -1151,6 +1159,8 @@ export default function ConnectionsPage() {
           // Continue anyway - we can still fetch organizations
         } else {
           accountData = data;
+          accountName = data?.account_name || null;
+          setLinkedinAccountName(accountName);
         }
       } catch (supabaseError) {
         console.error('[Connections] Failed to create Supabase client or fetch account data:', supabaseError);
@@ -1173,12 +1183,14 @@ export default function ConnectionsPage() {
 
       // Load posting config
       const currentPostingType = (platformData?.linkedinPostingType as string) || 'personal';
+      const isOrganizationMode = currentPostingType === 'organization';
       const currentConfig: LinkedInPostingConfig = {
-        postingType: currentPostingType === 'organization' ? 'organization' : 'personal',
+        postingType: isOrganizationMode ? 'organization' : 'personal',
         pageType: platformData?.linkedinPageType as 'company' | 'showcase' | undefined,
-        organizationUrl: platformData?.linkedinOrganizationUrl as string | undefined,
-        organizationUrn: platformData?.linkedinOrganizationUrn as string | undefined,
-        organizationName: linkedinOrg?.name as string | undefined,
+        // Only load organization data if posting type is organization
+        organizationUrl: isOrganizationMode ? (platformData?.linkedinOrganizationUrl as string | undefined) : undefined,
+        organizationUrn: isOrganizationMode ? (platformData?.linkedinOrganizationUrn as string | undefined) : undefined,
+        organizationName: isOrganizationMode ? (linkedinOrg?.name as string | undefined) : undefined,
       };
       setLinkedInPostingConfig(currentConfig);
 
@@ -1320,10 +1332,41 @@ export default function ConnectionsPage() {
           }
         }
       } else {
-        // If posting as personal, clear organization data
+        // If posting as personal, clear organization data and update Getlate API
         organizationId = undefined;
         organizationName = undefined;
         organizationUrn = undefined;
+
+        // If switching to personal, update Getlate API with account name
+        if (linkedinAccountForOrgs.getlate_account_id) {
+          // Fetch account name from social_accounts table
+          const { data: accountData } = await supabase
+            .from('social_accounts')
+            .select('account_name')
+            .eq('id', linkedinAccountForOrgs.id)
+            .maybeSingle();
+
+          const accountName = accountData?.account_name;
+
+          if (accountName) {
+            const response = await fetch('/api/getlate/linkedin-organizations', {
+              method: 'PUT',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                accountId: linkedinAccountForOrgs.getlate_account_id,
+                accountType: 'personal',
+                accountName,
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json().catch(() => ({ error: 'Failed to update to personal mode' }));
+              throw new Error(error.error || 'Failed to update to personal mode');
+            }
+          }
+        }
       }
 
       // Update platform_specific_data with posting config
@@ -1369,6 +1412,7 @@ export default function ConnectionsPage() {
 
       showToast(t('linkedin_settings_updated') as string || 'LinkedIn settings updated successfully', 'success');
       setLinkedinAccountForOrgs(null);
+      setLinkedinAccountName(null);
       setSelectedLinkedInOrgId(null);
       setLinkedinOrganizations([]);
       setLinkedInPostingConfig({ postingType: 'personal' });
@@ -1928,6 +1972,7 @@ export default function ConnectionsPage() {
           onOpenChange={(open) => {
             if (!open) {
               setLinkedinAccountForOrgs(null);
+              setLinkedinAccountName(null);
               setLinkedInPostingConfig({ postingType: 'personal' });
               setSelectedLinkedInOrgId(null);
             }
@@ -1969,7 +2014,12 @@ export default function ConnectionsPage() {
                             name="linkedin-posting-type"
                             value="personal"
                             checked={linkedInPostingConfig.postingType === 'personal'}
-                            onChange={() => setLinkedInPostingConfig({ postingType: 'personal' })}
+                            onChange={() => setLinkedInPostingConfig({
+                              postingType: 'personal',
+                              organizationName: undefined, // Clear company name when switching to personal
+                              organizationUrl: undefined,
+                              organizationUrn: undefined,
+                            })}
                             aria-label={(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
                             className="mt-1 h-4 w-4 cursor-pointer border-gray-300 text-pink-500 focus:ring-pink-500"
                           />
@@ -1980,8 +2030,8 @@ export default function ConnectionsPage() {
                                 {(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
                               </span>
                             </div>
-                            {linkedinAccountForOrgs?.handle && (
-                              <p className="mt-1 text-sm text-gray-600">{linkedinAccountForOrgs.handle}</p>
+                            {linkedinAccountName && (
+                              <p className="mt-1 text-sm text-gray-600">{linkedinAccountName}</p>
                             )}
                           </div>
                         </label>

@@ -205,10 +205,12 @@ export async function PUT(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const schema = z.object({
       accountId: z.string().min(1),
-      organizationId: z.string().min(1),
+      organizationId: z.string().optional(),
       organizationName: z.string().optional(),
       organizationUrn: z.string().optional(),
       sourceUrl: z.string().url().optional(),
+      accountName: z.string().optional(),
+      accountType: z.enum(['personal', 'organization']).optional(),
     });
 
     const parse = schema.safeParse(body);
@@ -222,6 +224,8 @@ export async function PUT(request: NextRequest) {
       organizationName,
       organizationUrn,
       sourceUrl,
+      accountName,
+      accountType,
     } = parse.data;
 
     let supabase;
@@ -377,32 +381,66 @@ export async function PUT(request: NextRequest) {
       );
     }
 
+    // Determine account type - if organizationId is provided, it's organization mode, otherwise personal
+    const finalAccountType = accountType || (organizationId ? 'organization' : 'personal');
+
+    // Get account name from social account if switching to personal
+    let finalAccountName = accountName;
+    if (finalAccountType === 'personal' && !finalAccountName) {
+      // Fetch account name from social_accounts table
+      const { data: accountData } = await supabase
+        .from('social_accounts')
+        .select('account_name')
+        .eq('id', socialAccount.id)
+        .maybeSingle();
+
+      finalAccountName = accountData?.account_name || undefined;
+    }
+
     const getlateResponse = await getlateClient.selectLinkedInOrganization(getlateAccountId, {
       organizationId,
       organizationName,
       organizationUrn,
       sourceUrl,
+      accountName: finalAccountName,
+      accountType: finalAccountType,
     });
 
-    // Extract company name from Getlate response if available
-    const responseOrganizationName = getlateResponse?.organization?.name
-      || getlateResponse?.selectedOrganization?.name
-      || getlateResponse?.data?.organization?.name
-      || getlateResponse?.data?.selectedOrganization?.name
-      || getlateResponse?.name
-      || organizationName;
+    // Extract company name from Getlate response if available (only for organization mode)
+    let responseOrganizationName: string | undefined;
+    if (finalAccountType === 'organization' && organizationId) {
+      responseOrganizationName = getlateResponse?.organization?.name
+        || getlateResponse?.selectedOrganization?.name
+        || getlateResponse?.data?.organization?.name
+        || getlateResponse?.data?.selectedOrganization?.name
+        || getlateResponse?.name
+        || organizationName;
+    }
 
     const platformData = (socialAccount.platform_specific_data as Record<string, any>) || {};
-    const updatedData = {
+    const updatedData: Record<string, any> = {
       ...platformData,
-      linkedinOrganization: {
-        id: organizationId,
-        name: responseOrganizationName || platformData.linkedinOrganization?.name || '',
-        urn: organizationUrn || platformData.linkedinOrganization?.urn,
-        sourceUrl: sourceUrl || platformData.linkedinOrganization?.sourceUrl,
-        updatedAt: new Date().toISOString(),
-      },
+      linkedinPostingType: finalAccountType, // Ensure posting type is set
     };
+
+    if (finalAccountType === 'organization' && organizationId) {
+      updatedData.linkedinPageType = platformData.linkedinPageType; // Keep page type if exists
+      updatedData.linkedinOrganizationUrl = sourceUrl;
+      updatedData.linkedinOrganizationUrn = organizationUrn;
+      updatedData.linkedinOrganization = {
+        id: organizationId,
+        name: responseOrganizationName || organizationName || '',
+        urn: organizationUrn,
+        sourceUrl,
+        updatedAt: new Date().toISOString(),
+      };
+    } else {
+      // Clear organization data for personal mode
+      delete updatedData.linkedinPageType;
+      delete updatedData.linkedinOrganizationUrl;
+      delete updatedData.linkedinOrganizationUrn;
+      delete updatedData.linkedinOrganization;
+    }
 
     try {
       const { error: updateError } = await supabase
@@ -421,14 +459,22 @@ export async function PUT(request: NextRequest) {
       // Don't fail the request if update fails, just log it
     }
 
-    return NextResponse.json({
-      organization: {
-        id: organizationId,
-        name: responseOrganizationName || organizationName,
-        urn: organizationUrn,
-      },
-      getlateResponse, // Include full response for debugging
-    });
+    if (finalAccountType === 'organization' && organizationId) {
+      return NextResponse.json({
+        organization: {
+          id: organizationId,
+          name: responseOrganizationName || organizationName,
+          urn: organizationUrn,
+        },
+        getlateResponse,
+      });
+    } else {
+      return NextResponse.json({
+        accountType: 'personal',
+        accountName: finalAccountName,
+        getlateResponse,
+      });
+    }
   } catch (error) {
     console.error('[Getlate LinkedIn Organizations] Error saving selection:', error);
     return NextResponse.json(
