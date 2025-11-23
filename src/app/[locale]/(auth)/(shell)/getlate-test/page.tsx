@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { redirect } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { createGetlateClient } from '@/libs/Getlate';
@@ -8,6 +8,11 @@ import { createSupabaseServerClient } from '@/libs/Supabase';
 export const dynamic = 'force-dynamic';
 
 export default async function GetlateTestPage() {
+  // Block this route in production (only allow in development/preview)
+  if (process.env.VERCEL_ENV === 'production') {
+    notFound();
+  }
+
   const supabase = await createSupabaseServerClient();
 
   // Check authentication

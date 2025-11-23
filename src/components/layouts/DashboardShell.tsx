@@ -42,7 +42,8 @@ const baseNav = [
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
-  { href: '/getlate-test', key: 'getlate_test', icon: TestTube },
+  // Only include getlate-test in non-production environments
+  ...(process.env.VERCEL_ENV !== 'production' ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }] : []),
 ] as const;
 
 export function DashboardShell({ children }: Props) {
