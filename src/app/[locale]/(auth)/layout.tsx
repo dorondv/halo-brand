@@ -1,4 +1,5 @@
 import { ToastProvider } from '@/components/ui/toast';
+import { BrandProvider } from '@/contexts/BrandContext';
 
 export default async function AuthLayout(props: {
   children: React.ReactNode;
@@ -8,7 +9,9 @@ export default async function AuthLayout(props: {
 
   return (
     <ToastProvider>
-      <div>{props.children}</div>
+      <BrandProvider>
+        <div>{props.children}</div>
+      </BrandProvider>
     </ToastProvider>
   );
 }

@@ -13,6 +13,10 @@ type MetricCardsClientProps = {
   impressions: string;
   engagement: string;
   posts: string;
+  followersChange: number;
+  impressionsChange: number;
+  engagementChange: number;
+  postsChange: number;
   vsLabel: string;
 };
 
@@ -21,6 +25,10 @@ export function MetricCardsClient({
   impressions,
   engagement,
   posts,
+  followersChange,
+  impressionsChange,
+  engagementChange,
+  postsChange,
   vsLabel,
 }: MetricCardsClientProps) {
   const router = useRouter();
@@ -53,7 +61,7 @@ export function MetricCardsClient({
         <MetricCard
           title={t('metric_total_followers')}
           value={followers}
-          change={12.5}
+          change={followersChange}
           icon={Users}
           vsLabel={vsLabel}
           isSelected={selectedMetric === 'followers'}
@@ -67,7 +75,7 @@ export function MetricCardsClient({
         <MetricCard
           title={t('metric_total_impressions')}
           value={impressions}
-          change={18.7}
+          change={impressionsChange}
           icon={Eye}
           vsLabel={vsLabel}
           isSelected={selectedMetric === 'impressions'}
@@ -81,7 +89,7 @@ export function MetricCardsClient({
         <MetricCard
           title={t('metric_total_engagement')}
           value={engagement}
-          change={5.3}
+          change={engagementChange}
           icon={Heart}
           vsLabel={vsLabel}
           isSelected={selectedMetric === 'engagement'}
@@ -95,7 +103,7 @@ export function MetricCardsClient({
         <MetricCard
           title={t('metric_total_posts')}
           value={posts}
-          change={5.1}
+          change={postsChange}
           icon={FileText}
           vsLabel={vsLabel}
           isSelected={selectedMetric === 'posts'}

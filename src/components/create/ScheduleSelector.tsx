@@ -39,7 +39,7 @@ export default function ScheduleSelector({
             onClick={() => onScheduleModeChange('now')}
             className={
               scheduleMode === 'now'
-                ? 'bg-gradient-to-r from-blue-500 to-emerald-500 text-white'
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white'
                 : 'hover:bg-pink-50'
             }
           >
@@ -52,7 +52,7 @@ export default function ScheduleSelector({
             onClick={() => onScheduleModeChange('later')}
             className={
               scheduleMode === 'later'
-                ? 'bg-gradient-to-r from-blue-500 to-emerald-500 text-white'
+                ? 'bg-gradient-to-r from-pink-500 to-pink-600 text-white'
                 : 'hover:bg-pink-50'
             }
           >

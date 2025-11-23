@@ -5,6 +5,8 @@ export const Env = createEnv({
   server: {
     ARCJET_KEY: z.string().startsWith('ajkey_').optional(),
     DATABASE_URL: z.string().min(1),
+    GETLATE_API_URL: z.string().url().optional(), // Optional, defaults to production API
+    GETLATE_SERVICE_API_KEY: z.string().min(1).optional(), // Service account API key for auto-setup
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().optional(),
@@ -20,6 +22,8 @@ export const Env = createEnv({
   runtimeEnv: {
     ARCJET_KEY: process.env.ARCJET_KEY,
     DATABASE_URL: process.env.DATABASE_URL,
+    GETLATE_API_URL: process.env.GETLATE_API_URL,
+    GETLATE_SERVICE_API_KEY: process.env.GETLATE_SERVICE_API_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,

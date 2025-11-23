@@ -11,6 +11,7 @@ import {
   PenTool,
   Settings,
   Tags,
+  TestTube,
   User,
   X,
 } from 'lucide-react';
@@ -20,6 +21,7 @@ import Link from 'next/link';
 import React, { Suspense } from 'react';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
+import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
 import { usePathname } from '@/libs/I18nNavigation';
@@ -40,6 +42,7 @@ const baseNav = [
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
+  { href: '/getlate-test', key: 'getlate_test', icon: TestTube },
 ] as const;
 
 export function DashboardShell({ children }: Props) {
@@ -129,39 +132,94 @@ export function DashboardShell({ children }: Props) {
 
       {/* Main */}
       <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-between bg-white p-4 shadow-sm">
-          <div className="flex items-center gap-4">
-            <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
-              <Menu className="h-6 w-6" />
-            </Button>
-            {userName && (
-              <div className="flex items-center gap-3">
-                {userAvatar && !avatarError
-                  ? (
-                      <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
-                        <Image
-                          src={userAvatar}
-                          alt={userName}
-                          fill
-                          className="object-cover"
-                          sizes="40px"
-                          unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
-                          onError={() => setAvatarError(true)}
-                        />
-                      </div>
-                    )
-                  : (
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600">
-                        <User className="h-5 w-5" />
+        <header
+          className={`flex items-center ${locale === 'he'
+            ? 'flex-row-reverse'
+            : ''} justify-between bg-white p-4 shadow-sm`}
+        >
+          {locale === 'he'
+            ? (
+              // Hebrew: Language switcher on left, user data on right
+                <>
+                  {userName && (
+                    <div className="flex items-center">
+                      <LocaleSwitcher />
+                    </div>
+                  )}
+                  <div className="flex flex-row-reverse items-center gap-4">
+                    <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+                      <Menu className="h-6 w-6" />
+                    </Button>
+                    {userName && (
+                      <div className="flex flex-row-reverse items-center gap-3">
+                        <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800">
+                          {t('hello_greeting', { name: userName })}
+                        </h1>
+                        {userAvatar && !avatarError
+                          ? (
+                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
+                                <Image
+                                  src={userAvatar}
+                                  alt={userName}
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
+                                  onError={() => setAvatarError(true)}
+                                />
+                              </div>
+                            )
+                          : (
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+                                <User className="h-5 w-5" />
+                              </div>
+                            )}
                       </div>
                     )}
-                <h1 className="text-lg font-semibold text-gray-800">
-                  {t('hello_greeting', { name: userName })}
-                </h1>
-              </div>
-            )}
-          </div>
-          <div className="flex-1" />
+                  </div>
+                </>
+              )
+            : (
+              // English: User data on left, language switcher on right
+                <>
+                  <div className="flex items-center gap-4">
+                    <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+                      <Menu className="h-6 w-6" />
+                    </Button>
+                    {userName && (
+                      <div className="flex items-center gap-3">
+                        {userAvatar && !avatarError
+                          ? (
+                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200">
+                                <Image
+                                  src={userAvatar}
+                                  alt={userName}
+                                  fill
+                                  className="object-cover"
+                                  sizes="40px"
+                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
+                                  onError={() => setAvatarError(true)}
+                                />
+                              </div>
+                            )
+                          : (
+                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600">
+                                <User className="h-5 w-5" />
+                              </div>
+                            )}
+                        <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800">
+                          {t('hello_greeting', { name: userName })}
+                        </h1>
+                      </div>
+                    )}
+                  </div>
+                  {userName && (
+                    <div className="flex items-center">
+                      <LocaleSwitcher />
+                    </div>
+                  )}
+                </>
+              )}
         </header>
         <main className="flex-1 overflow-y-auto p-6">{children}</main>
       </div>

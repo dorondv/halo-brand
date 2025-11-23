@@ -2,12 +2,17 @@
 
 import { format } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
-import { ChevronDown, ChevronUp, FileText, Image } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FileText, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import Image from 'next/image';
 import React from 'react';
+import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { cn } from '@/libs/cn';
+import { utcToLocal } from '@/libs/timezone';
 
 type PostRow = {
+  id?: string; // Optional unique identifier (post_id or analytics_id)
   score: number;
   engagementRate: number;
   engagement: number;
@@ -15,6 +20,9 @@ type PostRow = {
   date: string;
   postContent: string;
   platform: string;
+  mediaUrls?: string[];
+  imageUrl?: string;
+  platformPostUrl?: string | null; // URL to the post on the platform
 };
 
 type PostsTableProps = {
@@ -110,39 +118,10 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const dfLocale = localeCode === 'he' ? dfHe : dfEnUS;
   const [sortColumn, setSortColumn] = React.useState<string | null>('date');
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = React.useState(1);
+  const postsPerPage = 5;
 
-  // Default dummy data if no posts provided
-  const defaultPosts: PostRow[] = [
-    {
-      score: 1492,
-      engagementRate: 8.70,
-      engagement: 1357,
-      impressions: 15600,
-      date: '2025-10-31T17:51:00',
-      postContent: 'השבוע השקנו את הקולקציה החדשה שלנו! 🌸 מה הפריט שהכי אהבתם? ספרו לנו בתגובות! #אופנה #קיץ #חדש',
-      platform: 'instagram',
-    },
-    {
-      score: 908,
-      engagementRate: 8.56,
-      engagement: 839,
-      impressions: 9800,
-      date: '2025-10-29T17:51:00',
-      postContent: 'מאחורי הקלעים של הצילומים האחרונים שלנו. היה יום מדהים עם צוות מנצח! תודה לכל מי שלקח חלק. 💪',
-      platform: 'facebook',
-    },
-    {
-      score: 842,
-      engagementRate: 8.47,
-      engagement: 618,
-      impressions: 7300,
-      date: '2025-10-26T17:51:00',
-      postContent: 'טיפ קטן ליום מוצלח: התחילו את הבוקר עם חיוך וקפה טוב. ☕ מה הטיפ שלכם לבוקר אנרגטי?',
-      platform: 'x',
-    },
-  ];
-
-  const displayPosts = posts.length > 0 ? posts : defaultPosts;
+  const displayPosts = posts;
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -151,6 +130,8 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
       setSortColumn(column);
       setSortDirection('desc');
     }
+    // Reset to page 1 when sorting changes
+    setCurrentPage(1);
   };
 
   const sortedPosts = [...displayPosts].sort((a, b) => {
@@ -170,6 +151,24 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
     }
     return aVal < bVal ? 1 : -1;
   });
+
+  // Calculate pagination
+  const totalPages = Math.ceil(sortedPosts.length / postsPerPage);
+  const startIndex = (currentPage - 1) * postsPerPage;
+  const endIndex = startIndex + postsPerPage;
+  const paginatedPosts = sortedPosts.slice(startIndex, endIndex);
+
+  const handlePreviousPage = () => {
+    setCurrentPage(prev => Math.max(1, prev - 1));
+  };
+
+  const handleNextPage = () => {
+    setCurrentPage(prev => Math.min(totalPages, prev + 1));
+  };
+
+  const handlePageClick = (page: number) => {
+    setCurrentPage(page);
+  };
 
   return (
     <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
@@ -248,61 +247,206 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                     )}
                   </div>
                 </th>
+                <th className="px-4 py-3 text-center text-sm font-medium text-gray-700">
+                  {t('posts_table_link') || 'Link'}
+                </th>
               </tr>
             </thead>
             <tbody>
-              {sortedPosts.map((post) => {
-                const postDate = new Date(post.date);
-                const dayName = format(postDate, 'EEEE', { locale: dfLocale });
-                const dateStr = format(postDate, 'dd/MM/yyyy');
-                const timeStr = format(postDate, 'HH:mm');
+              {paginatedPosts.length === 0
+                ? (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500">
+                        {t('posts_table_no_posts')}
+                      </td>
+                    </tr>
+                  )
+                : paginatedPosts.map((post, index) => {
+                  // Convert UTC date to local timezone for display
+                    const postDate = utcToLocal(post.date);
+                    const dayName = format(postDate, 'EEEE', { locale: dfLocale });
+                    const dateStr = format(postDate, 'dd/MM/yyyy');
+                    const timeStr = format(postDate, 'HH:mm');
 
-                return (
-                  <tr key={`post-${post.date}-${post.platform}-${post.engagement}-${post.postContent.slice(0, 20)}`} className="border-b border-gray-100 hover:bg-gray-50">
-                    <td className="px-4 py-4">
-                      <div className="flex items-center justify-center">
-                        <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
-                          <PlatformIcon platform={post.platform} className="h-5 w-5 text-white" />
-                        </div>
-                      </div>
-                    </td>
-                    <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
-                      <div className={`flex items-center gap-2 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
-                        <span className="text-xs text-gray-500">{t('posts_table_post_media')}</span>
-                        <Image className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <div className={`mt-1 truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
-                        {post.postContent}
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      <div>
-                        <div>{dateStr}</div>
-                        <div className="text-gray-500">{timeStr}</div>
-                        <div className="text-xs text-gray-500">{dayName}</div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.impressions)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {new Intl.NumberFormat('he-IL').format(post.engagement)}
-                    </td>
-                    <td className="px-4 py-4 text-right text-sm text-gray-700">
-                      {post.engagementRate.toFixed(2)}
-                      %
-                    </td>
-                    <td className="px-4 py-4 text-right">
-                      <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
-                        {post.score}
-                      </span>
-                    </td>
-                  </tr>
-                );
-              })}
+                    // Generate unique key: prefer id, fallback to combination with index
+                    const uniqueKey = post.id
+                      ? `post-${post.id}-${post.platform}-${post.date}`
+                      : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
+
+                    return (
+                      <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
+                        <td className="px-4 py-4">
+                          <div className="flex items-center justify-center">
+                            <div className={`flex h-8 w-8 items-center justify-center rounded ${getPlatformBgColor(post.platform)}`}>
+                              <PlatformIcon platform={post.platform} className="h-5 w-5 text-white" />
+                            </div>
+                          </div>
+                        </td>
+                        <td className={`max-w-md px-4 py-4 text-sm text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                          {/* Media Thumbnail */}
+                          {(post.mediaUrls && post.mediaUrls.length > 0) || post.imageUrl
+                            ? (
+                                <div className={`mb-2 flex items-center gap-2 ${localeCode === 'he' ? 'flex-row justify-start' : 'justify-start'}`}>
+                                  {(post.mediaUrls && post.mediaUrls.length > 0 ? post.mediaUrls : [post.imageUrl]).slice(0, 1).map((mediaUrl) => {
+                                    if (!mediaUrl) {
+                                      return null;
+                                    }
+                                    const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
+                                      || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
+                                      || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
+                                    const mediaKey = post.id ? `media-${post.id}-${mediaUrl}` : `media-${mediaUrl}`;
+                                    return (
+                                      <div key={mediaKey} className="relative h-16 w-16 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100">
+                                        {isVideo
+                                          ? (
+                                              <div className="flex h-full w-full items-center justify-center bg-gray-900">
+                                                <Play className="h-6 w-6 text-white" fill="white" />
+                                              </div>
+                                            )
+                                          : (
+                                              <Image
+                                                src={mediaUrl}
+                                                alt="Post media"
+                                                fill
+                                                className="object-cover"
+                                                sizes="64px"
+                                                unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
+                                              />
+                                            )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              )
+                            : null}
+                          {/* Post Content */}
+                          <div className={`truncate text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                            {post.postContent}
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          <div>
+                            <div>{dateStr}</div>
+                            <div className="text-gray-500">{timeStr}</div>
+                            <div className="text-xs text-gray-500">{dayName}</div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {new Intl.NumberFormat('he-IL').format(post.impressions)}
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {new Intl.NumberFormat('he-IL').format(post.engagement)}
+                        </td>
+                        <td className="px-4 py-4 text-right text-sm text-gray-700">
+                          {post.engagementRate.toFixed(2)}
+                          %
+                        </td>
+                        <td className="px-4 py-4 text-right">
+                          <span className={`inline-flex items-center rounded-full px-3 py-1 text-sm font-medium ${getScoreColor(post.score)}`}>
+                            {post.score}
+                          </span>
+                        </td>
+                        <td className="px-4 py-4 text-center">
+                          {post.platformPostUrl
+                            ? (
+                                <a
+                                  href={post.platformPostUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center text-pink-600 transition-colors hover:text-pink-700"
+                                  title={t('posts_table_open_link') || 'Open post on platform'}
+                                >
+                                  <ExternalLink className="h-5 w-5" />
+                                </a>
+                              )
+                            : (
+                                <span className="text-gray-400">
+                                  <ExternalLink className="h-5 w-5" />
+                                </span>
+                              )}
+                        </td>
+                      </tr>
+                    );
+                  })}
             </tbody>
           </table>
         </div>
+        {/* Pagination Controls */}
+        {totalPages > 1 && (
+          <div className={`mt-4 flex items-center justify-between border-t border-gray-200 pt-4 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handlePreviousPage}
+                disabled={currentPage === 1}
+                className="flex items-center gap-1"
+              >
+                {localeCode === 'he'
+                  ? (
+                      <>
+                        <ChevronRight className="h-4 w-4" />
+                        {t('pagination_previous') || 'הקודם'}
+                      </>
+                    )
+                  : (
+                      <>
+                        <ChevronLeft className="h-4 w-4" />
+                        {t('pagination_previous') || 'Previous'}
+                      </>
+                    )}
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleNextPage}
+                disabled={currentPage === totalPages}
+                className="flex items-center gap-1"
+              >
+                {localeCode === 'he'
+                  ? (
+                      <>
+                        {t('pagination_next') || 'הבא'}
+                        <ChevronLeft className="h-4 w-4" />
+                      </>
+                    )
+                  : (
+                      <>
+                        {t('pagination_next') || 'Next'}
+                        <ChevronRight className="h-4 w-4" />
+                      </>
+                    )}
+              </Button>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-gray-600">
+                {t('pagination_page') || 'Page'}
+                {' '}
+                {currentPage}
+                {' '}
+                {t('pagination_of') || 'of'}
+                {' '}
+                {totalPages}
+              </span>
+            </div>
+            <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
+              {Array.from({ length: totalPages }, (_, i) => i + 1).map(page => (
+                <Button
+                  key={page}
+                  variant={currentPage === page ? 'default' : 'outline'}
+                  size="sm"
+                  onClick={() => handlePageClick(page)}
+                  className={cn(
+                    'h-8 w-8 p-0',
+                    currentPage === page && 'bg-pink-600 text-white hover:bg-pink-700 border-pink-600',
+                  )}
+                >
+                  {page}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

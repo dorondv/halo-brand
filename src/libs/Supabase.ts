@@ -1,23 +1,37 @@
-import type { CookieOptions } from '@supabase/ssr';
 import { createServerClient } from '@supabase/ssr';
 import { cookies } from 'next/headers';
 
-export async function createSupabaseServerClient() {
-  const cookieStore = await cookies();
+type CookieStore = Awaited<ReturnType<typeof cookies>>;
+
+export async function createSupabaseServerClient(cookieStore?: CookieStore) {
+  // Validate environment variables
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+
+  if (!supabaseUrl) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_URL environment variable is not set');
+  }
+
+  if (!supabaseAnonKey) {
+    throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY environment variable is not set');
+  }
+
+  // Use provided cookieStore or create new one (Next.js 16: cookies() can only be called once per request)
+  const store = cookieStore || await cookies();
 
   return createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    supabaseUrl,
+    supabaseAnonKey,
     {
       cookies: {
-        get(name: string) {
-          return cookieStore.get(name)?.value;
+        getAll() {
+          return store.getAll();
         },
-        set(name: string, value: string, options: CookieOptions) {
+        setAll(cookiesToSet) {
           try {
-            if (typeof cookieStore.set === 'function') {
-              cookieStore.set(name, value, options);
-            }
+            cookiesToSet.forEach(({ name, value, options }) => {
+              store.set(name, value, options);
+            });
           } catch (error) {
             // Silently handle cookie errors - they're expected in some contexts
             // Only log in development for debugging
@@ -26,23 +40,6 @@ export async function createSupabaseServerClient() {
               // Only warn about cookie errors if they're not the expected "can only be modified" error
               if (!errorMessage.includes('can only be modified')) {
                 console.warn('Supabase cookie set skipped:', errorMessage);
-              }
-            }
-          }
-        },
-        remove(name: string, _options: CookieOptions) {
-          try {
-            if (typeof cookieStore.delete === 'function') {
-              cookieStore.delete(name);
-            }
-          } catch (error) {
-            // Silently handle cookie errors - they're expected in some contexts
-            // Only log in development for debugging
-            if (process.env.NODE_ENV === 'development') {
-              const errorMessage = error instanceof Error ? error.message : String(error);
-              // Only warn about cookie errors if they're not the expected "can only be modified" error
-              if (!errorMessage.includes('can only be modified')) {
-                console.warn('Supabase cookie delete skipped:', errorMessage);
               }
             }
           }

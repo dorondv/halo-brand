@@ -12,8 +12,10 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
+import { localToUtc } from '@/libs/timezone';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -23,8 +25,10 @@ type Platform = 'instagram' | 'x' | 'twitter' | 'facebook' | 'linkedin' | 'youtu
 
 type Account = {
   id: string;
+  brand_id: string;
   platform: Platform;
   account_name: string;
+  getlate_account_id?: string | null;
 };
 
 export default function CreatePostPage() {
@@ -43,9 +47,10 @@ export default function CreatePostPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const { selectedBrandId } = useBrand();
   const [error, setError] = useState<string | null>(null);
 
-  // Load social accounts from database
+  // Load social accounts from database (use DB data directly, sync Getlate in background)
   const loadAccounts = useCallback(async () => {
     try {
       const supabase = createSupabaseBrowserClient();
@@ -63,33 +68,55 @@ export default function CreatePostPage() {
 
       const userId = userRecord?.id || session.user.id;
 
-      // Fetch all active social accounts for this user
-      const { data, error: fetchError } = await supabase
+      // Fetch active social accounts from database (show DB data immediately)
+      // Filter by selected brand if one is selected, otherwise show all accounts
+      let accountsQuery = supabase
         .from('social_accounts')
-        .select('id,platform,account_name')
+        .select('id, brand_id, platform, account_name, getlate_account_id')
         .eq('user_id', userId)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .order('platform', { ascending: true });
+
+      // If a brand is selected, filter by brand_id
+      if (selectedBrandId) {
+        accountsQuery = accountsQuery.eq('brand_id', selectedBrandId);
+      }
+
+      const { data, error: fetchError } = await accountsQuery;
 
       if (fetchError) {
-        console.error('Error fetching accounts:', fetchError);
+        // Only log if error has meaningful information
+        if (fetchError.message || fetchError.code || Object.keys(fetchError).length > 0) {
+          console.error('[CreatePost] Error fetching accounts from DB:', {
+            message: fetchError.message,
+            code: fetchError.code,
+            details: fetchError,
+          });
+        }
         setAccounts([]);
       } else {
         const accountsData: Account[] = (data || []).map(acc => ({
           id: acc.id,
+          brand_id: acc.brand_id,
           platform: (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform,
           account_name: acc.account_name || '',
+          getlate_account_id: acc.getlate_account_id || null,
         }));
         setAccounts(accountsData);
       }
+
+      // Removed automatic background sync to prevent interval polling
+      // Accounts are loaded from database only
+      // Sync from Getlate should only happen explicitly (e.g., after OAuth connection)
     } catch (err) {
-      console.error('Error loading accounts:', err);
+      console.error('[CreatePost] Error loading accounts:', err);
       setAccounts([]);
     }
-  }, []);
+  }, [selectedBrandId]);
 
   useEffect(() => {
     void loadAccounts();
-  }, [loadAccounts]);
+  }, [loadAccounts]); // loadAccounts is memoized with useCallback, so it's safe to include
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -98,76 +125,206 @@ export default function CreatePostPage() {
       return;
     }
 
+    // Note: selectedBrandId can be null for "all brands" - no validation needed
     setIsSubmitting(true);
     setError(null);
 
     try {
+      const supabase = createSupabaseBrowserClient();
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('You must be logged in to create a post');
+      }
+
+      // Get user ID
+      const { data: userRecord } = await supabase
+        .from('users')
+        .select('id')
+        .eq('email', session.user.email)
+        .maybeSingle();
+
+      const userId = userRecord?.id || session.user.id;
+
       // Determine media type
       const firstMediaUrl = formData.media_urls[0];
       const mediaType = formData.media_urls.length > 0 && firstMediaUrl ? (firstMediaUrl.includes('video') ? 'video' : 'image') : 'text';
 
-      // Create post in database
-      const postResponse = await fetch('/api/posts', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          content: formData.content,
-          image_url: formData.media_urls.length > 0 ? formData.media_urls[0] : null,
-          hashtags: formData.hashtags,
-          media_type: mediaType,
-          metadata: {
-            media_urls: formData.media_urls,
-            platforms: formData.platforms,
-          },
-        }),
-      });
+      // Determine timezone (use user's timezone or default)
+      const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
-      if (!postResponse.ok) {
-        const errorData = await postResponse.json();
-        throw new Error(errorData.error || 'Failed to create post');
-      }
+      // If "all brands" is selected, create a post for each brand that has accounts for selected platforms
+      if (!selectedBrandId) {
+        // Group accounts by brand_id
+        const accountsByBrand = new Map<string, typeof accounts>();
+        accounts.forEach((acc) => {
+          if (formData.platforms.includes(acc.platform)) {
+            const brandId = acc.brand_id;
+            if (!accountsByBrand.has(brandId)) {
+              accountsByBrand.set(brandId, []);
+            }
+            accountsByBrand.get(brandId)!.push(acc);
+          }
+        });
 
-      const { data: postData } = await postResponse.json();
-      const postId = postData[0]?.id;
-
-      if (!postId) {
-        throw new Error('Failed to get post ID');
-      }
-
-      // If scheduling, create scheduled posts for each selected platform
-      if (scheduleMode === 'later' && formData.scheduled_time) {
-        // Get accounts for selected platforms
-        const accountsForPlatforms = accounts.filter(acc =>
-          formData.platforms.includes(acc.platform),
-        );
-
-        if (accountsForPlatforms.length === 0) {
-          throw new Error('No connected accounts found for selected platforms');
+        if (accountsByBrand.size === 0) {
+          throw new Error('No connected accounts found for selected platforms. Please connect accounts first.');
         }
 
-        // Create scheduled posts for each account
-        const schedulePromises = accountsForPlatforms.map(account =>
-          fetch('/api/schedule', {
+        // Create a post for each brand
+        const postPromises = Array.from(accountsByBrand.entries()).map(async ([brandId, brandAccounts]) => {
+          // Fetch brand to get Getlate profile ID
+          const { data: brandData } = await supabase
+            .from('brands')
+            .select('getlate_profile_id')
+            .eq('id', brandId)
+            .eq('user_id', userId)
+            .single();
+
+          const useGetlate = !!brandData?.getlate_profile_id;
+
+          // Map platforms for this brand
+          const platformsArray = brandAccounts
+            .filter(acc => (useGetlate ? acc.getlate_account_id : true)) // If using Getlate, require getlate_account_id
+            .map(acc => ({
+              platform: acc.platform,
+              account_id: acc.id,
+              config: {},
+            }));
+
+          if (platformsArray.length === 0) {
+            return null; // Skip brands without valid accounts
+          }
+
+          // Create post for this brand
+          const postResponse = await fetch('/api/posts', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-              postId,
-              socialAccountId: account.id,
-              scheduledFor: formData.scheduled_time,
+              content: formData.content,
+              image_url: formData.media_urls.length > 0 ? formData.media_urls[0] : null,
+              hashtags: formData.hashtags,
+              media_type: mediaType,
+              brand_id: brandId,
+              scheduled_for: scheduleMode === 'later' && formData.scheduled_time ? localToUtc(formData.scheduled_time) : undefined,
+              timezone,
+              platforms: platformsArray,
+              use_getlate: useGetlate,
+              metadata: {
+                media_urls: formData.media_urls,
+                platforms: formData.platforms,
+              },
             }),
-          }),
+          });
+
+          if (!postResponse.ok) {
+            const errorData = await postResponse.json();
+            throw new Error(errorData.error || `Failed to create post for brand ${brandId}`);
+          }
+
+          return await postResponse.json();
+        });
+
+        const results = await Promise.all(postPromises);
+        const successfulPosts = results.filter(r => r !== null);
+
+        if (successfulPosts.length === 0) {
+          throw new Error('Failed to create posts for any brand. Please check your account connections.');
+        }
+
+        // All posts created successfully
+      } else {
+        // Single brand selected - create one post
+        // Fetch brand to get Getlate profile ID
+        const { data: brandData } = await supabase
+          .from('brands')
+          .select('getlate_profile_id')
+          .eq('id', selectedBrandId)
+          .eq('user_id', userId)
+          .single();
+
+        const useGetlate = !!brandData?.getlate_profile_id;
+
+        // Get accounts for selected platforms and brand
+        const accountsForPlatforms = accounts.filter(acc =>
+          formData.platforms.includes(acc.platform)
+          && acc.brand_id === selectedBrandId
+          && (useGetlate ? acc.getlate_account_id : true), // If using Getlate, require getlate_account_id
         );
 
-        const scheduleResults = await Promise.all(schedulePromises);
-        const failedSchedules = scheduleResults.filter(r => !r.ok);
+        if (accountsForPlatforms.length === 0) {
+          throw new Error('No connected accounts found for selected platforms. Please connect accounts first.');
+        }
 
-        if (failedSchedules.length > 0) {
-          console.error('Some schedules failed:', failedSchedules);
-          // Continue anyway - at least the post was created
+        // Map platforms for Getlate (if using Getlate) or local
+        const platformsArray = accountsForPlatforms.map(acc => ({
+          platform: acc.platform,
+          account_id: acc.id, // Always send local account ID, API will look up getlate_account_id
+          config: {},
+        }));
+
+        // Create post in database with Getlate integration
+        const postResponse = await fetch('/api/posts', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            content: formData.content,
+            image_url: formData.media_urls.length > 0 ? formData.media_urls[0] : null,
+            hashtags: formData.hashtags,
+            media_type: mediaType,
+            brand_id: selectedBrandId,
+            scheduled_for: scheduleMode === 'later' && formData.scheduled_time ? localToUtc(formData.scheduled_time) : undefined,
+            timezone,
+            platforms: platformsArray,
+            use_getlate: useGetlate,
+            metadata: {
+              media_urls: formData.media_urls,
+              platforms: formData.platforms,
+            },
+          }),
+        });
+
+        if (!postResponse.ok) {
+          const errorData = await postResponse.json();
+          throw new Error(errorData.error || 'Failed to create post');
+        }
+
+        const { data: postData } = await postResponse.json();
+        const postId = postData[0]?.id;
+
+        if (!postId) {
+          throw new Error('Failed to get post ID');
+        }
+
+        // If using Getlate, the scheduling is handled by Getlate API
+        // If not using Getlate and scheduling, create scheduled posts for each account
+        if (!useGetlate && scheduleMode === 'later' && formData.scheduled_time) {
+          // Create scheduled posts for each account
+          const schedulePromises = accountsForPlatforms.map(account =>
+            fetch('/api/schedule', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                postId,
+                socialAccountId: account.id,
+                scheduledFor: localToUtc(formData.scheduled_time),
+                timezone,
+              }),
+            }),
+          );
+
+          const scheduleResults = await Promise.all(schedulePromises);
+          const failedSchedules = scheduleResults.filter(r => !r.ok);
+
+          if (failedSchedules.length > 0) {
+            console.error('Some schedules failed:', failedSchedules);
+            // Continue anyway - at least the post was created
+          }
         }
       }
 
@@ -218,7 +375,7 @@ export default function CreatePostPage() {
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
                   <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                    <Send className="h-5 w-5 text-blue-500" />
+                    <Send className="h-5 w-5 text-pink-500" />
                     {t('post_content_title')}
                   </CardTitle>
                 </CardHeader>
@@ -227,7 +384,7 @@ export default function CreatePostPage() {
                     placeholder={t('content_placeholder')}
                     value={formData.content}
                     onChange={e => setFormData(prev => ({ ...prev, content: e.target.value }))}
-                    className="min-h-[120px] resize-none border-gray-200 transition-all duration-300 focus:border-blue-300"
+                    className="min-h-[120px] resize-none border-gray-200 transition-all duration-300 focus:border-pink-300"
                   />
 
                   <div className={cn('flex text-sm text-slate-500', isRTL ? 'flex-row-reverse justify-between' : 'justify-between')}>
@@ -249,7 +406,7 @@ export default function CreatePostPage() {
               <Card className="border-gray-200 shadow-xl">
                 <CardHeader>
                   <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                    <Hash className="h-5 w-5 text-emerald-500" />
+                    <Hash className="h-5 w-5 text-pink-500" />
                     {t('hashtags_title')}
                   </CardTitle>
                 </CardHeader>
@@ -259,14 +416,14 @@ export default function CreatePostPage() {
                     value={hashtagInput}
                     onChange={e => setHashtagInput(e.target.value)}
                     onKeyPress={addHashtag}
-                    className="border-gray-200 focus:border-emerald-300"
+                    className="border-gray-200 focus:border-pink-300"
                   />
 
                   <div className="flex flex-wrap gap-2">
                     {formData.hashtags.map(tag => (
                       <span
                         key={tag}
-                        className="flex items-center gap-2 rounded-full border border-gray-200 bg-gradient-to-r from-emerald-100 to-blue-100 px-3 py-1 text-sm text-slate-700"
+                        className="flex items-center gap-2 rounded-full border border-gray-200 bg-gradient-to-r from-pink-100 to-pink-200 px-3 py-1 text-sm text-slate-700"
                       >
                         #
                         {tag}
@@ -292,6 +449,7 @@ export default function CreatePostPage() {
                   </CardContent>
                 </Card>
               )}
+
               <PlatformSelector
                 accounts={accounts}
                 selectedPlatforms={formData.platforms}
@@ -308,7 +466,7 @@ export default function CreatePostPage() {
               <Button
                 type="submit"
                 disabled={!formData.content.trim() || formData.platforms.length === 0 || isSubmitting}
-                className="w-full rounded-xl bg-gradient-to-r from-blue-500 to-emerald-500 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-blue-600 hover:to-emerald-600 hover:shadow-xl"
+                className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 py-4 text-lg font-medium text-white shadow-lg transition-all duration-300 hover:from-pink-600 hover:to-pink-700 hover:shadow-xl"
               >
                 {isSubmitting
                   ? (
