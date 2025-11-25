@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import {
   AlertCircle,
   Briefcase,
+  ExternalLink,
   Facebook,
   Frown,
   Instagram,
@@ -18,6 +19,7 @@ import {
   Youtube,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
+import Link from 'next/link';
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   Cell,
@@ -28,7 +30,6 @@ import {
 } from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBrand } from '@/contexts/BrandContext';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
@@ -80,6 +81,7 @@ type Post = {
     shares: number;
     views?: number;
   };
+  platformPostUrl?: string | null;
 };
 
 type AnalysisResult = {
@@ -141,7 +143,7 @@ export function PostSentimentClient() {
       // Fetch posts
       const postsQuery = supabase
         .from('posts')
-        .select('id,content,created_at,platforms')
+        .select('id,content,created_at,platforms,metadata')
         .eq('user_id', userId)
         .eq('brand_id', selectedBrandId)
         .in('status', ['published', 'scheduled', 'draft'])
@@ -156,7 +158,7 @@ export function PostSentimentClient() {
       if (postIds.length > 0) {
         const { data: analytics } = await supabase
           .from('post_analytics')
-          .select('post_id,likes,comments,shares')
+          .select('post_id,likes,comments,shares,metadata')
           .in('post_id', postIds);
 
         analyticsData = analytics || [];
@@ -169,6 +171,26 @@ export function PostSentimentClient() {
         const totalComments = postAnalytics.reduce((sum, a) => sum + (a.comments || 0), 0);
         const totalShares = postAnalytics.reduce((sum, a) => sum + (a.shares || 0), 0);
 
+        // Extract platformPostUrl from analytics metadata (Priority 1)
+        let platformPostUrl: string | null = null;
+        for (const analytics of postAnalytics) {
+          if (analytics.metadata) {
+            const metadata = analytics.metadata as any;
+            if (metadata.platformPostUrl) {
+              platformPostUrl = metadata.platformPostUrl;
+              break;
+            }
+            // Also check nested platform objects
+            if (metadata.platforms && Array.isArray(metadata.platforms)) {
+              const platformWithUrl = metadata.platforms.find((p: any) => p.platformPostUrl);
+              if (platformWithUrl?.platformPostUrl) {
+                platformPostUrl = platformWithUrl.platformPostUrl;
+                break;
+              }
+            }
+          }
+        }
+
         // Parse platforms if it's a string
         let platforms = post.platforms;
         if (typeof platforms === 'string') {
@@ -180,6 +202,44 @@ export function PostSentimentClient() {
         }
         if (!Array.isArray(platforms)) {
           platforms = [];
+        }
+
+        // Extract platformPostUrl from post's platforms array (Priority 2)
+        // This is where Getlate stores platformPostUrl in the original API response
+        if (!platformPostUrl && platforms.length > 0) {
+          for (const platformData of platforms) {
+            // Handle both object and string formats
+            const platformObj = typeof platformData === 'object' ? platformData : null;
+            if (platformObj?.platformPostUrl) {
+              platformPostUrl = platformObj.platformPostUrl;
+              break; // Found it
+            }
+          }
+          // If still not found, try the first platform's platformPostUrl regardless of match
+          if (!platformPostUrl) {
+            const firstPlatform = platforms[0];
+            const firstPlatformObj = typeof firstPlatform === 'object' ? firstPlatform : null;
+            if (firstPlatformObj?.platformPostUrl) {
+              platformPostUrl = firstPlatformObj.platformPostUrl;
+            }
+          }
+        }
+
+        // Extract platformPostUrl from post's metadata (Priority 3)
+        if (!platformPostUrl && post.metadata) {
+          const postMetadata = post.metadata as any;
+          if (postMetadata.platformPostUrl) {
+            platformPostUrl = postMetadata.platformPostUrl;
+          } else if (postMetadata.platforms && Array.isArray(postMetadata.platforms)) {
+            // Check nested platforms in metadata
+            for (const platformData of postMetadata.platforms) {
+              const platformObj = typeof platformData === 'object' ? platformData : null;
+              if (platformObj?.platformPostUrl) {
+                platformPostUrl = platformObj.platformPostUrl;
+                break;
+              }
+            }
+          }
         }
 
         // Normalize platforms: extract platform name if it's an object, or use string directly
@@ -203,6 +263,7 @@ export function PostSentimentClient() {
             comments: totalComments,
             shares: totalShares,
           },
+          platformPostUrl,
         };
       });
 
@@ -247,14 +308,15 @@ export function PostSentimentClient() {
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze post');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.'));
       }
 
       const result = await response.json();
       setAnalysis(result);
     } catch (e) {
       console.error('Analysis failed:', e);
-      setError(isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.');
+      setError(e instanceof Error ? e.message : (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.'));
     } finally {
       setIsAnalyzing(false);
     }
@@ -488,6 +550,41 @@ export function PostSentimentClient() {
                   : analysis
                     ? (
                         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6">
+                          {/* Selected Post Info */}
+                          {selectedPost && (
+                            <Card className="glass-effect border-white/20 shadow-xl">
+                              <CardHeader>
+                                <div className={`flex items-start justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                  <div className="flex-1">
+                                    <CardTitle className="mb-2">{t('selected_post')}</CardTitle>
+                                    <CardDescription className="line-clamp-2">{selectedPost.content}</CardDescription>
+                                  </div>
+                                  {selectedPost.platformPostUrl
+                                    ? (
+                                        <a
+                                          href={selectedPost.platformPostUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                        >
+                                          <ExternalLink className="h-4 w-4" />
+                                          {t('view_on_platform')}
+                                        </a>
+                                      )
+                                    : (
+                                        <Link
+                                          href={`/${locale}/dashboard?postId=${selectedPost.id}`}
+                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                        >
+                                          <ExternalLink className="h-4 w-4" />
+                                          {t('view_post')}
+                                        </Link>
+                                      )}
+                                </div>
+                              </CardHeader>
+                            </Card>
+                          )}
+
                           {/* Overall Sentiment */}
                           <Card className="glass-effect border-white/20 shadow-xl">
                             <CardHeader>
@@ -497,8 +594,8 @@ export function PostSentimentClient() {
                               </CardTitle>
                             </CardHeader>
                             <CardContent>
-                              <div className="flex items-center justify-between">
-                                <div>
+                              <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <div className="flex-1">
                                   <h3 className="text-lg font-semibold capitalize">
                                     {analysis.overall_sentiment === 'positive'
                                       ? t('positive')
@@ -511,11 +608,23 @@ export function PostSentimentClient() {
                                   <p className="text-gray-600">
                                     {t('engagement_score')}
                                     :
+                                    {' '}
                                     {analysis.engagement_score || 0}
                                     /100
                                   </p>
                                 </div>
-                                <Progress value={analysis.engagement_score || 0} className="h-2 w-32" />
+                                <div className="flex items-center gap-2">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded-full bg-gray-200">
+                                    <div
+                                      className="h-full bg-pink-500 transition-all"
+                                      style={{ width: `${analysis.engagement_score || 0}%` }}
+                                    />
+                                  </div>
+                                  <span className="min-w-[3rem] text-right text-sm font-medium text-gray-700">
+                                    {analysis.engagement_score || 0}
+                                    %
+                                  </span>
+                                </div>
                               </div>
                             </CardContent>
                           </Card>

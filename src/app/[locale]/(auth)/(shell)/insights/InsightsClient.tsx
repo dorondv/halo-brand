@@ -14,6 +14,16 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -32,10 +42,12 @@ type Post = {
   };
 };
 
-type SocialAccount = {
-  id: string;
-  platform: string;
-  account_name: string;
+type TrendData = {
+  date: string;
+  engagement: number;
+  likes: number;
+  comments: number;
+  shares: number;
 };
 
 type InsightsData = {
@@ -43,6 +55,7 @@ type InsightsData = {
   content: string[];
   keywords: string[];
   strategy: string[];
+  trends?: TrendData[];
 };
 
 export function InsightsClient() {
@@ -52,8 +65,8 @@ export function InsightsClient() {
   const { selectedBrandId } = useBrand();
   const [activeTab, setActiveTab] = useState('insights');
   const [posts, setPosts] = useState<Post[]>([]);
-  const [accounts, setAccounts] = useState<SocialAccount[]>([]);
   const [insights, setInsights] = useState<InsightsData | null>(null);
+  const [trends, setTrends] = useState<TrendData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
 
@@ -170,8 +183,40 @@ export function InsightsClient() {
         accountsQuery = accountsQuery.eq('brand_id', selectedBrandId);
       }
 
-      const { data: accountsData } = await accountsQuery;
-      setAccounts(accountsData || []);
+      // Accounts data fetched but not currently used in UI
+      await accountsQuery;
+
+      // Generate trends data from analytics
+      const trendsMap = new Map<string, { likes: number; comments: number; shares: number }>();
+      for (const analytics of analyticsData) {
+        if (!analytics.date) {
+          continue;
+        }
+        const date = new Date(analytics.date).toISOString().split('T')[0];
+        if (!date) {
+          continue;
+        }
+        const current = trendsMap.get(date) || { likes: 0, comments: 0, shares: 0 };
+        trendsMap.set(date, {
+          likes: current.likes + (analytics.likes || 0),
+          comments: current.comments + (analytics.comments || 0),
+          shares: current.shares + (analytics.shares || 0),
+        });
+      }
+
+      const trendsArray: TrendData[] = [];
+      for (const [date, values] of trendsMap.entries()) {
+        trendsArray.push({
+          date,
+          engagement: values.likes + values.comments + values.shares,
+          likes: values.likes,
+          comments: values.comments,
+          shares: values.shares,
+        });
+      }
+
+      trendsArray.sort((a, b) => a.date.localeCompare(b.date));
+      setTrends(trendsArray);
     } catch (error) {
       console.error('Error loading data:', error);
     }
@@ -188,33 +233,13 @@ export function InsightsClient() {
   const generateInsights = async () => {
     setIsGeneratingInsights(true);
     try {
-      const platforms = accounts.map(acc => acc.platform);
-      const prompt = `
-        בהתבסס על הנתונים הבאים, תן לי תובנות והמלצות מפורטות לשיפור התוכן ברשתות החברתיות:
-        
-        מספר פוסטים: ${posts.length}
-        מספר חשבונות מחוברים: ${accounts.length}
-        פלטפורמות: ${platforms.join(', ')}
-        
-        אנא ספק המלצות ב-4 קטגוריות:
-        1. תזמון פרסום
-        2. סוגי תוכן
-        3. מילות מפתח והאשטגים
-        4. אסטרטגיה כללית
-        
-        כל המלצה צריכה להיות קצרה, מעשית וישימה.
-      `;
-
       const response = await fetch('/api/ai/insights', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          prompt,
-          postsCount: posts.length,
-          accountsCount: accounts.length,
-          platforms,
+          brandId: selectedBrandId || undefined,
           locale,
         }),
       });
@@ -222,6 +247,9 @@ export function InsightsClient() {
       if (response.ok) {
         const data = await response.json();
         setInsights(data);
+        if (data.trends) {
+          setTrends(data.trends);
+        }
       } else {
         console.error('Error generating insights');
       }
@@ -231,31 +259,7 @@ export function InsightsClient() {
     setIsGeneratingInsights(false);
   };
 
-  // Mock data for demonstration (fallback)
-  const mockInsights: InsightsData = {
-    timing: [
-      t('timing_rec_1'),
-      t('timing_rec_2'),
-      t('timing_rec_3'),
-    ],
-    content: [
-      t('content_rec_1'),
-      t('content_rec_2'),
-      t('content_rec_3'),
-    ],
-    keywords: [
-      t('keywords_rec_1'),
-      t('keywords_rec_2'),
-      t('keywords_rec_3'),
-    ],
-    strategy: [
-      t('strategy_rec_1'),
-      t('strategy_rec_2'),
-      t('strategy_rec_3'),
-    ],
-  };
-
-  const currentInsights = insights || mockInsights;
+  const currentInsights = insights;
 
   // Calculate best performing posts
   const bestPerformingPosts = posts
@@ -346,79 +350,116 @@ export function InsightsClient() {
           </TabsList>
 
           <TabsContent value="insights" className="mt-6 space-y-6">
-            <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              {/* Timing Insights */}
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-blue-500" />
-                    {t('publishing_timing_title')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentInsights.timing?.map(tip => (
-                    <div key={tip} className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
-                      <Lightbulb className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
-                      <p className="text-sm text-slate-700">{tip}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+            {currentInsights
+              ? (
+                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                    {/* Timing Insights */}
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Clock className="h-5 w-5 text-blue-500" />
+                          {t('publishing_timing_title')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {currentInsights.timing?.map(tip => (
+                          <div key={tip} className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
+                            <Lightbulb className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
+                            <p className="text-sm text-slate-700">{tip}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
 
-              {/* Content Insights */}
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <MessageSquare className="h-5 w-5 text-green-500" />
-                    {t('content_types_title')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentInsights.content?.map(tip => (
-                    <div key={tip} className="flex items-start gap-3 rounded-lg bg-green-50 p-3">
-                      <Target className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" />
-                      <p className="text-sm text-slate-700">{tip}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+                    {/* Content Insights */}
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <MessageSquare className="h-5 w-5 text-green-500" />
+                          {t('content_types_title')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {currentInsights.content?.map(tip => (
+                          <div key={tip} className="flex items-start gap-3 rounded-lg bg-green-50 p-3">
+                            <Target className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" />
+                            <p className="text-sm text-slate-700">{tip}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
 
-              {/* Keywords Insights */}
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Star className="h-5 w-5 text-yellow-500" />
-                    {t('keywords_title')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentInsights.keywords?.map(tip => (
-                    <div key={tip} className="flex items-start gap-3 rounded-lg bg-yellow-50 p-3">
-                      <Star className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
-                      <p className="text-sm text-slate-700">{tip}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
+                    {/* Keywords Insights */}
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <Star className="h-5 w-5 text-yellow-500" />
+                          {t('keywords_title')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {currentInsights.keywords?.map(tip => (
+                          <div key={tip} className="flex items-start gap-3 rounded-lg bg-yellow-50 p-3">
+                            <Star className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
+                            <p className="text-sm text-slate-700">{tip}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
 
-              {/* Strategy Insights */}
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
-                <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <TrendingUp className="h-5 w-5 text-purple-500" />
-                    {t('strategy_title')}
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {currentInsights.strategy?.map(tip => (
-                    <div key={tip} className="flex items-start gap-3 rounded-lg bg-purple-50 p-3">
-                      <TrendingUp className="mt-0.5 h-5 w-5 flex-shrink-0 text-purple-500" />
-                      <p className="text-sm text-slate-700">{tip}</p>
-                    </div>
-                  ))}
-                </CardContent>
-              </Card>
-            </div>
+                    {/* Strategy Insights */}
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                      <CardHeader>
+                        <CardTitle className="flex items-center gap-2">
+                          <TrendingUp className="h-5 w-5 text-purple-500" />
+                          {t('strategy_title')}
+                        </CardTitle>
+                      </CardHeader>
+                      <CardContent className="space-y-3">
+                        {currentInsights.strategy?.map(tip => (
+                          <div key={tip} className="flex items-start gap-3 rounded-lg bg-purple-50 p-3">
+                            <TrendingUp className="mt-0.5 h-5 w-5 flex-shrink-0 text-purple-500" />
+                            <p className="text-sm text-slate-700">{tip}</p>
+                          </div>
+                        ))}
+                      </CardContent>
+                    </Card>
+                  </div>
+                )
+              : (
+                  <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <CardContent className="py-12 text-center">
+                      <Lightbulb className="mx-auto mb-4 h-16 w-16 text-gray-400" />
+                      <p className="mb-4 text-lg font-medium text-slate-700">
+                        {isRTL ? 'אין תובנות זמינות' : 'No insights available'}
+                      </p>
+                      <p className="mb-6 text-slate-500">
+                        {isRTL
+                          ? 'לחץ על הכפתור למעלה כדי ליצור תובנות מותאמות אישית'
+                          : 'Click the button above to generate personalized insights'}
+                      </p>
+                      <Button
+                        onClick={generateInsights}
+                        disabled={isGeneratingInsights}
+                        className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                      >
+                        {isGeneratingInsights
+                          ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                {t('generating_insights')}
+                              </div>
+                            )
+                          : (
+                              <>
+                                <Zap className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                                {t('create_button')}
+                              </>
+                            )}
+                      </Button>
+                    </CardContent>
+                  </Card>
+                )}
           </TabsContent>
 
           <TabsContent value="performance" className="mt-6 space-y-6">
@@ -470,7 +511,7 @@ export function InsightsClient() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="trends" className="mt-6">
+          <TabsContent value="trends" className="mt-6 space-y-6">
             <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
               <CardHeader>
                 <CardTitle>{t('current_trends_title')}</CardTitle>
@@ -479,10 +520,136 @@ export function InsightsClient() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="py-12 text-center text-slate-500">
-                  <TrendingUp className="mx-auto mb-4 h-16 w-16 opacity-50" />
-                  <p>{t('trends_coming_soon')}</p>
-                </div>
+                {trends.length > 0
+                  ? (
+                      <div className="space-y-6">
+                        <ResponsiveContainer width="100%" height={400}>
+                          <LineChart
+                            data={trends.map(t => ({
+                              date: new Date(t.date).toLocaleDateString(locale, {
+                                month: 'short',
+                                day: 'numeric',
+                              }),
+                              engagement: t.engagement,
+                              likes: t.likes,
+                              comments: t.comments,
+                              shares: t.shares,
+                            }))}
+                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
+                          >
+                            <CartesianGrid strokeDasharray="3 3" />
+                            <XAxis
+                              dataKey="date"
+                              style={{ fontSize: '12px' }}
+                              angle={-45}
+                              textAnchor="end"
+                              height={80}
+                            />
+                            <YAxis style={{ fontSize: '12px' }} />
+                            <Tooltip
+                              contentStyle={{
+                                backgroundColor: 'white',
+                                border: '1px solid #e2e8f0',
+                                borderRadius: '8px',
+                              }}
+                            />
+                            <Legend />
+                            <Line
+                              type="monotone"
+                              dataKey="engagement"
+                              stroke="#ec4899"
+                              strokeWidth={2}
+                              name={t('total_engagement') || 'Total Engagement'}
+                              dot={{ r: 4 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="likes"
+                              stroke="#3b82f6"
+                              strokeWidth={2}
+                              name={t('likes') || 'Likes'}
+                              dot={{ r: 4 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="comments"
+                              stroke="#10b981"
+                              strokeWidth={2}
+                              name={t('comments') || 'Comments'}
+                              dot={{ r: 4 }}
+                            />
+                            <Line
+                              type="monotone"
+                              dataKey="shares"
+                              stroke="#f59e0b"
+                              strokeWidth={2}
+                              name={t('shares') || 'Shares'}
+                              dot={{ r: 4 }}
+                            />
+                          </LineChart>
+                        </ResponsiveContainer>
+
+                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+                          <div className="rounded-lg border border-gray-200 bg-pink-50 p-4">
+                            <div className="text-sm font-medium text-pink-600">
+                              {t('total_engagement') || 'Total Engagement'}
+                            </div>
+                            <div className="mt-1 text-2xl font-bold text-pink-700">
+                              {trends.reduce((sum, t) => sum + t.engagement, 0).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-blue-50 p-4">
+                            <div className="text-sm font-medium text-blue-600">
+                              {t('total_likes') || 'Total Likes'}
+                            </div>
+                            <div className="mt-1 text-2xl font-bold text-blue-700">
+                              {trends.reduce((sum, t) => sum + t.likes, 0).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-green-50 p-4">
+                            <div className="text-sm font-medium text-green-600">
+                              {t('total_comments') || 'Total Comments'}
+                            </div>
+                            <div className="mt-1 text-2xl font-bold text-green-700">
+                              {trends.reduce((sum, t) => sum + t.comments, 0).toLocaleString()}
+                            </div>
+                          </div>
+                          <div className="rounded-lg border border-gray-200 bg-amber-50 p-4">
+                            <div className="text-sm font-medium text-amber-600">
+                              {t('total_shares') || 'Total Shares'}
+                            </div>
+                            <div className="mt-1 text-2xl font-bold text-amber-700">
+                              {trends.reduce((sum, t) => sum + t.shares, 0).toLocaleString()}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  : (
+                      <div className="py-12 text-center text-slate-500">
+                        <TrendingUp className="mx-auto mb-4 h-16 w-16 opacity-50" />
+                        <p className="mb-4">{t('no_trends_data') || 'No trends data available'}</p>
+                        <Button
+                          onClick={generateInsights}
+                          disabled={isGeneratingInsights}
+                          className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                        >
+                          {isGeneratingInsights
+                            ? (
+                                <div className="flex items-center gap-2">
+                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                  {t('generating_insights')}
+                                </div>
+                              )
+                            : (
+                                <>
+                                  <Zap className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                                  {t('generate_trends') || 'Generate Trends'}
+                                </>
+                              )}
+                        </Button>
+                      </div>
+                    )}
               </CardContent>
             </Card>
           </TabsContent>
