@@ -36,6 +36,7 @@
     "build-storybook": "storybook build"
   },
   "dependencies": {
+    "@ai-sdk/openai": "^1.0.0",
     "@arcjet/next": "^1.0.0-beta.13",
     "@radix-ui/react-checkbox": "^1.3.3",
     "@radix-ui/react-popover": "^1.1.15",
@@ -44,6 +45,7 @@
     "@supabase/ssr": "^0.7.0",
     "@supabase/supabase-js": "^2.76.1",
     "@t3-oss/env-nextjs": "^0.13.8",
+    "ai": "^4.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
