@@ -27,7 +27,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: parsed.error.message }, { status: 422 });
   }
 
-  const { postId, locale = 'he' } = parsed.data;
+  const { postId, postContent, platform, engagement, locale = 'he' } = parsed.data;
   const isHebrew = locale === 'he';
 
   // Verify the post belongs to the user
@@ -42,86 +42,58 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Post not found or access denied' }, { status: 404 });
   }
 
-  // Return mock sentiment data (AI disabled for now)
+  // Use ChatGPT if API key is available
+  const openaiApiKey = process.env.OPENAI_API_KEY;
+  if (openaiApiKey && postContent) {
+    try {
+      const engagementText = engagement
+        ? `${isHebrew ? 'מעורבות' : 'Engagement'}: ${engagement.likes || 0} ${isHebrew ? 'לייקים' : 'likes'}, ${engagement.comments || 0} ${isHebrew ? 'תגובות' : 'comments'}, ${engagement.shares || 0} ${isHebrew ? 'שיתופים' : 'shares'}`
+        : '';
 
-  // Mock sentiment data (fallback if OpenAI is not configured)
-  const mockSentiment = isHebrew
-    ? {
-        overall_sentiment: 'positive',
-        sentiment_distribution: {
-          positive: 65,
-          negative: 10,
-          neutral: 20,
-          mixed: 5,
+      const prompt = `${isHebrew ? 'נתח סנטימנט פוסט' : 'Analyze post sentiment'}:
+
+${isHebrew ? 'תוכן' : 'Content'}: "${postContent.slice(0, 300)}"
+${platform ? `${isHebrew ? 'פלטפורמה' : 'Platform'}: ${platform}` : ''}
+${engagementText}
+
+${isHebrew ? 'ספק JSON:' : 'Provide JSON:'}
+{"overall_sentiment":"positive|negative|neutral|mixed","sentiment_distribution":{"positive":0-100,"negative":0-100,"neutral":0-100,"mixed":0-100},"main_themes":["theme1"],"common_emotions":["emotion1"],"recommendations":["rec1"],"sample_comments":[{"text":"comment","sentiment":"positive|negative|neutral","author":"name"}],"engagement_score":0-100}`;
+
+      const response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${openaiApiKey}`,
         },
-        main_themes: [
-          'התלהבות מהמוצר',
-          'שאלות טכניות',
-          'משוב חיובי',
-        ],
-        common_emotions: ['שמחה', 'התרגשות', 'סקרנות'],
-        recommendations: [
-          'המשך לפרסם תוכן דומה',
-          'ענה על שאלות טכניות במהירות',
-          'שתף עוד פרטים על המוצר',
-        ],
-        sample_comments: [
-          {
-            text: 'נראה מעולה! מתי זה יהיה זמין?',
-            sentiment: 'positive',
-            author: 'משתמש 1',
-          },
-          {
-            text: 'יש לי שאלה לגבי התכונות',
-            sentiment: 'neutral',
-            author: 'משתמש 2',
-          },
-          {
-            text: 'מצפה לנסות את זה!',
-            sentiment: 'positive',
-            author: 'משתמש 3',
-          },
-        ],
-        engagement_score: 75,
+        body: JSON.stringify({
+          model: 'gpt-4o-mini',
+          messages: [
+            {
+              role: 'system',
+              content: `You are a post sentiment analysis expert. Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}.`,
+            },
+            { role: 'user', content: prompt },
+          ],
+          response_format: { type: 'json_object' },
+          temperature: 0.7,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        const content = JSON.parse(data.choices[0]?.message?.content || '{}');
+        if (content.overall_sentiment !== undefined) {
+          return NextResponse.json(content);
+        }
       }
-    : {
-        overall_sentiment: 'positive',
-        sentiment_distribution: {
-          positive: 65,
-          negative: 10,
-          neutral: 20,
-          mixed: 5,
-        },
-        main_themes: [
-          'Product excitement',
-          'Technical questions',
-          'Positive feedback',
-        ],
-        common_emotions: ['Happiness', 'Excitement', 'Curiosity'],
-        recommendations: [
-          'Continue posting similar content',
-          'Answer technical questions quickly',
-          'Share more product details',
-        ],
-        sample_comments: [
-          {
-            text: 'Looks great! When will this be available?',
-            sentiment: 'positive',
-            author: 'User 1',
-          },
-          {
-            text: 'I have a question about the features',
-            sentiment: 'neutral',
-            author: 'User 2',
-          },
-          {
-            text: 'Looking forward to trying this!',
-            sentiment: 'positive',
-            author: 'User 3',
-          },
-        ],
-        engagement_score: 75,
-      };
+    } catch (error) {
+      console.error('OpenAI API error:', error);
+    }
+  }
 
-  return NextResponse.json(mockSentiment);
+  // Return error if OpenAI is not configured
+  return NextResponse.json(
+    { error: isHebrew ? 'OpenAI API לא מוגדר. אנא הגדר OPENAI_API_KEY.' : 'OpenAI API not configured. Please set OPENAI_API_KEY.' },
+    { status: 503 },
+  );
 }

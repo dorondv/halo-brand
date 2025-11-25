@@ -414,7 +414,16 @@
     "no_performance_data": "אין מידע על ביצועים עדיין",
     "trends_coming_soon": "ניתוח טרנדים יתווסף בקרוב",
     "current_trends_title": "טרנדים עכשוויים",
-    "current_trends_description": "טרנדים פופולריים ברשתות החברתיות"
+    "current_trends_description": "טרנדים פופולריים ברשתות החברתיות",
+    "total_engagement": "מעורבות כוללת",
+    "likes": "לייקים",
+    "comments": "תגובות",
+    "shares": "שיתופים",
+    "total_likes": "סה\"כ לייקים",
+    "total_comments": "סה\"כ תגובות",
+    "total_shares": "סה\"כ שיתופים",
+    "no_trends_data": "אין נתוני טרנדים זמינים",
+    "generate_trends": "צור טרנדים"
   },
   "PostSentiment": {
     "title": "ניתוח סמנטי - פוסטים",
@@ -436,6 +445,9 @@
     "negative": "שלילי",
     "neutral": "ניטרלי",
     "mixed": "מעורב",
-    "comments": "תגובות"
+    "comments": "תגובות",
+    "selected_post": "פוסט נבחר",
+    "view_on_platform": "צפה בפלטפורמה",
+    "view_post": "צפה בפוסט"
   }
 }

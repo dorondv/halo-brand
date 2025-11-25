@@ -414,7 +414,16 @@
     "no_performance_data": "No performance data yet",
     "trends_coming_soon": "Trend analysis coming soon",
     "current_trends_title": "Current Trends",
-    "current_trends_description": "Popular trends on social media"
+    "current_trends_description": "Popular trends on social media",
+    "total_engagement": "Total Engagement",
+    "likes": "Likes",
+    "comments": "Comments",
+    "shares": "Shares",
+    "total_likes": "Total Likes",
+    "total_comments": "Total Comments",
+    "total_shares": "Total Shares",
+    "no_trends_data": "No trends data available",
+    "generate_trends": "Generate Trends"
   },
   "PostSentiment": {
     "title": "Post Sentiment Analysis",
@@ -436,6 +445,9 @@
     "negative": "Negative",
     "neutral": "Neutral",
     "mixed": "Mixed",
-    "comments": "comments"
+    "comments": "comments",
+    "selected_post": "Selected Post",
+    "view_on_platform": "View on Platform",
+    "view_post": "View Post"
   }
 }

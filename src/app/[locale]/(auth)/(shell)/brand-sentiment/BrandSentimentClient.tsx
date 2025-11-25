@@ -6,7 +6,10 @@ import {
   AlertCircle,
   Briefcase,
   Facebook,
+  Instagram,
+  Linkedin,
   Loader2,
+  Mail,
   MessageCircle,
   Search,
   ThumbsDown,
@@ -15,7 +18,7 @@ import {
   Twitter,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   CartesianGrid,
   Cell,
@@ -32,17 +35,21 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { useBrand } from '@/contexts/BrandContext';
+import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 const COLORS = { positive: '#22c55e', neutral: '#64748b', negative: '#ef4444' };
-const SOURCE_ICONS = {
+const SOURCE_ICONS: Record<string, React.ReactElement> = {
   twitter: <Twitter className="h-4 w-4 text-sky-500" />,
+  x: <Twitter className="h-4 w-4 text-sky-500" />,
   facebook: <Facebook className="h-4 w-4 text-blue-600" />,
+  instagram: <Instagram className="h-4 w-4 text-pink-500" />,
+  linkedin: <Linkedin className="h-4 w-4 text-sky-700" />,
   blog: <MessageCircle className="h-4 w-4 text-orange-500" />,
   news: <MessageCircle className="h-4 w-4 text-gray-700" />,
 };
+const DEFAULT_ICON = <Mail className="h-4 w-4 text-gray-500" />;
 
 type AnalysisResult = {
   overall_score: number;
@@ -53,7 +60,7 @@ type AnalysisResult = {
   negative_themes: string[];
   sample_mentions: Array<{
     content: string;
-    source: 'twitter' | 'facebook' | 'blog' | 'news';
+    source: 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'blog' | 'news' | 'x';
     sentiment: 'positive' | 'negative' | 'neutral';
   }>;
   search_trends_daily?: Array<{ date: string; volume: number }>;
@@ -69,18 +76,90 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
   const locale = useLocale();
   const isRTL = locale === 'he';
   const { selectedBrandId } = useBrand();
-  const [keywords, setKeywords] = useState(initialBrandName || '');
+  const [keywords, setKeywords] = useState(() => initialBrandName || '');
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const [connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(() => new Set());
 
+  // Sync keywords with initialBrandName when it changes
+  const prevInitialBrandNameRef = React.useRef(initialBrandName);
   useEffect(() => {
-    if (initialBrandName) {
-      setKeywords(initialBrandName);
-    } else {
-      setAnalysisResult(null);
+    if (prevInitialBrandNameRef.current !== initialBrandName) {
+      prevInitialBrandNameRef.current = initialBrandName;
+
+      if (initialBrandName) {
+        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+        setKeywords(initialBrandName);
+      } else {
+        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+        setAnalysisResult(null);
+      }
     }
   }, [initialBrandName]);
+
+  // Fetch connected platforms for the current brand
+  useEffect(() => {
+    const loadConnectedPlatforms = async () => {
+      if (!selectedBrandId) {
+        setConnectedPlatforms(new Set());
+        return;
+      }
+
+      try {
+        const supabase = createSupabaseBrowserClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) {
+          setConnectedPlatforms(new Set());
+          return;
+        }
+
+        const { data: userRecord } = await supabase
+          .from('users')
+          .select('id')
+          .eq('email', session.user.email)
+          .maybeSingle();
+
+        const userId = userRecord?.id || session.user.id;
+
+        const { data: accountsData } = await supabase
+          .from('social_accounts')
+          .select('platform')
+          .eq('user_id', userId)
+          .eq('brand_id', selectedBrandId)
+          .eq('is_active', true);
+
+        if (accountsData && accountsData.length > 0) {
+          // Map platform names to mention source format
+          const platformSet = new Set<string>();
+          accountsData.forEach((acc) => {
+            const platform = (acc.platform || '').toLowerCase();
+            // Map database platform names to mention source format
+            if (platform === 'twitter' || platform === 'x') {
+              platformSet.add('twitter');
+            } else if (platform === 'facebook') {
+              platformSet.add('facebook');
+            } else if (platform === 'instagram') {
+              platformSet.add('instagram');
+            } else if (platform === 'linkedin') {
+              platformSet.add('linkedin');
+            } else {
+              // For other platforms, try to use as-is
+              platformSet.add(platform);
+            }
+          });
+          setConnectedPlatforms(platformSet);
+        } else {
+          setConnectedPlatforms(new Set());
+        }
+      } catch (error) {
+        console.error('Error loading connected platforms:', error);
+        setConnectedPlatforms(new Set());
+      }
+    };
+
+    loadConnectedPlatforms();
+  }, [selectedBrandId]);
 
   const handleAnalyze = async () => {
     if (!keywords.trim() || !selectedBrandId) {
@@ -105,14 +184,15 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
       });
 
       if (!response.ok) {
-        throw new Error('Failed to analyze sentiment');
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || (isRTL ? 'שגיאה בניתוח הסנטימנט. אנא נסה שוב.' : 'Error analyzing sentiment. Please try again.'));
       }
 
       const result = await response.json();
       setAnalysisResult(result);
     } catch (e) {
       console.error('Analysis failed:', e);
-      setError(isRTL ? 'שגיאה בניתוח הסנטימנט. אנא נסה שוב.' : 'Error analyzing sentiment. Please try again.');
+      setError(e instanceof Error ? e.message : (isRTL ? 'שגיאה בניתוח הסנטימנט. אנא נסה שוב.' : 'Error analyzing sentiment. Please try again.'));
     } finally {
       setIsLoading(false);
     }
@@ -125,6 +205,40 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
         { name: t('negative'), value: analysisResult.negative_percentage },
       ]
     : [];
+
+  // Calculate overall score from sentiment distribution
+  // Formula: positive% counts fully (100%), neutral% counts half (50%), negative% counts zero (0%)
+  const calculatedOverallScore = useMemo(() => {
+    if (!analysisResult) {
+      return 0;
+    }
+    const positive = analysisResult.positive_percentage || 0;
+    const neutral = analysisResult.neutral_percentage || 0;
+    // Calculate: positive + (neutral * 0.5)
+    return Math.round(positive + (neutral * 0.5));
+  }, [analysisResult]);
+
+  // Use calculated score from distribution, fallback to API score if available
+  const overallScore = calculatedOverallScore || analysisResult?.overall_score || 0;
+
+  // Filter sample mentions to only show those from connected platforms
+  const filteredMentions = useMemo(() => {
+    if (!analysisResult?.sample_mentions) {
+      return [];
+    }
+    if (connectedPlatforms.size === 0) {
+      return analysisResult.sample_mentions;
+    } // Show all if no platforms connected
+
+    return analysisResult.sample_mentions.filter((mention) => {
+      if (!mention.source) {
+        return false;
+      }
+      const mentionSource = mention.source.toLowerCase();
+      // Check if the mention source matches any connected platform
+      return connectedPlatforms.has(mentionSource);
+    });
+  }, [analysisResult?.sample_mentions, connectedPlatforms]);
 
   if (!selectedBrandId) {
     return (
@@ -210,7 +324,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                       {isRTL ? 'מגמת חיפושים - 30 יום אחרונים' : 'Search Trends - Last 30 Days'}
                     </CardTitle>
                     <CardDescription>
-                      {isRTL ? 'נתוני חיפוש יומיים בגוגל (סימולציה)' : 'Daily Google search data (simulated)'}
+                      {isRTL ? 'נתוני חיפוש יומיים בגוגל' : 'Daily Google search data'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
@@ -265,7 +379,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                       {isRTL ? 'מגמת חיפושים - 12 חודשים אחרונים' : 'Search Trends - Last 12 Months'}
                     </CardTitle>
                     <CardDescription>
-                      {isRTL ? 'נתוני חיפוש חודשיים בגוגל (סימולציה)' : 'Monthly Google search data (simulated)'}
+                      {isRTL ? 'נתוני חיפוש חודשיים בגוגל' : 'Monthly Google search data'}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
@@ -333,24 +447,23 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                         d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
                         fill="none"
                         stroke={
-                          analysisResult.overall_score > 70
+                          overallScore > 70
                             ? COLORS.positive
-                            : analysisResult.overall_score > 40
+                            : overallScore > 40
                               ? COLORS.neutral
                               : COLORS.negative
                         }
                         strokeWidth="3"
-                        strokeDasharray={`${analysisResult.overall_score}, 100`}
+                        strokeDasharray={`${overallScore}, 100`}
                         strokeLinecap="round"
                         transform="rotate(90 18 18)"
                       />
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
-                      <span className="text-4xl font-bold text-slate-800">{analysisResult.overall_score}</span>
+                      <span className="text-4xl font-bold text-slate-800">{overallScore}</span>
                       <span className="text-sm text-slate-500">/ 100</span>
                     </div>
                   </div>
-                  <Progress value={analysisResult.overall_score} className="h-2 w-full" />
                 </CardContent>
               </Card>
 
@@ -407,11 +520,19 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc space-y-2 pl-5 text-slate-700">
-                    {analysisResult.positive_themes.map(theme => (
-                      <li key={theme}>{theme}</li>
-                    ))}
-                  </ul>
+                  {analysisResult.positive_themes && analysisResult.positive_themes.length > 0
+                    ? (
+                        <ul className="list-disc space-y-2 pl-5 text-slate-700">
+                          {analysisResult.positive_themes.map(theme => (
+                            <li key={`positive-theme-${theme}`}>{theme}</li>
+                          ))}
+                        </ul>
+                      )
+                    : (
+                        <p className="text-sm text-gray-500 italic">
+                          {isRTL ? 'אין נושאים חיוביים זמינים' : 'No positive topics available'}
+                        </p>
+                      )}
                 </CardContent>
               </Card>
               <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
@@ -422,11 +543,19 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <ul className="list-disc space-y-2 pl-5 text-slate-700">
-                    {analysisResult.negative_themes.map(theme => (
-                      <li key={theme}>{theme}</li>
-                    ))}
-                  </ul>
+                  {analysisResult.negative_themes && analysisResult.negative_themes.length > 0
+                    ? (
+                        <ul className="list-disc space-y-2 pl-5 text-slate-700">
+                          {analysisResult.negative_themes.map(theme => (
+                            <li key={`negative-theme-${theme}`}>{theme}</li>
+                          ))}
+                        </ul>
+                      )
+                    : (
+                        <p className="text-sm text-gray-500 italic">
+                          {isRTL ? 'אין נושאים שליליים זמינים' : 'No negative topics available'}
+                        </p>
+                      )}
                 </CardContent>
               </Card>
             </div>
@@ -434,39 +563,55 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
             <Card className="glass-effect border-white/20 shadow-xl">
               <CardHeader>
                 <CardTitle>{t('example_mentions_title')}</CardTitle>
+                <CardDescription>
+                  {isRTL
+                    ? `סה"כ ${filteredMentions?.length || 0} אזכורים: ${filteredMentions?.filter(m => m.sentiment === 'positive').length || 0} חיוביים, ${filteredMentions?.filter(m => m.sentiment === 'negative').length || 0} שליליים, ${filteredMentions?.filter(m => m.sentiment === 'neutral').length || 0} ניטרליים`
+                    : `Total ${filteredMentions?.length || 0} mentions: ${filteredMentions?.filter(m => m.sentiment === 'positive').length || 0} positive, ${filteredMentions?.filter(m => m.sentiment === 'negative').length || 0} negative, ${filteredMentions?.filter(m => m.sentiment === 'neutral').length || 0} neutral`}
+                </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                {analysisResult.sample_mentions.map((mention) => {
-                  const SourceIconElement = SOURCE_ICONS[mention.source];
-                  return (
-                    <div key={`mention-${mention.content.slice(0, 20)}-${mention.source}`} className="relative rounded-lg border bg-white/50 p-4">
-                      <div className={`absolute top-2 ${isRTL ? 'right-2' : 'left-2'} flex items-center gap-2`}>
-                        {SourceIconElement ? React.cloneElement(SourceIconElement, { className: 'w-4 h-4' }) : <div className="h-4 w-4" />}
-                        <Badge
-                          variant="outline"
-                          className={`border-2 ${
-                            mention.sentiment === 'positive'
-                              ? 'border-green-200 bg-green-50 text-green-700'
-                              : mention.sentiment === 'negative'
-                                ? 'border-red-200 bg-red-50 text-red-700'
-                                : 'border-slate-200 bg-slate-50 text-slate-700'
-                          }`}
-                        >
-                          {mention.sentiment === 'positive'
-                            ? t('positive')
-                            : mention.sentiment === 'negative'
-                              ? t('negative')
-                              : t('neutral')}
-                        </Badge>
-                      </div>
-                      <p className={`text-slate-800 ${isRTL ? 'pr-24' : 'pl-24'}`}>
-                        "
-                        {mention.content}
-                        "
+                {filteredMentions && filteredMentions.length > 0
+                  ? (
+                      filteredMentions.map((mention) => {
+                        const SourceIconElement = SOURCE_ICONS[mention.source] || DEFAULT_ICON;
+                        const mentionKey = `${mention.source}-${mention.content.slice(0, 30)}-${mention.sentiment}`;
+                        return (
+                          <div key={mentionKey} className="relative rounded-lg border bg-white/50 p-4">
+                            <div className={`absolute top-2 ${isRTL ? 'right-2' : 'left-2'} flex items-center gap-2`}>
+                              <div className="h-4 w-4">
+                                {SourceIconElement}
+                              </div>
+                              <Badge
+                                variant="outline"
+                                className={`border-2 ${
+                                  mention.sentiment === 'positive'
+                                    ? 'border-green-200 bg-green-50 text-green-700'
+                                    : mention.sentiment === 'negative'
+                                      ? 'border-red-200 bg-red-50 text-red-700'
+                                      : 'border-slate-200 bg-slate-50 text-slate-700'
+                                }`}
+                              >
+                                {mention.sentiment === 'positive'
+                                  ? t('positive')
+                                  : mention.sentiment === 'negative'
+                                    ? t('negative')
+                                    : t('neutral')}
+                              </Badge>
+                            </div>
+                            <p className={`text-slate-800 ${isRTL ? 'pr-24' : 'pl-24'}`}>
+                              "
+                              {mention.content}
+                              "
+                            </p>
+                          </div>
+                        );
+                      })
+                    )
+                  : (
+                      <p className="py-4 text-center text-gray-500">
+                        {isRTL ? 'אין אזכורים זמינים' : 'No mentions available'}
                       </p>
-                    </div>
-                  );
-                })}
+                    )}
               </CardContent>
             </Card>
           </motion.div>
