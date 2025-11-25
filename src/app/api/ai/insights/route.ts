@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+// Explicitly use Node.js runtime (not Edge) for OpenAI API calls
+export const runtime = 'nodejs';
+
 const InsightsSchema = z.object({
   brandId: z.string().uuid().optional(),
   locale: z.string().optional().default('he'),
@@ -255,9 +258,17 @@ ${isHebrew
             trends: trendsData,
           });
         }
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('OpenAI API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
+      // Don't throw - fall through to fallback data
     }
   }
 
