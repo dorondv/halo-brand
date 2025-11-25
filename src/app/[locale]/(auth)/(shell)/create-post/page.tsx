@@ -121,7 +121,7 @@ export default function CreatePostPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.content.trim() || formData.platforms.length === 0) {
-      setError('Please provide content and select at least one platform');
+      setError(t('error_content_required'));
       return;
     }
 
@@ -133,7 +133,7 @@ export default function CreatePostPage() {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        throw new Error('You must be logged in to create a post');
+        throw new Error(t('error_not_logged_in'));
       }
 
       // Get user ID
@@ -167,7 +167,7 @@ export default function CreatePostPage() {
         });
 
         if (accountsByBrand.size === 0) {
-          throw new Error('No connected accounts found for selected platforms. Please connect accounts first.');
+          throw new Error(t('error_no_accounts'));
         }
 
         // Create a post for each brand
@@ -230,7 +230,7 @@ export default function CreatePostPage() {
         const successfulPosts = results.filter(r => r !== null);
 
         if (successfulPosts.length === 0) {
-          throw new Error('Failed to create posts for any brand. Please check your account connections.');
+          throw new Error(t('error_create_failed'));
         }
 
         // All posts created successfully
@@ -254,7 +254,7 @@ export default function CreatePostPage() {
         );
 
         if (accountsForPlatforms.length === 0) {
-          throw new Error('No connected accounts found for selected platforms. Please connect accounts first.');
+          throw new Error(t('error_no_accounts'));
         }
 
         // Map platforms for Getlate (if using Getlate) or local
@@ -289,14 +289,14 @@ export default function CreatePostPage() {
 
         if (!postResponse.ok) {
           const errorData = await postResponse.json();
-          throw new Error(errorData.error || 'Failed to create post');
+          throw new Error(errorData.error || t('error_create_post_failed'));
         }
 
         const { data: postData } = await postResponse.json();
         const postId = postData[0]?.id;
 
         if (!postId) {
-          throw new Error('Failed to get post ID');
+          throw new Error(t('error_post_id_failed'));
         }
 
         // If using Getlate, the scheduling is handled by Getlate API
@@ -332,7 +332,7 @@ export default function CreatePostPage() {
       router.push('/dashboard');
     } catch (err) {
       console.error('Error creating post:', err);
-      setError(err instanceof Error ? err.message : 'Failed to create post');
+      setError(err instanceof Error ? err.message : t('error_create_post_failed'));
     } finally {
       setIsSubmitting(false);
     }

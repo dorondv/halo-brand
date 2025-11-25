@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Facebook, Hash, Instagram, Linkedin, MessageSquare, Play, Users } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 
@@ -39,6 +40,8 @@ type PlatformSelectorProps = {
 };
 
 export default function PlatformSelector({ accounts, selectedPlatforms, onPlatformsChange }: PlatformSelectorProps) {
+  const t = useTranslations('CreatePost');
+
   // Show all platforms (matching dashboard), not just ones with accounts
   const availablePlatforms = React.useMemo(() => {
     // Return all platforms, showing connected accounts count
@@ -78,7 +81,7 @@ export default function PlatformSelector({ accounts, selectedPlatforms, onPlatfo
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Users className="h-5 w-5 text-pink-500" />
-          Select Platforms
+          {t('platforms_title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -133,8 +136,8 @@ export default function PlatformSelector({ accounts, selectedPlatforms, onPlatfo
                 <p className="font-medium text-slate-900">{config.name}</p>
                 <p className="text-xs text-slate-500">
                   {accountsForPlatform.length > 0
-                    ? `${accountsForPlatform.length} account${accountsForPlatform.length !== 1 ? 's' : ''}`
-                    : 'Not connected'}
+                    ? `${accountsForPlatform.length} ${accountsForPlatform.length !== 1 ? t('platform_accounts') : t('platform_account')}`
+                    : t('platform_not_connected')}
                 </p>
               </div>
               {isSelected && (

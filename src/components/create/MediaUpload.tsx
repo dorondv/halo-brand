@@ -1,6 +1,7 @@
 'use client';
 
 import { FileText, Image as ImageIcon, Upload, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import React, { useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ type MediaUploadProps = {
 };
 
 export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadProps) {
+  const t = useTranslations('CreatePost');
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -30,7 +32,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
-        throw new Error('Not authenticated');
+        throw new Error(t('media_error_not_authenticated'));
       }
 
       // Get user ID
@@ -48,7 +50,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
         // Validate file size (10MB limit)
         const maxSize = 10 * 1024 * 1024; // 10MB
         if (file.size > maxSize) {
-          throw new Error(`File ${file.name} exceeds 10MB limit`);
+          throw new Error(t('media_error_file_size', { name: file.name }));
         }
 
         // Generate unique file name
@@ -65,7 +67,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
 
         if (uploadError) {
           console.error('Upload error:', uploadError);
-          throw new Error(`Failed to upload ${file.name}: ${uploadError.message}`);
+          throw new Error(t('media_error_upload_failed', { name: file.name, error: uploadError.message }));
         }
 
         // Get public URL
@@ -79,7 +81,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
       onMediaUpdate([...mediaUrls, ...newUrls]);
     } catch (error) {
       console.error('Error uploading files:', error);
-      setUploadError(error instanceof Error ? error.message : 'Failed to upload files');
+      setUploadError(error instanceof Error ? error.message : t('media_error_upload_generic'));
     } finally {
       setIsUploading(false);
       // Reset file input
@@ -120,7 +122,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <ImageIcon className="h-5 w-5 text-pink-500" />
-          Media Upload
+          {t('media_title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -150,14 +152,14 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
             ? (
                 <div className="flex items-center gap-2">
                   <div className="h-4 w-4 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-                  Uploading...
+                  {t('media_uploading')}
                 </div>
               )
             : (
                 <div className="flex flex-col items-center gap-2">
                   <Upload className="h-8 w-8" />
-                  <span className="font-medium">Click to upload media</span>
-                  <span className="text-sm text-slate-500">Images, videos up to 10MB</span>
+                  <span className="font-medium">{t('media_click_upload')}</span>
+                  <span className="text-sm text-slate-500">{t('media_hint')}</span>
                 </div>
               )}
         </Button>
