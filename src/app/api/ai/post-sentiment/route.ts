@@ -2,6 +2,9 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+// Explicitly use Node.js runtime (not Edge) for OpenAI API calls
+export const runtime = 'nodejs';
+
 const PostSentimentSchema = z.object({
   postId: z.string().uuid(),
   postContent: z.string().min(1),
@@ -85,9 +88,17 @@ ${isHebrew ? 'ספק JSON:' : 'Provide JSON:'}
         if (content.overall_sentiment !== undefined) {
           return NextResponse.json(content);
         }
+      } else {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error('OpenAI API error:', {
+          status: response.status,
+          statusText: response.statusText,
+          error: errorText,
+        });
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
+      // Don't throw - fall through to error response
     }
   }
 
