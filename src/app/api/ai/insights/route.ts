@@ -1,9 +1,10 @@
+import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-// Explicitly use Node.js runtime (not Edge) for OpenAI API calls
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const InsightsSchema = z.object({
   brandId: z.string().uuid().optional(),
@@ -227,48 +228,29 @@ ${isHebrew
   : 'Provide 4 categories, 3 short recommendations each (JSON). IMPORTANT: For the timing category, provide EXACT times (day + hour) like "Publish on Tuesdays between 9:00-10:00" or "Best time is Wednesday at 14:00". Do NOT provide generic messages like "post during peak hours".'}
 {"timing":[],"content":[],"keywords":[],"strategy":[]}`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a social media expert. Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}. ${isHebrew
-                ? 'עבור קטגוריית timing, תמיד ספק זמנים מדויקים (יום בשבוע + שעות) ולא הודעות כלליות.'
-                : 'For the timing category, always provide EXACT times (day of week + hours) and never generic messages like "post during peak hours".'}`,
-            },
-            { role: 'user', content: prompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-        }),
+      const result = await generateText({
+        model: openai('gpt-4o-mini'),
+        messages: [
+          {
+            role: 'system',
+            content: `You are a social media expert. Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}. ${isHebrew
+              ? 'עבור קטגוריית timing, תמיד ספק זמנים מדויקים (יום בשבוע + שעות) ולא הודעות כלליות.'
+              : 'For the timing category, always provide EXACT times (day of week + hours) and never generic messages like "post during peak hours".'}`,
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = JSON.parse(data.choices[0]?.message?.content || '{}');
-        if (content.timing && content.content && content.keywords && content.strategy) {
-          return NextResponse.json({
-            ...content,
-            trends: trendsData,
-          });
-        }
-      } else {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('OpenAI API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
+      const content = JSON.parse(result.text || '{}');
+      if (content.timing && content.content && content.keywords && content.strategy) {
+        return NextResponse.json({
+          ...content,
+          trends: trendsData,
         });
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
-      // Don't throw - fall through to fallback data
     }
   }
 

@@ -1,9 +1,10 @@
+import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-// Explicitly use Node.js runtime (not Edge) for OpenAI API calls
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const PostSentimentSchema = z.object({
   postId: z.string().uuid(),
@@ -62,43 +63,24 @@ ${engagementText}
 ${isHebrew ? 'ספק JSON:' : 'Provide JSON:'}
 {"overall_sentiment":"positive|negative|neutral|mixed","sentiment_distribution":{"positive":0-100,"negative":0-100,"neutral":0-100,"mixed":0-100},"main_themes":["theme1"],"common_emotions":["emotion1"],"recommendations":["rec1"],"sample_comments":[{"text":"comment","sentiment":"positive|negative|neutral","author":"name"}],"engagement_score":0-100}`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a post sentiment analysis expert. Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}.`,
-            },
-            { role: 'user', content: prompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-        }),
+      const result = await generateText({
+        model: openai('gpt-4o-mini'),
+        messages: [
+          {
+            role: 'system',
+            content: `You are a post sentiment analysis expert. Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}.`,
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = JSON.parse(data.choices[0]?.message?.content || '{}');
-        if (content.overall_sentiment !== undefined) {
-          return NextResponse.json(content);
-        }
-      } else {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('OpenAI API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
-        });
+      const content = JSON.parse(result.text || '{}');
+      if (content.overall_sentiment !== undefined) {
+        return NextResponse.json(content);
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
-      // Don't throw - fall through to error response
     }
   }
 

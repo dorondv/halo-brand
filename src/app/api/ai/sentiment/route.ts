@@ -1,10 +1,11 @@
+import { openai } from '@ai-sdk/openai';
+import { generateText } from 'ai';
 import { format, subDays, subMonths } from 'date-fns';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-// Explicitly use Node.js runtime (not Edge) for OpenAI API calls
-export const runtime = 'nodejs';
+export const runtime = 'edge';
 
 const SentimentSchema = z.object({
   keywords: z.string().min(1),
@@ -154,18 +155,12 @@ ${isHebrew
 - Each mention should be realistic and relevant to brand "${brandName || keywords}"
 - overall_score should match calculation: positive_percentage + (neutral_percentage * 0.5)`}`;
 
-      const response = await fetch('https://api.openai.com/v1/chat/completions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${openaiApiKey}`,
-        },
-        body: JSON.stringify({
-          model: 'gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: `You are a professional brand sentiment analysis expert specializing in social media analytics. 
+      const result = await generateText({
+        model: openai('gpt-4o-mini'),
+        messages: [
+          {
+            role: 'system',
+            content: `You are a professional brand sentiment analysis expert specializing in social media analytics. 
 Return JSON only. Language: ${isHebrew ? 'Hebrew' : 'English'}. 
 Requirements:
 - Always provide 3-4 positive_themes and 3-4 negative_themes (even if minor concerns)
@@ -175,50 +170,37 @@ Requirements:
 - Make mentions realistic and brand-specific
 - Ensure overall_score aligns with sentiment percentages (positive% + neutral%*0.5)
 - All percentages must sum to 100`,
-            },
-            { role: 'user', content: prompt },
-          ],
-          response_format: { type: 'json_object' },
-          temperature: 0.7,
-        }),
+          },
+          { role: 'user', content: prompt },
+        ],
+        temperature: 0.7,
       });
 
-      if (response.ok) {
-        const data = await response.json();
-        const content = JSON.parse(data.choices[0]?.message?.content || '{}');
-        if (content.overall_score !== undefined || (content.positive_percentage !== undefined && content.negative_percentage !== undefined)) {
-          // Calculate overall_score dynamically based on sentiment percentages if not provided or to ensure it's accurate
-          const positive = content.positive_percentage || 0;
-          const neutral = content.neutral_percentage || 0;
+      const content = JSON.parse(result.text || '{}');
+      if (content.overall_score !== undefined || (content.positive_percentage !== undefined && content.negative_percentage !== undefined)) {
+        // Calculate overall_score dynamically based on sentiment percentages if not provided or to ensure it's accurate
+        const positive = content.positive_percentage || 0;
+        const neutral = content.neutral_percentage || 0;
 
-          // Calculate score: positive counts fully, neutral counts half, negative counts zero
-          // Formula: positive% + (neutral% * 0.5)
-          const calculatedScore = Math.round(positive + (neutral * 0.5));
+        // Calculate score: positive counts fully, neutral counts half, negative counts zero
+        // Formula: positive% + (neutral% * 0.5)
+        const calculatedScore = Math.round(positive + (neutral * 0.5));
 
-          // Use calculated score if OpenAI didn't provide one, or if the provided score seems inconsistent
-          // (more than 10 points difference suggests inconsistency)
-          const providedScore = content.overall_score || 0;
-          const scoreDifference = Math.abs(calculatedScore - providedScore);
-          const finalScore = scoreDifference > 10 ? calculatedScore : (providedScore || calculatedScore);
+        // Use calculated score if OpenAI didn't provide one, or if the provided score seems inconsistent
+        // (more than 10 points difference suggests inconsistency)
+        const providedScore = content.overall_score || 0;
+        const scoreDifference = Math.abs(calculatedScore - providedScore);
+        const finalScore = scoreDifference > 10 ? calculatedScore : (providedScore || calculatedScore);
 
-          return NextResponse.json({
-            ...content,
-            overall_score: finalScore,
-            search_trends_daily: searchTrendsDaily,
-            search_trends_monthly: searchTrendsMonthly,
-          });
-        }
-      } else {
-        const errorText = await response.text().catch(() => 'Unknown error');
-        console.error('OpenAI API error:', {
-          status: response.status,
-          statusText: response.statusText,
-          error: errorText,
+        return NextResponse.json({
+          ...content,
+          overall_score: finalScore,
+          search_trends_daily: searchTrendsDaily,
+          search_trends_monthly: searchTrendsMonthly,
         });
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
-      // Don't throw - fall through to error response
     }
   }
 
