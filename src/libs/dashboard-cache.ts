@@ -11,13 +11,12 @@ export async function getCachedPosts(
   dateFrom: Date,
   dateTo: Date,
 ) {
-  // Get all posts (include published, scheduled, and draft - we'll filter by date)
-  // Note: Posts might be in 'scheduled' or 'draft' status but still have analytics
+  // Get only published posts (filter by date)
   let postsQuery = supabase
     .from('posts')
     .select('id,metadata,created_at,content,brand_id,getlate_post_id,status,platforms,image_url')
     .eq('user_id', userId)
-    .in('status', ['published', 'scheduled', 'draft']); // Include all statuses
+    .eq('status', 'published'); // Only include published posts
 
   if (brandId && brandId !== 'all') {
     postsQuery = postsQuery.eq('brand_id', brandId);
@@ -60,13 +59,13 @@ export async function getCachedPosts(
     return publishDate >= dateFrom && publishDate <= dateTo;
   });
 
-  // Fetch analytics for ALL posts (not just filtered ones) - this ensures we get analytics
+  // Fetch analytics for all published posts (not just date-filtered ones) - this ensures we get analytics
   // even if the post's publish date is outside the range but analytics date is within range
   // The date filtering will be done in the dashboard component
   const { data: analyticsData, error: analyticsError } = await supabase
     .from('post_analytics')
     .select('post_id,likes,comments,shares,impressions,date,metadata,platform')
-    .in('post_id', allPostsData.map(p => p.id)) // Use allPostsData, not postsData
+    .in('post_id', allPostsData.map(p => p.id)) // Use allPostsData (all published posts), not postsData (date-filtered)
     .order('date', { ascending: false });
 
   // Log error for debugging (only in development)
@@ -193,12 +192,12 @@ export async function getCachedDemographics(
   dateFrom: Date,
   dateTo: Date,
 ) {
-  // Get all posts for this user/brand (include all statuses) - don't filter by date yet
+  // Get only published posts for this user/brand - don't filter by date yet
   let postsQuery = supabase
     .from('posts')
     .select('id,created_at')
     .eq('user_id', userId)
-    .in('status', ['published', 'scheduled', 'draft']);
+    .eq('status', 'published'); // Only include published posts
 
   if (brandId && brandId !== 'all') {
     postsQuery = postsQuery.eq('brand_id', brandId);

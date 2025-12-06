@@ -232,7 +232,16 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   };
 
   // Posts are already filtered by date range from cache
-  const dateFilteredPosts = postsData || [];
+  // Deduplicate posts by ID to prevent duplicates (e.g., if same post has multiple scheduled_posts entries)
+  const postsMap = new Map<string, typeof postsData[0]>();
+  if (postsData && Array.isArray(postsData)) {
+    for (const post of postsData) {
+      if (post?.id && !postsMap.has(post.id)) {
+        postsMap.set(post.id, post);
+      }
+    }
+  }
+  const dateFilteredPosts = Array.from(postsMap.values());
 
   // Filter analytics by date range
   // Include analytics that are within the date range (regardless of post publish date)
