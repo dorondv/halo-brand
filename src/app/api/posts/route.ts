@@ -166,10 +166,21 @@ export async function POST(request: Request) {
             const platform = (p.platform === 'x' ? 'twitter' : p.platform) as GetlatePlatform;
             const platformSpecificData: Record<string, unknown> = { ...(p.config || {}) };
 
+            // If platform has specific mediaItems in config, use those; otherwise use shared mediaItems
+            const platformMediaItems = platformSpecificData.mediaItems as Array<{ type: 'image' | 'video'; url: string }> | undefined;
+            const finalMediaItems = platformMediaItems && platformMediaItems.length > 0 ? platformMediaItems : mediaItems;
+
             // For Facebook, also include mediaItems in platformSpecificData
             // (though they should also be at root level)
-            if (platform === 'facebook' && mediaItems && mediaItems.length > 0) {
-              platformSpecificData.mediaItems = mediaItems;
+            if (platform === 'facebook' && finalMediaItems && finalMediaItems.length > 0) {
+              platformSpecificData.mediaItems = finalMediaItems;
+            }
+
+            // If platform has specific content in config, use that; otherwise use shared content
+            if (platformSpecificData.content) {
+              // Platform-specific content is already in platformSpecificData
+            } else {
+              // Use shared content (will be at root level in Getlate API call)
             }
 
             return {
@@ -188,16 +199,20 @@ export async function POST(request: Request) {
             // Continue with local post creation
           } else {
             // Create post in Getlate
+            // According to Getlate API docs: content and mediaItems are shared at root level
+            // Platform-specific content goes in platformSpecificData.content for each platform
             // Use mediaItems format (required by Getlate API for proper media handling)
-            // For Facebook, mediaItems are also included in platformSpecificData
             const getlatePost = await getlateClient.createPost({
               profileId: brandRecord.getlate_profile_id,
-              content: payload.content,
+              content: payload.content, // Shared content (platform-specific content is in platformSpecificData)
               // Send mediaItems at root level (Getlate API format)
+              // Platform-specific mediaItems are in platformSpecificData.mediaItems
               mediaItems,
               scheduledFor: payload.scheduled_for,
               timezone: payload.timezone,
               platforms: getlatePlatformsArray,
+              // Add hashtags if provided
+              hashtags: payload.hashtags,
             });
 
             getlatePostId = getlatePost.id || (getlatePost as any)._id;

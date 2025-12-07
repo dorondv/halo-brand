@@ -105,6 +105,79 @@ const baseConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Instagram CDN
+      {
+        protocol: 'https',
+        hostname: '**.cdninstagram.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'scontent-*.cdninstagram.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Facebook CDN
+      {
+        protocol: 'https',
+        hostname: 'scontent-*.fbcdn.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.fbcdn.net',
+        port: '',
+        pathname: '/**',
+      },
+      // Twitter/X CDN
+      {
+        protocol: 'https',
+        hostname: 'pbs.twimg.com',
+        port: '',
+        pathname: '/**',
+      },
+      // LinkedIn CDN
+      {
+        protocol: 'https',
+        hostname: 'media.licdn.com',
+        port: '',
+        pathname: '/**',
+      },
+      // TikTok CDN
+      {
+        protocol: 'https',
+        hostname: '**.tiktokcdn.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '**.tiktokcdn-us.com',
+        port: '',
+        pathname: '/**',
+      },
+      // YouTube CDN
+      {
+        protocol: 'https',
+        hostname: 'i.ytimg.com',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'yt3.ggpht.com',
+        port: '',
+        pathname: '/**',
+      },
+      // Threads CDN (uses Instagram CDN)
+      {
+        protocol: 'https',
+        hostname: '**.threads.net',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

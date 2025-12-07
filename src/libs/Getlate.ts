@@ -340,6 +340,7 @@ export class GetlateClient {
   async createPost(data: {
     profileId: string;
     content: string;
+    title?: string; // Optional title (for YouTube, LinkedIn)
     mediaUrls?: string[]; // Legacy - will be converted to mediaItems
     mediaItems?: Array<{
       type: 'image' | 'video';
@@ -352,6 +353,11 @@ export class GetlateClient {
       accountId: string;
       platformSpecificData?: Record<string, unknown>;
     }>;
+    hashtags?: string[]; // Hashtags array
+    tags?: string[]; // Tags/keywords array
+    mentions?: string[]; // Mentions array
+    publishNow?: boolean; // Publish immediately
+    isDraft?: boolean; // Create as draft
     queuedFromProfile?: string; // Profile ID if post is added to queue
   }): Promise<GetlatePost> {
     // Convert mediaUrls to mediaItems format if needed

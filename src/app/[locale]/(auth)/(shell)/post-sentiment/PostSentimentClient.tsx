@@ -407,7 +407,7 @@ export function PostSentimentClient() {
                 <CardTitle>{t('posts_title')}</CardTitle>
                 <CardDescription>{t('posts_description')}</CardDescription>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className={`space-y-4 ${isRTL ? 'text-right' : ''}`}>
                 {/* Platform Filter */}
                 <Tabs value={selectedPlatform} onValueChange={setSelectedPlatform}>
                   <TabsList className={`inline-flex h-auto items-center justify-start gap-1 rounded-lg bg-gray-100/50 p-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
