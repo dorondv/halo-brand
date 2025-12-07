@@ -1526,13 +1526,21 @@ export default function CreatePostPage() {
   };
 
   useEffect(() => {
-    const hasSyncedVariants = variants.some(v => v.syncWithBase);
-    if (hasSyncedVariants) {
-      setVariants(prev => prev.map(variant => (
+    setVariants((prev) => {
+      const hasSyncedVariants = prev.some(v => v.syncWithBase);
+      if (!hasSyncedVariants) {
+        return prev; // No change needed
+      }
+      // Check if any synced variant needs updating
+      const needsUpdate = prev.some(v => v.syncWithBase && v.caption !== baseCaption);
+      if (!needsUpdate) {
+        return prev; // No change needed
+      }
+      return prev.map(variant => (
         variant.syncWithBase ? { ...variant, caption: baseCaption } : variant
-      )));
-    }
-  }, [baseCaption, variants]);
+      ));
+    });
+  }, [baseCaption]); // Only depend on baseCaption, not variants
 
   useEffect(() => {
     if (variants.length === 0) {
