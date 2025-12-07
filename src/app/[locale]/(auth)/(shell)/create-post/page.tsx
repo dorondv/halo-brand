@@ -37,6 +37,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { useBrand } from '@/contexts/BrandContext';
@@ -2273,6 +2274,35 @@ export default function CreatePostPage() {
                                     className="min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
                                     dir={isRTL ? 'rtl' : 'ltr'}
                                   />
+                                </div>
+
+                                <div className="space-y-2">
+                                  <label className="block text-sm font-semibold text-pink-700">
+                                    {isRTL ? 'שפה' : 'Language'}
+                                  </label>
+                                  <Select
+                                    value={aiLanguageInput[platform] || aiLanguage || 'en'}
+                                    onValueChange={(value) => {
+                                      if (value === 'en' || value === 'he') {
+                                        setAiLanguageInput(prev => ({ ...prev, [platform]: value }));
+                                      }
+                                    }}
+                                  >
+                                    <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
+                                      <SelectValue
+                                        placeholder={isRTL ? 'בחר שפה' : 'Select language'}
+                                        selectedLabel={aiLanguageInput[platform] === 'he' ? 'עברית' : aiLanguageInput[platform] === 'en' ? 'English' : undefined}
+                                        options={[
+                                          { value: 'en', name: 'English' },
+                                          { value: 'he', name: 'עברית' },
+                                        ]}
+                                      />
+                                    </SelectTrigger>
+                                    <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                                      <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
+                                      <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
+                                    </SelectContent>
+                                  </Select>
                                 </div>
 
                                 <div className={cn('flex items-center gap-3 justify-end', isRTL && 'flex-row-reverse')}>
