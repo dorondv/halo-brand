@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import React, {
   useCallback,
@@ -1448,14 +1449,12 @@ export default function CreatePostPage() {
   useEffect(() => {
     if (selectedPlatforms.length > 0) {
       const firstPlatform = selectedPlatforms[0] ?? null;
-      setActivePlatformTab((prev) => {
-        if (!prev || !selectedPlatforms.includes(prev)) {
-          return firstPlatform;
-        }
-        return prev;
-      });
+      const shouldUpdate = !activePlatformTab || !selectedPlatforms.includes(activePlatformTab);
+      if (shouldUpdate) {
+        setActivePlatformTab(firstPlatform);
+      }
     }
-  }, [selectedPlatforms]);
+  }, [selectedPlatforms, activePlatformTab]);
 
   const handleToggleFormat = (platform: Platform, format: Format) => {
     setVariants((prev) => {
@@ -1527,25 +1526,27 @@ export default function CreatePostPage() {
   };
 
   useEffect(() => {
-    setVariants((prev) => {
-      const hasSyncedVariants = prev.some(v => v.syncWithBase);
-      if (!hasSyncedVariants) {
-        return prev;
-      }
-      return prev.map(variant => (
+    const hasSyncedVariants = variants.some(v => v.syncWithBase);
+    if (hasSyncedVariants) {
+      setVariants(prev => prev.map(variant => (
         variant.syncWithBase ? { ...variant, caption: baseCaption } : variant
-      ));
-    });
-  }, [baseCaption]);
+      )));
+    }
+  }, [baseCaption, variants]);
 
   useEffect(() => {
     if (variants.length === 0) {
-      setAiVariantTarget('');
+      if (_aiVariantTarget !== '') {
+        setAiVariantTarget('');
+      }
       return;
     }
     const currentTargetExists = variants.some(v => v.id === _aiVariantTarget);
     if (!currentTargetExists) {
-      setAiVariantTarget(variants[0]?.id ?? '');
+      const newTarget = variants[0]?.id ?? '';
+      if (newTarget !== _aiVariantTarget) {
+        setAiVariantTarget(newTarget);
+      }
     }
   }, [variants, _aiVariantTarget]);
 
@@ -1950,927 +1951,954 @@ export default function CreatePostPage() {
           <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6 pb-24">
-          {/* Left Panel - Post Creation */}
-          <div className="space-y-4">
-            {/* Platform Selection with Inline Content Editing */}
-            <Card className="border-0 shadow-lg">
-              <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                  <Users className="h-5 w-5 text-pink-500" />
-                  {t('select_platforms')}
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
+        {/* Check if there are any connected accounts */}
+        {!accounts.some(acc => acc.getlate_account_id && acc.getlate_account_id.trim() !== '')
+          ? (
+              <Card className="border-2 border-pink-200 bg-pink-50/50 shadow-lg">
+                <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+                  <div className="mb-4 rounded-full bg-pink-100 p-4">
+                    <Users className="h-12 w-12 text-pink-500" />
+                  </div>
+                  <h2 className="mb-2 text-2xl font-semibold text-slate-900">
+                    {isRTL ? 'אין חשבונות מחוברים' : 'No Connected Accounts'}
+                  </h2>
+                  <p className="mb-6 max-w-md text-slate-600">
+                    {isRTL
+                      ? 'על מנת ליצור פוסטים, אנא עבור לדף החיבורים וחבר חשבון עבור המותג הזה.'
+                      : 'To create posts, please go to the connections page and connect an account for this brand.'}
+                  </p>
+                  <Link href="/connections">
+                    <Button className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700">
+                      <Users className="h-4 w-4" />
+                      {isRTL ? 'עבור לדף החיבורים' : 'Go to Connections Page'}
+                    </Button>
+                  </Link>
+                </CardContent>
+              </Card>
+            )
+          : (
+              <form onSubmit={handleSubmit} className="space-y-6 pb-24">
+                {/* Left Panel - Post Creation */}
                 <div className="space-y-4">
-                  {Object.entries(PLATFORM_ICON_CONFIG).map(([platformKey, config]) => {
-                    const platform = platformKey as Platform;
-                    const Icon = config.icon;
-                    const selectedFormats = Array.from(formatMap.get(platform) ?? []);
-                    const isSelected = selectedFormats.length > 0;
-                    const availableFormats = platformFormats[platform] || [];
-                    const platformContentData = platformContent[platform] || { caption: baseCaption, title: postTitle, link: mainLink, mediaUrls: [] };
-                    const platformMediaUrls = platformContentData.mediaUrls.length > 0 ? platformContentData.mediaUrls : mediaUrls;
-                    const platformMediaFiles = mediaFiles.filter(f => platformMediaUrls.includes(f.url));
-                    const limit = PLATFORM_CHARACTER_LIMITS[platform];
-                    const isConnected = isPlatformConnected(platform);
+                  {/* Platform Selection with Inline Content Editing */}
+                  <Card className="border-0 shadow-lg">
+                    <CardHeader className="pb-3">
+                      <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                        <Users className="h-5 w-5 text-pink-500" />
+                        {t('select_platforms')}
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {Object.entries(PLATFORM_ICON_CONFIG).map(([platformKey, config]) => {
+                          const platform = platformKey as Platform;
+                          const Icon = config.icon;
+                          const selectedFormats = Array.from(formatMap.get(platform) ?? []);
+                          const isSelected = selectedFormats.length > 0;
+                          const availableFormats = platformFormats[platform] || [];
+                          const platformContentData = platformContent[platform] || { caption: baseCaption, title: postTitle, link: mainLink, mediaUrls: [] };
+                          const platformMediaUrls = platformContentData.mediaUrls.length > 0 ? platformContentData.mediaUrls : mediaUrls;
+                          const platformMediaFiles = mediaFiles.filter(f => platformMediaUrls.includes(f.url));
+                          const limit = PLATFORM_CHARACTER_LIMITS[platform];
+                          const isConnected = isPlatformConnected(platform);
 
-                    return (
-                      <div
-                        key={platform}
-                        className={cn(
-                          'rounded-lg border-2 transition-all shadow-sm',
-                          !isConnected && 'opacity-50',
-                          isSelected
-                            ? 'border-pink-500 bg-pink-50/50 shadow-md'
-                            : 'border-slate-200 bg-white',
-                        )}
-                      >
-                        {/* Platform Header Row */}
-                        <div className="flex items-center gap-3 p-4">
-                          <button
-                            type="button"
-                            onClick={() => handleTogglePlatform(platform)}
-                            disabled={!isConnected}
-                            className={cn(
-                              'flex h-5 w-5 items-center justify-center rounded border-2 transition-colors flex-shrink-0',
-                              !isConnected && 'cursor-not-allowed opacity-50',
-                              isSelected
-                                ? 'border-pink-500 bg-pink-500'
-                                : 'border-slate-300 bg-white',
-                            )}
-                            title={!isConnected ? (isRTL ? 'פלטפורמה זו לא מחוברת' : 'This platform is not connected') : undefined}
-                          >
-                            {isSelected && <Check className="h-3 w-3 text-white" />}
-                          </button>
-                          <div className={cn(
-                            'flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0',
-                            config.bg,
-                            !isConnected && 'opacity-60',
-                          )}
-                          >
-                            <Icon className="h-5 w-5 text-white" />
-                          </div>
-                          <span className={cn(
-                            'flex-1 text-left text-sm font-semibold',
-                            isSelected ? 'text-slate-900' : 'text-slate-700',
-                            !isConnected && 'text-slate-400',
-                          )}
-                          >
-                            {config.name}
-                            {!isConnected && (
-                              <span className={cn('ml-2 text-xs font-normal text-slate-400', isRTL && 'mr-2 ml-0')}>
-                                (
-                                {isRTL ? 'לא מחובר' : 'Not connected'}
-                                )
-                              </span>
-                            )}
-                          </span>
-
-                          {/* Selected Badge with Post Type */}
-                          {isSelected && (
-                            <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                              <span className="rounded-full bg-pink-500 px-3 py-1 text-xs font-medium whitespace-nowrap text-white">
-                                {FORMAT_LABELS[selectedFormats[0] as Format]}
-                              </span>
-                            </div>
-                          )}
-
-                          {/* Minimize Button - Only show when platform is selected */}
-                          {isSelected && (
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setMinimizedPlatforms(prev => ({ ...prev, [platform]: !prev[platform] }));
-                              }}
-                              className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
-                              title={minimizedPlatforms[platform] ? (isRTL ? 'הרחב' : 'Expand') : (isRTL ? 'צמצם' : 'Minimize')}
+                          return (
+                            <div
+                              key={platform}
+                              className={cn(
+                                'rounded-lg border-2 transition-all shadow-sm',
+                                !isConnected && 'opacity-50',
+                                isSelected
+                                  ? 'border-pink-500 bg-pink-50/50 shadow-md'
+                                  : 'border-slate-200 bg-white',
+                              )}
                             >
-                              {minimizedPlatforms[platform]
-                                ? (
-                                    <ChevronDown className="h-4 w-4" />
-                                  )
-                                : (
-                                    <ChevronUp className="h-4 w-4" />
-                                  )}
-                            </button>
-                          )}
-
-                        </div>
-
-                        {/* Post Type Selection - Below platform header */}
-                        {isSelected && availableFormats.length > 0 && !minimizedPlatforms[platform] && (
-                          <div className={cn('px-4 pb-4', isRTL && 'text-right')}>
-                            <label className="mb-2 block text-sm font-semibold text-slate-900">
-                              {isRTL ? 'בחר סוג פוסט:' : 'Select Post Type:'}
-                            </label>
-                            <Popover
-                              open={openPostTypePopovers[platform] || false}
-                              onOpenChange={open => setOpenPostTypePopovers(prev => ({ ...prev, [platform]: open }))}
-                            >
-                              <PopoverTrigger asChild>
-                                <Button
+                              {/* Platform Header Row */}
+                              <div className="flex items-center gap-3 p-4">
+                                <button
                                   type="button"
-                                  variant="outline"
-                                  size="sm"
+                                  onClick={() => handleTogglePlatform(platform)}
+                                  disabled={!isConnected}
                                   className={cn(
-                                    'w-full h-9 border-slate-300 bg-white text-sm justify-between',
-                                    isRTL && 'flex-row-reverse',
+                                    'flex h-5 w-5 items-center justify-center rounded border-2 transition-colors flex-shrink-0',
+                                    !isConnected && 'cursor-not-allowed opacity-50',
+                                    isSelected
+                                      ? 'border-pink-500 bg-pink-500'
+                                      : 'border-slate-300 bg-white',
                                   )}
+                                  title={!isConnected ? (isRTL ? 'פלטפורמה זו לא מחוברת' : 'This platform is not connected') : undefined}
                                 >
-                                  <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                                    <ImageIcon className="h-4 w-4 text-slate-600" />
-                                    <span>
-                                      {selectedFormats.length > 0 && selectedFormats[0]
-                                        ? FORMAT_LABELS[selectedFormats[0]]
-                                        : t('select_post_type_placeholder')}
-                                    </span>
-                                  </div>
-                                  <ChevronDown className={cn('h-4 w-4 text-slate-400', isRTL && 'rotate-180')} />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent className="w-56 p-2" align={isRTL ? 'end' : 'start'}>
-                                <div className="space-y-1">
-                                  {availableFormats.map((format) => {
-                                    const isFormatSelected = selectedFormats.includes(format);
-                                    const validation = isFormatValid(
-                                      platform,
-                                      format,
-                                      platformMediaUrls.length,
-                                      platformMediaFiles.some(f => f.type === 'video'),
-                                      platformMediaFiles,
-                                    );
-                                    const isDisabled = !validation.valid;
-
-                                    return (
-                                      <button
-                                        key={`${platform}-${format}`}
-                                        type="button"
-                                        onClick={() => {
-                                          if (!isDisabled) {
-                                            handleToggleFormat(platform, format);
-                                            setOpenPostTypePopovers(prev => ({ ...prev, [platform]: false }));
-                                          }
-                                        }}
-                                        disabled={isDisabled}
-                                        className={cn(
-                                          'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
-                                          isDisabled
-                                            ? 'cursor-not-allowed opacity-50'
-                                            : 'hover:bg-slate-100',
-                                          isFormatSelected && !isDisabled && 'bg-pink-50 text-pink-700',
-                                        )}
-                                        title={validation.reason}
-                                      >
-                                        <div className={cn(
-                                          'flex h-4 w-4 items-center justify-center rounded border mt-0.5 flex-shrink-0',
-                                          isFormatSelected && !isDisabled ? 'border-pink-500 bg-pink-500' : 'border-slate-300',
-                                        )}
-                                        >
-                                          {isFormatSelected && !isDisabled && <Check className="h-3 w-3 text-white" />}
-                                        </div>
-                                        <div className="min-w-0 flex-1">
-                                          <div className="flex items-center gap-1">
-                                            <span>{FORMAT_LABELS[format]}</span>
-                                            {isDisabled && (
-                                              <span className="text-xs text-slate-400">
-                                                (
-                                                {t('requires_media')}
-                                                )
-                                              </span>
-                                            )}
-                                          </div>
-                                          {isDisabled && validation.reason && (
-                                            <p className="mt-0.5 text-xs text-slate-500">{validation.reason}</p>
-                                          )}
-                                        </div>
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              </PopoverContent>
-                            </Popover>
-                          </div>
-                        )}
-
-                        {/* Content Fields - Inline with platform */}
-                        {isSelected && !minimizedPlatforms[platform] && (
-                          <div className={cn('space-y-4 px-4 pb-4', isRTL && 'space-y-reverse')}>
-                            {/* Title Input - Only for platforms that support it */}
-                            {(platform === 'youtube' || platform === 'linkedin') && (
-                              <Input
-                                value={platformContentData.title}
-                                onChange={e => setPlatformContent(prev => ({
-                                  ...prev,
-                                  [platform]: { ...prev[platform], title: e.target.value },
-                                }))}
-                                placeholder={t('post_title_placeholder')}
-                                className="border-slate-200 bg-white focus:border-pink-400"
-                              />
-                            )}
-
-                            {/* Caption Textarea with AI Button */}
-                            <div className="relative flex gap-3">
-                              {/* AI Generate Button - Positioned to the left (right in RTL) */}
-                              <div className={cn('flex items-start pt-2', isRTL && 'order-2')}>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => {
-                                    setShowAiPanel(prev => ({ ...prev, [platform]: !prev[platform] }));
-                                    if (!aiBriefInput[platform]) {
-                                      setAiBriefInput(prev => ({ ...prev, [platform]: aiBrief || platformContentData.caption || '' }));
-                                    }
-                                    if (!aiToneInput[platform]) {
-                                      setAiToneInput(prev => ({ ...prev, [platform]: aiTone }));
-                                    }
-                                    if (!aiLanguageInput[platform]) {
-                                      setAiLanguageInput(prev => ({ ...prev, [platform]: aiLanguage }));
-                                    }
-                                    if (!aiStyleInput[platform]) {
-                                      setAiStyleInput(prev => ({ ...prev, [platform]: aiStyle }));
-                                    }
-                                  }}
-                                  className={cn(
-                                    'h-8 gap-1.5 text-xs border-pink-300 text-pink-600 hover:bg-pink-50 whitespace-nowrap',
-                                    showAiPanel[platform] && 'bg-pink-50',
-                                  )}
-                                >
-                                  <Wand2 className="h-3.5 w-3.5" />
-                                  {isRTL ? 'צור באמצעות AI' : 'Create with AI'}
-                                </Button>
-                              </div>
-
-                              {/* Textarea */}
-                              <div className={cn('relative flex-1', isRTL && 'order-1')}>
-                                <Textarea
-                                  data-platform={platform}
-                                  value={platformContentData.caption}
-                                  onChange={e => setPlatformContent(prev => ({
-                                    ...prev,
-                                    [platform]: { ...prev[platform], caption: e.target.value },
-                                  }))}
-                                  placeholder={t('content_placeholder')}
-                                  className="min-h-[120px] resize-none border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
-                                />
-
-                                {/* Character Count & Emoji Selector */}
+                                  {isSelected && <Check className="h-3 w-3 text-white" />}
+                                </button>
                                 <div className={cn(
-                                  'absolute bottom-2 flex items-center gap-2 text-xs',
-                                  isRTL ? 'left-2' : 'right-2',
+                                  'flex h-10 w-10 items-center justify-center rounded-lg flex-shrink-0',
+                                  config.bg,
+                                  !isConnected && 'opacity-60',
                                 )}
                                 >
-                                  <span className={cn(
-                                    platformContentData.caption.length > limit
-                                      ? 'font-semibold text-red-600'
-                                      : platformContentData.caption.length > limit * 0.9
-                                        ? 'font-medium text-amber-600'
-                                        : 'text-slate-500',
+                                  <Icon className="h-5 w-5 text-white" />
+                                </div>
+                                <span className={cn(
+                                  'flex-1 text-left text-sm font-semibold',
+                                  isSelected ? 'text-slate-900' : 'text-slate-700',
+                                  !isConnected && 'text-slate-400',
+                                )}
+                                >
+                                  {config.name}
+                                  {!isConnected && (
+                                    <span className={cn('ml-2 text-xs font-normal text-slate-400', isRTL && 'mr-2 ml-0')}>
+                                      (
+                                      {isRTL ? 'לא מחובר' : 'Not connected'}
+                                      )
+                                    </span>
                                   )}
+                                </span>
+
+                                {/* Selected Badge with Post Type */}
+                                {isSelected && (
+                                  <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+                                    <span className="rounded-full bg-pink-500 px-3 py-1 text-xs font-medium whitespace-nowrap text-white">
+                                      {FORMAT_LABELS[selectedFormats[0] as Format]}
+                                    </span>
+                                  </div>
+                                )}
+
+                                {/* Minimize Button - Only show when platform is selected */}
+                                {isSelected && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setMinimizedPlatforms(prev => ({ ...prev, [platform]: !prev[platform] }));
+                                    }}
+                                    className="flex h-7 w-7 items-center justify-center rounded-md text-slate-500 transition-colors hover:bg-slate-100 hover:text-slate-700"
+                                    title={minimizedPlatforms[platform] ? (isRTL ? 'הרחב' : 'Expand') : (isRTL ? 'צמצם' : 'Minimize')}
                                   >
-                                    {platformContentData.caption.length}
-                                    {' '}
-                                    /
-                                    {limit.toLocaleString()}
-                                  </span>
-                                  <Popover open={showEmojiPicker && emojiPickerTarget === platform} onOpenChange={setShowEmojiPicker}>
+                                    {minimizedPlatforms[platform]
+                                      ? (
+                                          <ChevronDown className="h-4 w-4" />
+                                        )
+                                      : (
+                                          <ChevronUp className="h-4 w-4" />
+                                        )}
+                                  </button>
+                                )}
+
+                              </div>
+
+                              {/* Post Type Selection - Below platform header */}
+                              {isSelected && availableFormats.length > 0 && !minimizedPlatforms[platform] && (
+                                <div className={cn('px-4 pb-4', isRTL && 'text-right')}>
+                                  <label className="mb-2 block text-sm font-semibold text-slate-900">
+                                    {isRTL ? 'בחר סוג פוסט:' : 'Select Post Type:'}
+                                  </label>
+                                  <Popover
+                                    open={openPostTypePopovers[platform] || false}
+                                    onOpenChange={open => setOpenPostTypePopovers(prev => ({ ...prev, [platform]: open }))}
+                                  >
                                     <PopoverTrigger asChild>
                                       <Button
                                         type="button"
-                                        variant="ghost"
-                                        size="icon"
-                                        className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
-                                        onClick={() => {
-                                          setEmojiPickerTarget(platform);
-                                          setShowEmojiPicker(true);
-                                        }}
+                                        variant="outline"
+                                        size="sm"
+                                        className={cn(
+                                          'w-full h-9 border-slate-300 bg-white text-sm justify-between',
+                                          isRTL && 'flex-row-reverse',
+                                        )}
                                       >
-                                        <Smile className="h-3.5 w-3.5" />
+                                        <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+                                          <ImageIcon className="h-4 w-4 text-slate-600" />
+                                          <span>
+                                            {selectedFormats.length > 0 && selectedFormats[0]
+                                              ? FORMAT_LABELS[selectedFormats[0]]
+                                              : t('select_post_type_placeholder')}
+                                          </span>
+                                        </div>
+                                        <ChevronDown className={cn('h-4 w-4 text-slate-400', isRTL && 'rotate-180')} />
                                       </Button>
                                     </PopoverTrigger>
-                                    <PopoverContent className="w-80 p-2" align={isRTL ? 'end' : 'end'}>
-                                      <EmojiPicker onSelect={emoji => insertEmoji(emoji, platform)} />
+                                    <PopoverContent className="w-56 p-2" align={isRTL ? 'end' : 'start'}>
+                                      <div className="space-y-1">
+                                        {availableFormats.map((format) => {
+                                          const isFormatSelected = selectedFormats.includes(format);
+                                          const validation = isFormatValid(
+                                            platform,
+                                            format,
+                                            platformMediaUrls.length,
+                                            platformMediaFiles.some(f => f.type === 'video'),
+                                            platformMediaFiles,
+                                          );
+                                          const isDisabled = !validation.valid;
+
+                                          return (
+                                            <button
+                                              key={`${platform}-${format}`}
+                                              type="button"
+                                              onClick={() => {
+                                                if (!isDisabled) {
+                                                  handleToggleFormat(platform, format);
+                                                  setOpenPostTypePopovers(prev => ({ ...prev, [platform]: false }));
+                                                }
+                                              }}
+                                              disabled={isDisabled}
+                                              className={cn(
+                                                'flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-sm transition-colors',
+                                                isDisabled
+                                                  ? 'cursor-not-allowed opacity-50'
+                                                  : 'hover:bg-slate-100',
+                                                isFormatSelected && !isDisabled && 'bg-pink-50 text-pink-700',
+                                              )}
+                                              title={validation.reason}
+                                            >
+                                              <div className={cn(
+                                                'flex h-4 w-4 items-center justify-center rounded border mt-0.5 flex-shrink-0',
+                                                isFormatSelected && !isDisabled ? 'border-pink-500 bg-pink-500' : 'border-slate-300',
+                                              )}
+                                              >
+                                                {isFormatSelected && !isDisabled && <Check className="h-3 w-3 text-white" />}
+                                              </div>
+                                              <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-1">
+                                                  <span>{FORMAT_LABELS[format]}</span>
+                                                  {isDisabled && (
+                                                    <span className="text-xs text-slate-400">
+                                                      (
+                                                      {t('requires_media')}
+                                                      )
+                                                    </span>
+                                                  )}
+                                                </div>
+                                                {isDisabled && validation.reason && (
+                                                  <p className="mt-0.5 text-xs text-slate-500">{validation.reason}</p>
+                                                )}
+                                              </div>
+                                            </button>
+                                          );
+                                        })}
+                                      </div>
                                     </PopoverContent>
                                   </Popover>
                                 </div>
-                              </div>
-                            </div>
+                              )}
 
-                            {/* AI Prompt Panel - Inline at bottom */}
-                            {showAiPanel[platform] && (
-                              <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
-                                <div className="space-y-2">
-                                  <label className="block text-sm font-semibold text-pink-700">
-                                    {isRTL ? 'על מה הפוסט?' : 'What is the post about?'}
-                                  </label>
-                                  <Textarea
-                                    value={aiBriefInput[platform] || ''}
-                                    onChange={e => setAiBriefInput(prev => ({ ...prev, [platform]: e.target.value }))}
-                                    placeholder={isRTL
-                                      ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
-                                      : 'e.g., New product launch, professional tip, personal story...'}
-                                    className="min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
-                                    dir={isRTL ? 'rtl' : 'ltr'}
-                                  />
-                                </div>
-
-                                <div className="space-y-2">
-                                  <label className="block text-sm font-semibold text-pink-700">
-                                    {isRTL ? 'שפה' : 'Language'}
-                                  </label>
-                                  <Select
-                                    value={aiLanguageInput[platform] || aiLanguage || 'en'}
-                                    onValueChange={(value) => {
-                                      if (value === 'en' || value === 'he') {
-                                        setAiLanguageInput(prev => ({ ...prev, [platform]: value }));
-                                      }
-                                    }}
-                                  >
-                                    <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
-                                      <SelectValue
-                                        placeholder={isRTL ? 'בחר שפה' : 'Select language'}
-                                        selectedLabel={aiLanguageInput[platform] === 'he' ? 'עברית' : aiLanguageInput[platform] === 'en' ? 'English' : undefined}
-                                        options={[
-                                          { value: 'en', name: 'English' },
-                                          { value: 'he', name: 'עברית' },
-                                        ]}
-                                      />
-                                    </SelectTrigger>
-                                    <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                      <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
-                                      <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
-                                    </SelectContent>
-                                  </Select>
-                                </div>
-
-                                <div className={cn('flex items-center gap-3 justify-end', isRTL && 'flex-row-reverse')}>
-                                  <Button
-                                    type="button"
-                                    variant="ghost"
-                                    onClick={() => {
-                                      setShowAiPanel(prev => ({ ...prev, [platform]: false }));
-                                    }}
-                                    className="text-slate-700 hover:bg-white/50"
-                                  >
-                                    {t('cancel')}
-                                  </Button>
-                                  <Button
-                                    type="button"
-                                    onClick={() => {
-                                      void handleGenerateAll(
-                                        aiBriefInput[platform] || '',
-                                        aiToneInput[platform] || aiTone,
-                                        aiLanguageInput[platform] || aiLanguage,
-                                        aiStyleInput[platform] || aiStyle,
-                                        platform,
-                                      );
-                                      setShowAiPanel(prev => ({ ...prev, [platform]: false }));
-                                    }}
-                                    disabled={isGeneratingAll || !aiBriefInput[platform]?.trim()}
-                                    className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
-                                  >
-                                    {isGeneratingAll
-                                      ? (
-                                          <>
-                                            <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                            {t('ai_loading')}
-                                          </>
-                                        )
-                                      : (
-                                          <>
-                                            <Wand2 className="h-4 w-4" />
-                                            {isRTL ? 'צור תוכן' : 'Create Content'}
-                                          </>
-                                        )}
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Media Upload - Per Platform */}
-                            <div className="space-y-2">
-                              <label className="text-xs font-medium text-slate-700">{t('media_upload_title')}</label>
-
-                              {/* Mode Selection Tabs */}
-                              <Tabs
-                                value={mediaMode[platform] || 'manual'}
-                                onValueChange={value => setMediaMode(prev => ({ ...prev, [platform]: value as 'manual' | 'ai' }))}
-                                className="w-full"
-                              >
-                                <TabsList className="grid h-9 w-full grid-cols-2">
-                                  <TabsTrigger value="manual" className="text-xs">
-                                    {isRTL ? 'העלאה ידנית' : 'Manual Upload'}
-                                  </TabsTrigger>
-                                  <TabsTrigger value="ai" className="text-xs">
-                                    {isRTL ? 'יצירה עם AI' : 'Generate with AI'}
-                                  </TabsTrigger>
-                                </TabsList>
-
-                                {/* Manual Upload Tab */}
-                                <TabsContent value="manual" className="mt-2 space-y-2">
-                                  <input
-                                    ref={(el) => {
-                                      if (el) {
-                                        fileInputRefs.current[platform] = el;
-                                      }
-                                    }}
-                                    type="file"
-                                    multiple
-                                    accept="image/*,video/*"
-                                    onChange={e => handleMediaUpload(e, platform)}
-                                    className="hidden"
-                                  />
-
-                                  <div
-                                    onClick={() => fileInputRefs.current[platform]?.click()}
-                                    onKeyDown={(e) => {
-                                      if (e.key === 'Enter' || e.key === ' ') {
-                                        e.preventDefault();
-                                        fileInputRefs.current[platform]?.click();
-                                      }
-                                    }}
-                                    onDrop={e => handleDrop(e, platform)}
-                                    onDragOver={e => handleDragOver(e, platform)}
-                                    onDragLeave={e => handleDragLeave(e, platform)}
-                                    role="button"
-                                    tabIndex={0}
-                                    className={cn(
-                                      'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50',
-                                      isUploadingMedia && 'pointer-events-none opacity-50',
-                                      isDraggingOver[platform] && 'border-pink-500 bg-pink-100 border-solid',
-                                    )}
-                                  >
-                                    {isUploadingMedia
-                                      ? (
-                                          <div className="flex flex-col items-center gap-2">
-                                            <span className="h-5 w-5 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-                                            <p className="text-xs text-slate-600">{t('uploading_media')}</p>
-                                          </div>
-                                        )
-                                      : (
-                                          <>
-                                            <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver[platform] ? 'text-pink-500' : 'text-slate-400')} />
-                                            <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver[platform] ? 'text-pink-700' : 'text-slate-700')}>
-                                              {isDraggingOver[platform] ? (isRTL ? 'שחרר כאן להעלאה' : 'Drop files here') : t('click_to_upload_media')}
-                                            </p>
-                                            <p className="mt-0.5 text-[10px] text-slate-500">{t('media_upload_hint')}</p>
-                                          </>
-                                        )}
-                                  </div>
-                                </TabsContent>
-
-                                {/* AI Generation Tab */}
-                                <TabsContent value="ai" className="mt-2 space-y-2">
-                                  <div className="space-y-2">
-                                    <Textarea
-                                      value={aiMediaPrompt[platform] || ''}
-                                      onChange={e => setAiMediaPrompt(prev => ({ ...prev, [platform]: e.target.value }))}
-                                      placeholder={isRTL
-                                        ? 'תאר את התמונה שברצונך ליצור... (למשל: "חתול חמוד יושב על חלון עם נוף עירוני ברקע")'
-                                        : 'Describe the image you want to create... (e.g., "A cute cat sitting on a window with a city skyline in the background")'}
-                                      className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
-                                      dir={isRTL ? 'rtl' : 'ltr'}
+                              {/* Content Fields - Inline with platform */}
+                              {isSelected && !minimizedPlatforms[platform] && (
+                                <div className={cn('space-y-4 px-4 pb-4', isRTL && 'space-y-reverse')}>
+                                  {/* Title Input - Only for platforms that support it */}
+                                  {(platform === 'youtube' || platform === 'linkedin') && (
+                                    <Input
+                                      value={platformContentData.title}
+                                      onChange={e => setPlatformContent(prev => ({
+                                        ...prev,
+                                        [platform]: { ...prev[platform], title: e.target.value },
+                                      }))}
+                                      placeholder={t('post_title_placeholder')}
+                                      className="border-slate-200 bg-white focus:border-pink-400"
                                     />
-                                    <Button
-                                      type="button"
-                                      onClick={() => void handleGenerateAIMedia(platform)}
-                                      disabled={isGeneratingMedia[platform] || !aiMediaPrompt[platform]?.trim()}
-                                      className="w-full gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
-                                    >
-                                      {isGeneratingMedia[platform]
-                                        ? (
-                                            <>
-                                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                              {isRTL ? 'יוצר תמונה...' : 'Generating image...'}
-                                            </>
-                                          )
-                                        : (
-                                            <>
-                                              <Wand2 className="h-4 w-4" />
-                                              {isRTL ? 'צור תמונה' : 'Generate Image'}
-                                            </>
-                                          )}
-                                    </Button>
-                                    <p className="text-center text-[10px] text-slate-500">
-                                      {isRTL
-                                        ? 'הערה: יצירת וידאו עם AI זמינה בקרוב. כרגע ניתן ליצור תמונות בלבד.'
-                                        : 'Note: AI video generation coming soon. Currently only images are supported.'}
-                                    </p>
-                                  </div>
-                                </TabsContent>
-                              </Tabs>
+                                  )}
 
-                              {/* Media Preview */}
-                              {platformMediaUrls.length > 0 && (
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <p className="text-xs font-medium text-slate-600">
-                                      {platformMediaUrls.length}
-                                      {' '}
-                                      {platformMediaUrls.length === 1 ? t('media_item') : t('media_items')}
-                                    </p>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="sm"
-                                      onClick={() => {
-                                        setPlatformContent(prev => ({
+                                  {/* Caption Textarea with AI Button */}
+                                  <div className="relative flex gap-3">
+                                    {/* AI Generate Button - Positioned to the left (right in RTL) */}
+                                    <div className={cn('flex items-start pt-2', isRTL && 'order-2')}>
+                                      <Button
+                                        type="button"
+                                        variant="outline"
+                                        size="sm"
+                                        onClick={() => {
+                                          setShowAiPanel(prev => ({ ...prev, [platform]: !prev[platform] }));
+                                          if (!aiBriefInput[platform]) {
+                                            setAiBriefInput(prev => ({ ...prev, [platform]: aiBrief || platformContentData.caption || '' }));
+                                          }
+                                          if (!aiToneInput[platform]) {
+                                            setAiToneInput(prev => ({ ...prev, [platform]: aiTone }));
+                                          }
+                                          if (!aiLanguageInput[platform]) {
+                                            setAiLanguageInput(prev => ({ ...prev, [platform]: aiLanguage }));
+                                          }
+                                          if (!aiStyleInput[platform]) {
+                                            setAiStyleInput(prev => ({ ...prev, [platform]: aiStyle }));
+                                          }
+                                        }}
+                                        className={cn(
+                                          'h-8 gap-1.5 text-xs border-pink-300 text-pink-600 hover:bg-pink-50 whitespace-nowrap',
+                                          showAiPanel[platform] && 'bg-pink-50',
+                                        )}
+                                      >
+                                        <Wand2 className="h-3.5 w-3.5" />
+                                        {isRTL ? 'צור באמצעות AI' : 'Create with AI'}
+                                      </Button>
+                                    </div>
+
+                                    {/* Textarea */}
+                                    <div className={cn('relative flex-1', isRTL && 'order-1')}>
+                                      <Textarea
+                                        data-platform={platform}
+                                        value={platformContentData.caption}
+                                        onChange={e => setPlatformContent(prev => ({
                                           ...prev,
-                                          [platform]: { ...prev[platform], mediaUrls: [] },
-                                        }));
-                                      }}
-                                      className="h-6 text-[10px] text-red-600 hover:bg-red-50 hover:text-red-700"
-                                    >
-                                      {t('clear_all')}
-                                    </Button>
+                                          [platform]: { ...prev[platform], caption: e.target.value },
+                                        }))}
+                                        placeholder={t('content_placeholder')}
+                                        className="min-h-[120px] resize-none border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                      />
+
+                                      {/* Character Count & Emoji Selector */}
+                                      <div className={cn(
+                                        'absolute bottom-2 flex items-center gap-2 text-xs',
+                                        isRTL ? 'left-2' : 'right-2',
+                                      )}
+                                      >
+                                        <span className={cn(
+                                          platformContentData.caption.length > limit
+                                            ? 'font-semibold text-red-600'
+                                            : platformContentData.caption.length > limit * 0.9
+                                              ? 'font-medium text-amber-600'
+                                              : 'text-slate-500',
+                                        )}
+                                        >
+                                          {platformContentData.caption.length}
+                                          {' '}
+                                          /
+                                          {limit.toLocaleString()}
+                                        </span>
+                                        <Popover open={showEmojiPicker && emojiPickerTarget === platform} onOpenChange={setShowEmojiPicker}>
+                                          <PopoverTrigger asChild>
+                                            <Button
+                                              type="button"
+                                              variant="ghost"
+                                              size="icon"
+                                              className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                              onClick={() => {
+                                                setEmojiPickerTarget(platform);
+                                                setShowEmojiPicker(true);
+                                              }}
+                                            >
+                                              <Smile className="h-3.5 w-3.5" />
+                                            </Button>
+                                          </PopoverTrigger>
+                                          <PopoverContent className="w-80 p-2" align={isRTL ? 'end' : 'end'}>
+                                            <EmojiPicker onSelect={emoji => insertEmoji(emoji, platform)} />
+                                          </PopoverContent>
+                                        </Popover>
+                                      </div>
+                                    </div>
                                   </div>
-                                  <div className="grid grid-cols-4 gap-2">
-                                    {platformMediaUrls.map((url, idx) => {
-                                      const mediaFile = platformMediaFiles.find(f => f.url === url);
-                                      const isVideo = mediaFile?.type === 'video';
-                                      return (
-                                        <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
-                                          {isVideo
+
+                                  {/* AI Prompt Panel - Inline at bottom */}
+                                  {showAiPanel[platform] && (
+                                    <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
+                                      <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-pink-700">
+                                          {isRTL ? 'על מה הפוסט?' : 'What is the post about?'}
+                                        </label>
+                                        <Textarea
+                                          value={aiBriefInput[platform] || ''}
+                                          onChange={e => setAiBriefInput(prev => ({ ...prev, [platform]: e.target.value }))}
+                                          placeholder={isRTL
+                                            ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
+                                            : 'e.g., New product launch, professional tip, personal story...'}
+                                          className="min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                          dir={isRTL ? 'rtl' : 'ltr'}
+                                        />
+                                      </div>
+
+                                      <div className="space-y-2">
+                                        <label className="block text-sm font-semibold text-pink-700">
+                                          {isRTL ? 'שפה' : 'Language'}
+                                        </label>
+                                        <Select
+                                          value={aiLanguageInput[platform] || aiLanguage || 'en'}
+                                          onValueChange={(value) => {
+                                            if (value === 'en' || value === 'he') {
+                                              setAiLanguageInput(prev => ({ ...prev, [platform]: value }));
+                                            }
+                                          }}
+                                        >
+                                          <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
+                                            <SelectValue
+                                              placeholder={isRTL ? 'בחר שפה' : 'Select language'}
+                                              selectedLabel={aiLanguageInput[platform] === 'he' ? 'עברית' : aiLanguageInput[platform] === 'en' ? 'English' : undefined}
+                                              options={[
+                                                { value: 'en', name: 'English' },
+                                                { value: 'he', name: 'עברית' },
+                                              ]}
+                                            />
+                                          </SelectTrigger>
+                                          <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+                                            <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
+                                            <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
+                                          </SelectContent>
+                                        </Select>
+                                      </div>
+
+                                      <div className={cn('flex items-center gap-3 justify-end', isRTL && 'flex-row-reverse')}>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setShowAiPanel(prev => ({ ...prev, [platform]: false }));
+                                          }}
+                                          className="text-slate-700 hover:bg-white/50"
+                                        >
+                                          {t('cancel')}
+                                        </Button>
+                                        <Button
+                                          type="button"
+                                          onClick={() => {
+                                            void handleGenerateAll(
+                                              aiBriefInput[platform] || '',
+                                              aiToneInput[platform] || aiTone,
+                                              aiLanguageInput[platform] || aiLanguage,
+                                              aiStyleInput[platform] || aiStyle,
+                                              platform,
+                                            );
+                                            setShowAiPanel(prev => ({ ...prev, [platform]: false }));
+                                          }}
+                                          disabled={isGeneratingAll || !aiBriefInput[platform]?.trim()}
+                                          className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                        >
+                                          {isGeneratingAll
                                             ? (
-                                                <div className="flex h-full items-center justify-center bg-black">
-                                                  <Play className="h-5 w-5 text-white" />
+                                                <>
+                                                  <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                                  {t('ai_loading')}
+                                                </>
+                                              )
+                                            : (
+                                                <>
+                                                  <Wand2 className="h-4 w-4" />
+                                                  {isRTL ? 'צור תוכן' : 'Create Content'}
+                                                </>
+                                              )}
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+
+                                  {/* Media Upload - Per Platform */}
+                                  <div className="space-y-2">
+                                    <label className="text-xs font-medium text-slate-700">{t('media_upload_title')}</label>
+
+                                    {/* Mode Selection Tabs */}
+                                    <Tabs
+                                      value={mediaMode[platform] || 'manual'}
+                                      onValueChange={value => setMediaMode(prev => ({ ...prev, [platform]: value as 'manual' | 'ai' }))}
+                                      className="w-full"
+                                    >
+                                      <TabsList className="grid h-9 w-full grid-cols-2">
+                                        <TabsTrigger value="manual" className="text-xs">
+                                          {isRTL ? 'העלאה ידנית' : 'Manual Upload'}
+                                        </TabsTrigger>
+                                        <TabsTrigger value="ai" className="text-xs">
+                                          {isRTL ? 'יצירה עם AI' : 'Generate with AI'}
+                                        </TabsTrigger>
+                                      </TabsList>
+
+                                      {/* Manual Upload Tab */}
+                                      <TabsContent value="manual" className="mt-2 space-y-2">
+                                        <input
+                                          ref={(el) => {
+                                            if (el) {
+                                              fileInputRefs.current[platform] = el;
+                                            }
+                                          }}
+                                          type="file"
+                                          multiple
+                                          accept="image/*,video/*"
+                                          onChange={e => handleMediaUpload(e, platform)}
+                                          className="hidden"
+                                        />
+
+                                        <div
+                                          onClick={() => fileInputRefs.current[platform]?.click()}
+                                          onKeyDown={(e) => {
+                                            if (e.key === 'Enter' || e.key === ' ') {
+                                              e.preventDefault();
+                                              fileInputRefs.current[platform]?.click();
+                                            }
+                                          }}
+                                          onDrop={e => handleDrop(e, platform)}
+                                          onDragOver={e => handleDragOver(e, platform)}
+                                          onDragLeave={e => handleDragLeave(e, platform)}
+                                          role="button"
+                                          tabIndex={0}
+                                          className={cn(
+                                            'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50',
+                                            isUploadingMedia && 'pointer-events-none opacity-50',
+                                            isDraggingOver[platform] && 'border-pink-500 bg-pink-100 border-solid',
+                                          )}
+                                        >
+                                          {isUploadingMedia
+                                            ? (
+                                                <div className="flex flex-col items-center gap-2">
+                                                  <span className="h-5 w-5 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
+                                                  <p className="text-xs text-slate-600">{t('uploading_media')}</p>
                                                 </div>
                                               )
                                             : (
-                                                <Image src={url} alt={`Media ${idx + 1}`} fill className="object-cover" />
+                                                <>
+                                                  <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver[platform] ? 'text-pink-500' : 'text-slate-400')} />
+                                                  <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver[platform] ? 'text-pink-700' : 'text-slate-700')}>
+                                                    {isDraggingOver[platform] ? (isRTL ? 'שחרר כאן להעלאה' : 'Drop files here') : t('click_to_upload_media')}
+                                                  </p>
+                                                  <p className="mt-0.5 text-[10px] text-slate-500">{t('media_upload_hint')}</p>
+                                                </>
                                               )}
-                                          <button
+                                        </div>
+                                      </TabsContent>
+
+                                      {/* AI Generation Tab */}
+                                      <TabsContent value="ai" className="mt-2 space-y-2">
+                                        <div className="space-y-2">
+                                          <Textarea
+                                            value={aiMediaPrompt[platform] || ''}
+                                            onChange={e => setAiMediaPrompt(prev => ({ ...prev, [platform]: e.target.value }))}
+                                            placeholder={isRTL
+                                              ? 'תאר את התמונה שברצונך ליצור... (למשל: "חתול חמוד יושב על חלון עם נוף עירוני ברקע")'
+                                              : 'Describe the image you want to create... (e.g., "A cute cat sitting on a window with a city skyline in the background")'}
+                                            className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                            dir={isRTL ? 'rtl' : 'ltr'}
+                                          />
+                                          <Button
                                             type="button"
-                                            onClick={(e) => {
-                                              e.stopPropagation();
+                                            onClick={() => void handleGenerateAIMedia(platform)}
+                                            disabled={isGeneratingMedia[platform] || !aiMediaPrompt[platform]?.trim()}
+                                            className="w-full gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                          >
+                                            {isGeneratingMedia[platform]
+                                              ? (
+                                                  <>
+                                                    <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                                    {isRTL ? 'יוצר תמונה...' : 'Generating image...'}
+                                                  </>
+                                                )
+                                              : (
+                                                  <>
+                                                    <Wand2 className="h-4 w-4" />
+                                                    {isRTL ? 'צור תמונה' : 'Generate Image'}
+                                                  </>
+                                                )}
+                                          </Button>
+                                          <p className="text-center text-[10px] text-slate-500">
+                                            {isRTL
+                                              ? 'הערה: יצירת וידאו עם AI זמינה בקרוב. כרגע ניתן ליצור תמונות בלבד.'
+                                              : 'Note: AI video generation coming soon. Currently only images are supported.'}
+                                          </p>
+                                        </div>
+                                      </TabsContent>
+                                    </Tabs>
+
+                                    {/* Media Preview */}
+                                    {platformMediaUrls.length > 0 && (
+                                      <div className="space-y-2">
+                                        <div className="flex items-center justify-between">
+                                          <p className="text-xs font-medium text-slate-600">
+                                            {platformMediaUrls.length}
+                                            {' '}
+                                            {platformMediaUrls.length === 1 ? t('media_item') : t('media_items')}
+                                          </p>
+                                          <Button
+                                            type="button"
+                                            variant="ghost"
+                                            size="sm"
+                                            onClick={() => {
                                               setPlatformContent(prev => ({
                                                 ...prev,
-                                                [platform]: { ...prev[platform], mediaUrls: prev[platform]?.mediaUrls.filter(u => u !== url) || [] },
+                                                [platform]: { ...prev[platform], mediaUrls: [] },
                                               }));
                                             }}
-                                            className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                            className="h-6 text-[10px] text-red-600 hover:bg-red-50 hover:text-red-700"
                                           >
-                                            <X className="h-2.5 w-2.5" />
-                                          </button>
-                                          {isVideo && (
-                                            <div className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
-                                              Video
-                                            </div>
-                                          )}
+                                            {t('clear_all')}
+                                          </Button>
                                         </div>
-                                      );
-                                    })}
-                                  </div>
-                                  {/* Content Type Detection Info */}
-                                  {selectedFormats.length > 0 && (
-                                    <div className="rounded-lg bg-blue-50 p-2">
-                                      <p className="text-xs text-blue-700">
-                                        {platformMediaUrls.length === 0
-                                          ? t('content_type_text_post')
-                                          : platformMediaFiles.some(f => f.type === 'video')
-                                            ? t('content_type_video')
-                                            : platformMediaUrls.length === 1
-                                              ? t('content_type_single_image')
-                                              : t('content_type_carousel')}
-                                      </p>
-                                    </div>
-                                  )}
-                                </div>
-                              )}
-                            </div>
-
-                            {/* Hashtags and Link Fields - Grouped together */}
-                            <div className="space-y-3">
-                              {/* Hashtags */}
-                              <div className="space-y-2">
-                                <div className="relative">
-                                  <Input
-                                    placeholder={t('hashtags_placeholder')}
-                                    value={hashtagInput[platform] || ''}
-                                    onChange={e => setHashtagInput(prev => ({ ...prev, [platform]: e.target.value }))}
-                                    onKeyDown={e => addHashtag(e, platform)}
-                                    className={cn(
-                                      'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors',
-                                      'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
-                                      isRTL && 'text-right',
+                                        <div className="grid grid-cols-4 gap-2">
+                                          {platformMediaUrls.map((url, idx) => {
+                                            const mediaFile = platformMediaFiles.find(f => f.url === url);
+                                            const isVideo = mediaFile?.type === 'video';
+                                            return (
+                                              <div key={url} className="group relative aspect-square overflow-hidden rounded-lg border border-slate-200 bg-slate-100">
+                                                {isVideo
+                                                  ? (
+                                                      <div className="flex h-full items-center justify-center bg-black">
+                                                        <Play className="h-5 w-5 text-white" />
+                                                      </div>
+                                                    )
+                                                  : (
+                                                      <Image src={url} alt={`Media ${idx + 1}`} fill className="object-cover" />
+                                                    )}
+                                                <button
+                                                  type="button"
+                                                  onClick={(e) => {
+                                                    e.stopPropagation();
+                                                    setPlatformContent(prev => ({
+                                                      ...prev,
+                                                      [platform]: { ...prev[platform], mediaUrls: prev[platform]?.mediaUrls.filter(u => u !== url) || [] },
+                                                    }));
+                                                  }}
+                                                  className="absolute top-1 right-1 flex h-5 w-5 items-center justify-center rounded-full bg-black/50 text-white opacity-0 transition-opacity group-hover:opacity-100"
+                                                >
+                                                  <X className="h-2.5 w-2.5" />
+                                                </button>
+                                                {isVideo && (
+                                                  <div className="absolute bottom-0.5 left-0.5 rounded bg-black/70 px-1 py-0.5 text-[9px] text-white">
+                                                    Video
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                        {/* Content Type Detection Info */}
+                                        {selectedFormats.length > 0 && (
+                                          <div className="rounded-lg bg-blue-50 p-2">
+                                            <p className="text-xs text-blue-700">
+                                              {platformMediaUrls.length === 0
+                                                ? t('content_type_text_post')
+                                                : platformMediaFiles.some(f => f.type === 'video')
+                                                  ? t('content_type_video')
+                                                  : platformMediaUrls.length === 1
+                                                    ? t('content_type_single_image')
+                                                    : t('content_type_carousel')}
+                                            </p>
+                                          </div>
+                                        )}
+                                      </div>
                                     )}
-                                  />
-                                  <div className={cn(
-                                    'absolute top-1/2 -translate-y-1/2 flex items-center justify-center',
-                                    isRTL ? 'left-2' : 'right-2',
-                                  )}
-                                  >
-                                    <Hash className="h-4 w-4 text-blue-500" />
                                   </div>
-                                </div>
-                                {platformContentData.hashtags && platformContentData.hashtags.length > 0 && (
-                                  <div className="flex flex-wrap gap-2">
-                                    {platformContentData.hashtags.map(tag => (
-                                      <span
-                                        key={tag}
-                                        className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700"
-                                      >
-                                        #
-                                        {tag}
-                                        <button
-                                          type="button"
-                                          onClick={() => removeHashtag(tag, platform)}
-                                          className="hover:text-pink-900"
+
+                                  {/* Hashtags and Link Fields - Grouped together */}
+                                  <div className="space-y-3">
+                                    {/* Hashtags */}
+                                    <div className="space-y-2">
+                                      <div className="relative">
+                                        <Input
+                                          placeholder={t('hashtags_placeholder')}
+                                          value={hashtagInput[platform] || ''}
+                                          onChange={e => setHashtagInput(prev => ({ ...prev, [platform]: e.target.value }))}
+                                          onKeyDown={e => addHashtag(e, platform)}
+                                          className={cn(
+                                            'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors',
+                                            'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
+                                            isRTL && 'text-right',
+                                          )}
+                                        />
+                                        <div className={cn(
+                                          'absolute top-1/2 -translate-y-1/2 flex items-center justify-center',
+                                          isRTL ? 'left-2' : 'right-2',
+                                        )}
                                         >
-                                          <X className="h-2.5 w-2.5" />
-                                        </button>
-                                      </span>
-                                    ))}
-                                  </div>
-                                )}
-                              </div>
+                                          <Hash className="h-4 w-4 text-blue-500" />
+                                        </div>
+                                      </div>
+                                      {platformContentData.hashtags && platformContentData.hashtags.length > 0 && (
+                                        <div className="flex flex-wrap gap-2">
+                                          {platformContentData.hashtags.map(tag => (
+                                            <span
+                                              key={tag}
+                                              className="inline-flex items-center gap-1.5 rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700"
+                                            >
+                                              #
+                                              {tag}
+                                              <button
+                                                type="button"
+                                                onClick={() => removeHashtag(tag, platform)}
+                                                className="hover:text-pink-900"
+                                              >
+                                                <X className="h-2.5 w-2.5" />
+                                              </button>
+                                            </span>
+                                          ))}
+                                        </div>
+                                      )}
+                                    </div>
 
-                              {/* Link Input - Only for platforms that support it */}
-                              {(platform === 'linkedin' || platform === 'facebook' || platform === 'x' || platform === 'threads') && (
-                                <div className="relative">
-                                  <Input
-                                    value={platformContentData.link}
-                                    onChange={e => setPlatformContent(prev => ({
-                                      ...prev,
-                                      [platform]: { ...prev[platform], link: e.target.value },
-                                    }))}
-                                    placeholder={t('main_link_placeholder')}
-                                    className={cn(
-                                      'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors',
-                                      'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
-                                      isRTL && 'text-right',
+                                    {/* Link Input - Only for platforms that support it */}
+                                    {(platform === 'linkedin' || platform === 'facebook' || platform === 'x' || platform === 'threads') && (
+                                      <div className="relative">
+                                        <Input
+                                          value={platformContentData.link}
+                                          onChange={e => setPlatformContent(prev => ({
+                                            ...prev,
+                                            [platform]: { ...prev[platform], link: e.target.value },
+                                          }))}
+                                          placeholder={t('main_link_placeholder')}
+                                          className={cn(
+                                            'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors',
+                                            'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
+                                            isRTL && 'text-right',
+                                          )}
+                                        />
+                                      </div>
                                     )}
-                                  />
+                                  </div>
                                 </div>
                               )}
                             </div>
+                          );
+                        })}
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  {/* Error Display */}
+                  {error && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                      {error}
+                    </div>
+                  )}
+
+                  {/* Bottom Actions - Sticky Footer */}
+                  <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white px-6 py-4 shadow-lg">
+                    <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
+                      {/* Left: Cancel Button */}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        onClick={() => router.back()}
+                        className="text-slate-600 hover:bg-slate-100"
+                      >
+                        {t('cancel')}
+                      </Button>
+
+                      {/* Center: Schedule Options & Preview */}
+                      <div className="flex flex-1 items-center justify-center gap-3">
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setShowPreviewModal(true)}
+                          className="h-8 gap-1.5 border-slate-300 px-3 text-sm"
+                        >
+                          <Monitor className="h-3.5 w-3.5" />
+                          {t('preview_button')}
+                        </Button>
+
+                        <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setScheduleMode('now')}
+                            className={cn(
+                              'h-8 gap-1.5 px-3 text-sm transition-all',
+                              scheduleMode === 'now'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-600 hover:bg-white/50',
+                            )}
+                          >
+                            <Clock className="h-3.5 w-3.5" />
+                            {t('publish_now')}
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setScheduleMode('later')}
+                            className={cn(
+                              'h-8 gap-1.5 px-3 text-sm transition-all',
+                              scheduleMode === 'later'
+                                ? 'bg-white text-slate-900 shadow-sm'
+                                : 'text-slate-600 hover:bg-white/50',
+                            )}
+                          >
+                            <Calendar className="h-3.5 w-3.5" />
+                            {t('schedule_post')}
+                          </Button>
+                        </div>
+
+                        {scheduleMode === 'later' && (
+                          <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
+                            <label className="text-xs font-medium text-slate-700">
+                              {t('schedule_select_datetime')}
+                            </label>
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="date"
+                                min={new Date().toISOString().split('T')[0]}
+                                value={scheduledTime ? scheduledTime.split('T')[0] : ''}
+                                onChange={(e) => {
+                                  const date = e.target.value;
+                                  const time = scheduledTime ? scheduledTime.split('T')[1] : '00:00';
+                                  setScheduledTime(date && time ? `${date}T${time}` : date);
+                                }}
+                                className="h-9 flex-1 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                              />
+                              <Input
+                                type="time"
+                                value={scheduledTime ? scheduledTime.split('T')[1] : ''}
+                                onChange={(e) => {
+                                  const time = e.target.value;
+                                  const date = scheduledTime ? scheduledTime.split('T')[0] : new Date().toISOString().split('T')[0];
+                                  if (time) {
+                                    // Validate: must be at least 5 minutes from now if today
+                                    const selectedDateTime = new Date(`${date}T${time}`);
+                                    const minDateTime = new Date(Date.now() + 5 * 60000);
+                                    if (selectedDateTime < minDateTime && date === new Date().toISOString().split('T')[0]) {
+                                      // Set to minimum time if selecting today
+                                      const minTime = minDateTime.toTimeString().slice(0, 5);
+                                      setScheduledTime(`${date}T${minTime}`);
+                                      return;
+                                    }
+                                    setScheduledTime(`${date}T${time}`);
+                                  } else if (date) {
+                                    setScheduledTime(date);
+                                  }
+                                }}
+                                className="h-9 w-32 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                              />
+                            </div>
+                            {scheduledTime && (
+                              <p className="text-xs text-slate-500">
+                                {t('schedule_hint')}
+                                :
+                                {new Date(scheduledTime).toLocaleString(locale === 'he' ? 'he-IL' : 'en-US', {
+                                  dateStyle: 'full',
+                                  timeStyle: 'short',
+                                })}
+                              </p>
+                            )}
                           </div>
                         )}
                       </div>
-                    );
-                  })}
-                </div>
-              </CardContent>
-            </Card>
 
-            {/* Error Display */}
-            {error && (
-              <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
-                {error}
-              </div>
-            )}
-
-            {/* Bottom Actions - Sticky Footer */}
-            <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white px-6 py-4 shadow-lg">
-              <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
-                {/* Left: Cancel Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  onClick={() => router.back()}
-                  className="text-slate-600 hover:bg-slate-100"
-                >
-                  {t('cancel')}
-                </Button>
-
-                {/* Center: Schedule Options & Preview */}
-                <div className="flex flex-1 items-center justify-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setShowPreviewModal(true)}
-                    className="h-8 gap-1.5 border-slate-300 px-3 text-sm"
-                  >
-                    <Monitor className="h-3.5 w-3.5" />
-                    {t('preview_button')}
-                  </Button>
-
-                  <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setScheduleMode('now')}
-                      className={cn(
-                        'h-8 gap-1.5 px-3 text-sm transition-all',
-                        scheduleMode === 'now'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-600 hover:bg-white/50',
-                      )}
-                    >
-                      <Clock className="h-3.5 w-3.5" />
-                      {t('publish_now')}
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => setScheduleMode('later')}
-                      className={cn(
-                        'h-8 gap-1.5 px-3 text-sm transition-all',
-                        scheduleMode === 'later'
-                          ? 'bg-white text-slate-900 shadow-sm'
-                          : 'text-slate-600 hover:bg-white/50',
-                      )}
-                    >
-                      <Calendar className="h-3.5 w-3.5" />
-                      {t('schedule_post')}
-                    </Button>
-                  </div>
-
-                  {scheduleMode === 'later' && (
-                    <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                      <label className="text-xs font-medium text-slate-700">
-                        {t('schedule_select_datetime')}
-                      </label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="date"
-                          min={new Date().toISOString().split('T')[0]}
-                          value={scheduledTime ? scheduledTime.split('T')[0] : ''}
-                          onChange={(e) => {
-                            const date = e.target.value;
-                            const time = scheduledTime ? scheduledTime.split('T')[1] : '00:00';
-                            setScheduledTime(date && time ? `${date}T${time}` : date);
-                          }}
-                          className="h-9 flex-1 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
-                        />
-                        <Input
-                          type="time"
-                          value={scheduledTime ? scheduledTime.split('T')[1] : ''}
-                          onChange={(e) => {
-                            const time = e.target.value;
-                            const date = scheduledTime ? scheduledTime.split('T')[0] : new Date().toISOString().split('T')[0];
-                            if (time) {
-                              // Validate: must be at least 5 minutes from now if today
-                              const selectedDateTime = new Date(`${date}T${time}`);
-                              const minDateTime = new Date(Date.now() + 5 * 60000);
-                              if (selectedDateTime < minDateTime && date === new Date().toISOString().split('T')[0]) {
-                                // Set to minimum time if selecting today
-                                const minTime = minDateTime.toTimeString().slice(0, 5);
-                                setScheduledTime(`${date}T${minTime}`);
-                                return;
-                              }
-                              setScheduledTime(`${date}T${time}`);
-                            } else if (date) {
-                              setScheduledTime(date);
-                            }
-                          }}
-                          className="h-9 w-32 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
-                        />
-                      </div>
-                      {scheduledTime && (
-                        <p className="text-xs text-slate-500">
-                          {t('schedule_hint')}
-                          :
-                          {new Date(scheduledTime).toLocaleString(locale === 'he' ? 'he-IL' : 'en-US', {
-                            dateStyle: 'full',
-                            timeStyle: 'short',
-                          })}
-                        </p>
-                      )}
-                    </div>
-                  )}
-                </div>
-
-                {/* Right: Submit Button */}
-                <Button
-                  type="submit"
-                  disabled={
-                    !isPlatformSelected
-                    || isSubmitting
-                    || !selectedPlatforms.some((platform) => {
-                      const platformContentData = platformContent[platform];
-                      return platformContentData?.caption?.trim() || baseCaption.trim();
-                    })
-                  }
-                  className="min-w-[140px] bg-pink-600 hover:bg-pink-700 disabled:opacity-50"
-                >
-                  {isSubmitting
-                    ? (
-                        <div className="flex items-center gap-2">
-                          <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                          {scheduleMode === 'now' ? t('publishing') : t('scheduling')}
-                        </div>
-                      )
-                    : (
-                        <>
-                          {scheduleMode === 'now' ? t('publish_now') : t('schedule_post')}
-                        </>
-                      )}
-                </Button>
-              </div>
-            </div>
-          </div>
-
-          {/* Preview Modal */}
-          <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-            <DialogContent className="mx-auto my-auto flex max-h-[90vh] max-w-4xl flex-col overflow-hidden">
-              <DialogClose />
-              <DialogHeader>
-                <div className="flex items-center justify-between">
-                  <DialogTitle className="text-lg font-semibold text-slate-900">
-                    {t('preview_title')}
-                  </DialogTitle>
-                  <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDevice('mobile')}
-                      className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded transition-colors',
-                        previewDevice === 'mobile' ? 'bg-slate-900 text-white' : 'text-slate-600',
-                      )}
-                    >
-                      <Smartphone className="h-4 w-4" />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPreviewDevice('desktop')}
-                      className={cn(
-                        'flex h-8 w-8 items-center justify-center rounded transition-colors',
-                        previewDevice === 'desktop' ? 'bg-slate-900 text-white' : 'text-slate-600',
-                      )}
-                    >
-                      <Monitor className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-              </DialogHeader>
-
-              {selectedPlatforms.length === 0
-                ? (
-                    <div className="mt-4 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                      <p className="text-sm text-slate-500">{t('preview_empty')}</p>
-                    </div>
-                  )
-                : (
-                    <Tabs defaultValue={selectedPlatforms[0]} className="mt-4 flex flex-1 flex-col overflow-hidden">
-                      <TabsList className="mb-4 flex h-auto w-full justify-center gap-1 bg-slate-50 p-1">
-                        {selectedPlatforms.map((platform) => {
-                          const config = PLATFORM_ICON_CONFIG[platform];
-                          const Icon = config.icon;
-                          return (
-                            <TabsTrigger
-                              key={platform}
-                              value={platform}
-                              className="flex h-auto items-center justify-center p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
-                              title={config.name}
-                            >
-                              <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', config.bg)}>
-                                <Icon className="h-4 w-4 text-white" />
+                      {/* Right: Submit Button */}
+                      <Button
+                        type="submit"
+                        disabled={
+                          !isPlatformSelected
+                          || isSubmitting
+                          || !selectedPlatforms.some((platform) => {
+                            const platformContentData = platformContent[platform];
+                            return platformContentData?.caption?.trim() || baseCaption.trim();
+                          })
+                        }
+                        className="min-w-[140px] bg-pink-600 hover:bg-pink-700 disabled:opacity-50"
+                      >
+                        {isSubmitting
+                          ? (
+                              <div className="flex items-center gap-2">
+                                <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                                {scheduleMode === 'now' ? t('publishing') : t('scheduling')}
                               </div>
-                            </TabsTrigger>
-                          );
-                        })}
-                      </TabsList>
+                            )
+                          : (
+                              <>
+                                {scheduleMode === 'now' ? t('publish_now') : t('schedule_post')}
+                              </>
+                            )}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
 
-                      <div className="flex-1 overflow-y-auto">
-                        {selectedPlatforms.map((platform) => {
-                          const platformVariants = variants.filter(v => v.platform === platform);
-                          const format = platformVariants[0]?.format; // Only one format per platform
-
-                          return (
-                            <TabsContent key={platform} value={platform} className="mt-0 space-y-4">
-                              {format && (
-                                <div className="mb-2 flex gap-1">
-                                  <span className="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-                                    {FORMAT_LABELS[format]}
-                                  </span>
-                                </div>
-                              )}
-                              <PreviewCard
-                                platform={platform}
-                                accounts={accounts}
-                                variants={variants}
-                                platformFormats={platformFormats}
-                                platformContent={platformContent}
-                                baseCaption={baseCaption}
-                                postTitle={postTitle}
-                                mainLink={mainLink}
-                                mediaUrls={mediaUrls}
-                                previewDevice={previewDevice}
-                                t={t}
-                              />
-                            </TabsContent>
-                          );
-                        })}
+                {/* Preview Modal */}
+                <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
+                  <DialogContent className="mx-auto my-auto flex max-h-[90vh] max-w-4xl flex-col overflow-hidden">
+                    <DialogClose />
+                    <DialogHeader>
+                      <div className="flex items-center justify-between">
+                        <DialogTitle className="text-lg font-semibold text-slate-900">
+                          {t('preview_title')}
+                        </DialogTitle>
+                        <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDevice('mobile')}
+                            className={cn(
+                              'flex h-8 w-8 items-center justify-center rounded transition-colors',
+                              previewDevice === 'mobile' ? 'bg-slate-900 text-white' : 'text-slate-600',
+                            )}
+                          >
+                            <Smartphone className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setPreviewDevice('desktop')}
+                            className={cn(
+                              'flex h-8 w-8 items-center justify-center rounded transition-colors',
+                              previewDevice === 'desktop' ? 'bg-slate-900 text-white' : 'text-slate-600',
+                            )}
+                          >
+                            <Monitor className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
-                    </Tabs>
-                  )}
+                    </DialogHeader>
 
-              {/* Disclaimer */}
-              <div className="mt-4 rounded-lg border-t border-slate-200 bg-slate-50 p-3">
-                <p className="flex items-start gap-2 text-xs text-slate-500">
-                  <span className="mt-0.5">ℹ️</span>
-                  <span>{t('preview_disclaimer')}</span>
-                </p>
-              </div>
-            </DialogContent>
-          </Dialog>
+                    {selectedPlatforms.length === 0
+                      ? (
+                          <div className="mt-4 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
+                            <p className="text-sm text-slate-500">{t('preview_empty')}</p>
+                          </div>
+                        )
+                      : (
+                          <Tabs defaultValue={selectedPlatforms[0]} className="mt-4 flex flex-1 flex-col overflow-hidden">
+                            <TabsList className="mb-4 flex h-auto w-full justify-center gap-1 bg-slate-50 p-1">
+                              {selectedPlatforms.map((platform) => {
+                                const config = PLATFORM_ICON_CONFIG[platform];
+                                const Icon = config.icon;
+                                return (
+                                  <TabsTrigger
+                                    key={platform}
+                                    value={platform}
+                                    className="flex h-auto items-center justify-center p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                                    title={config.name}
+                                  >
+                                    <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', config.bg)}>
+                                      <Icon className="h-4 w-4 text-white" />
+                                    </div>
+                                  </TabsTrigger>
+                                );
+                              })}
+                            </TabsList>
 
-        </form>
+                            <div className="flex-1 overflow-y-auto">
+                              {selectedPlatforms.map((platform) => {
+                                const platformVariants = variants.filter(v => v.platform === platform);
+                                const format = platformVariants[0]?.format; // Only one format per platform
+
+                                return (
+                                  <TabsContent key={platform} value={platform} className="mt-0 space-y-4">
+                                    {format && (
+                                      <div className="mb-2 flex gap-1">
+                                        <span className="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
+                                          {FORMAT_LABELS[format]}
+                                        </span>
+                                      </div>
+                                    )}
+                                    <PreviewCard
+                                      platform={platform}
+                                      accounts={accounts}
+                                      variants={variants}
+                                      platformFormats={platformFormats}
+                                      platformContent={platformContent}
+                                      baseCaption={baseCaption}
+                                      postTitle={postTitle}
+                                      mainLink={mainLink}
+                                      mediaUrls={mediaUrls}
+                                      previewDevice={previewDevice}
+                                      t={t}
+                                    />
+                                  </TabsContent>
+                                );
+                              })}
+                            </div>
+                          </Tabs>
+                        )}
+
+                    {/* Disclaimer */}
+                    <div className="mt-4 rounded-lg border-t border-slate-200 bg-slate-50 p-3">
+                      <p className="flex items-start gap-2 text-xs text-slate-500">
+                        <span className="mt-0.5">ℹ️</span>
+                        <span>{t('preview_disclaimer')}</span>
+                      </p>
+                    </div>
+                  </DialogContent>
+                </Dialog>
+
+              </form>
+            )}
       </div>
     </div>
   );
