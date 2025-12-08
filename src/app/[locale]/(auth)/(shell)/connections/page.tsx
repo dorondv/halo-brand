@@ -217,6 +217,22 @@ export default function ConnectionsPage() {
     postingType: 'personal',
   });
 
+  // Headless mode OAuth state
+  const [headlessModeData, setHeadlessModeData] = useState<{
+    step: string;
+    platform: string;
+    profileId: string;
+    tempToken: string;
+    userProfile: string;
+    connectToken: string;
+    organizations?: string; // LinkedIn organizations (URL-encoded JSON)
+    brandId?: string;
+  } | null>(null);
+  const [isLoadingHeadlessPages, setIsLoadingHeadlessPages] = useState(false);
+  const [headlessFacebookPages, setHeadlessFacebookPages] = useState<Array<{ id: string; name: string; pageId?: string }>>([]);
+  const [selectedHeadlessFacebookPageId, setSelectedHeadlessFacebookPageId] = useState<string | null>(null);
+  const [isSavingHeadlessSelection, setIsSavingHeadlessSelection] = useState(false);
+
   const platformConfigs = getPlatformConfigs(t as any);
 
   const loadBrands = useCallback(async () => {
@@ -468,6 +484,89 @@ export default function ConnectionsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrandId]); // Depend on brand ID from context
 
+  // Handle headless mode OAuth callback
+  useEffect(() => {
+    const headless = searchParams.get('headless');
+    const step = searchParams.get('step');
+    const platform = searchParams.get('platform');
+    const profileId = searchParams.get('profileId');
+    const tempToken = searchParams.get('tempToken');
+    const userProfile = searchParams.get('userProfile');
+    const connectToken = searchParams.get('connect_token');
+    const organizations = searchParams.get('organizations');
+    const brandId = searchParams.get('brandId');
+
+    // Check if this is a headless mode callback
+    if (headless === 'true' && step && platform && profileId && tempToken && userProfile && connectToken) {
+      // Clean up URL immediately
+      window.history.replaceState({}, '', window.location.pathname);
+
+      // Set headless mode data to trigger selection dialog
+      setHeadlessModeData({
+        step,
+        platform,
+        profileId,
+        tempToken,
+        userProfile,
+        connectToken,
+        organizations: organizations || undefined,
+        brandId: brandId || undefined,
+      });
+
+      // If brandId is in URL, sync it to context
+      if (brandId && brands.length > 0) {
+        const brandToSelect = brands.find(b => b.id === brandId);
+        if (brandToSelect && selectedBrandId !== brandId) {
+          setSelectedBrandId(brandId);
+        }
+      }
+
+      // For Facebook, fetch pages immediately
+      if (platform === 'facebook' && step === 'select_page') {
+        setIsLoadingHeadlessPages(true);
+        fetch(`/api/getlate/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`, {
+          headers: {
+            'X-Connect-Token': connectToken,
+          },
+        })
+          .then(async (response) => {
+            if (response.ok) {
+              const data = await response.json();
+              setHeadlessFacebookPages(data.pages || []);
+            } else {
+              const error = await response.json().catch(() => ({ error: 'Failed to fetch pages' }));
+              showToast(error.error || 'Failed to fetch Facebook pages', 'error');
+              setHeadlessModeData(null);
+            }
+          })
+          .catch((error) => {
+            console.error('Error fetching Facebook pages:', error);
+            showToast('Failed to fetch Facebook pages', 'error');
+            setHeadlessModeData(null);
+          })
+          .finally(() => {
+            setIsLoadingHeadlessPages(false);
+          });
+      }
+
+      // For LinkedIn, parse organizations from URL-encoded JSON
+      if (platform === 'linkedin' && step === 'select_organization' && organizations) {
+        try {
+          const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
+          if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
+            setLinkedinOrganizations(decodedOrgs.map((org: any) => ({
+              id: org.id || org._id,
+              name: org.name || org.organizationName,
+              urn: org.urn || org.organizationUrn,
+            })));
+          }
+        } catch (error) {
+          console.error('Error parsing LinkedIn organizations:', error);
+        }
+      }
+    }
+  }, [searchParams, brands, selectedBrandId, setSelectedBrandId, showToast]);
+
   // Handle OAuth callback - check for success, cancellation, or error messages
   // Use a ref to track processed callbacks and prevent duplicate toasts
   const processedCallbackRef = useRef<Set<string>>(new Set());
@@ -476,6 +575,12 @@ export default function ConnectionsPage() {
     const cancelled = searchParams.get('cancelled');
     const connected = searchParams.get('connected');
     const error = searchParams.get('error');
+    const headless = searchParams.get('headless'); // Skip standard mode if headless mode is active
+
+    // Only process if there's a callback parameter and it's not headless mode
+    if ((!cancelled && !connected && !error) || headless === 'true') {
+      return undefined;
+    }
 
     // Only process if there's a callback parameter
     if (!cancelled && !connected && !error) {
@@ -1211,6 +1316,119 @@ export default function ConnectionsPage() {
       setLinkedinAccountForOrgs(null);
     } finally {
       setIsLoadingLinkedInOrgs(false);
+    }
+  };
+
+  const handleSaveHeadlessFacebookPage = async () => {
+    if (!headlessModeData || !selectedHeadlessFacebookPageId) {
+      return;
+    }
+
+    setIsSavingHeadlessSelection(true);
+    try {
+      let userProfileObj: any;
+      try {
+        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+      } catch {
+        userProfileObj = {};
+      }
+
+      const response = await fetch('/api/getlate/facebook/select-page', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Connect-Token': headlessModeData.connectToken,
+        },
+        body: JSON.stringify({
+          profileId: headlessModeData.profileId,
+          pageId: selectedHeadlessFacebookPageId,
+          tempToken: headlessModeData.tempToken,
+          userProfile: userProfileObj,
+          redirectUrl: `${window.location.origin}/connections`,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to save page selection' }));
+        throw new Error(error.error || 'Failed to save page selection');
+      }
+
+      showToast(t('connection_success'), 'success');
+      setHeadlessModeData(null);
+      setSelectedHeadlessFacebookPageId(null);
+      setHeadlessFacebookPages([]);
+
+      // Reload accounts after a delay
+      setTimeout(() => {
+        if (headlessModeData.brandId || selectedBrandId) {
+          void loadAccountsFromDB(false, true);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error saving Facebook page:', error);
+      showToast(
+        error instanceof Error ? error.message : 'Failed to save page selection',
+        'error',
+      );
+    } finally {
+      setIsSavingHeadlessSelection(false);
+    }
+  };
+
+  const handleSaveHeadlessLinkedInOrganization = async (accountType: 'personal' | 'organization', selectedOrg?: { id: string; name: string; vanityName?: string }) => {
+    if (!headlessModeData) {
+      return;
+    }
+
+    setIsSavingHeadlessSelection(true);
+    try {
+      let userProfileObj: any;
+      try {
+        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+      } catch {
+        userProfileObj = {};
+      }
+
+      const response = await fetch('/api/getlate/linkedin/select-organization', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Connect-Token': headlessModeData.connectToken,
+        },
+        body: JSON.stringify({
+          profileId: headlessModeData.profileId,
+          tempToken: headlessModeData.tempToken,
+          userProfile: userProfileObj,
+          accountType,
+          selectedOrganization: selectedOrg,
+          redirectUrl: `${window.location.origin}/connections`,
+        }),
+      });
+
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: 'Failed to save organization selection' }));
+        throw new Error(error.error || 'Failed to save organization selection');
+      }
+
+      showToast(t('connection_success'), 'success');
+      setHeadlessModeData(null);
+      setLinkedinOrganizations([]);
+      setSelectedLinkedInOrgId(null);
+
+      // Reload accounts after a delay
+      setTimeout(() => {
+        if (headlessModeData.brandId || selectedBrandId) {
+          void loadAccountsFromDB(false, true);
+        }
+      }, 1000);
+    } catch (error) {
+      console.error('Error saving LinkedIn organization:', error);
+      showToast(
+        error instanceof Error ? error.message : 'Failed to save organization selection',
+        'error',
+      );
+    } finally {
+      setIsSavingHeadlessSelection(false);
     }
   };
 
@@ -2235,6 +2453,211 @@ export default function ConnectionsPage() {
                   : (
                       t('save') || 'Save'
                     )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Headless Mode: Facebook Page Selection Dialog */}
+        <Dialog
+          open={headlessModeData?.platform === 'facebook' && headlessModeData?.step === 'select_page'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setHeadlessModeData(null);
+              setSelectedHeadlessFacebookPageId(null);
+              setHeadlessFacebookPages([]);
+            }
+          }}
+        >
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{t('select_facebook_page') || 'Select Facebook Page'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {isLoadingHeadlessPages
+                ? (
+                    <div className="py-8 text-center">
+                      <Loader2 className="mx-auto h-8 w-8 animate-spin text-pink-500" />
+                      <p className="mt-2 text-sm text-gray-500">{t('loading') || 'Loading pages...'}</p>
+                    </div>
+                  )
+                : headlessFacebookPages.length === 0
+                  ? (
+                      <p className="py-4 text-center text-sm text-gray-500">
+                        {t('no_pages_available') || 'No pages available. Please reconnect your Facebook account.'}
+                      </p>
+                    )
+                  : (
+                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                        {headlessFacebookPages.map((page) => {
+                          const pageIdentifier = page.pageId || page.id;
+                          const isSelected = selectedHeadlessFacebookPageId === page.id || selectedHeadlessFacebookPageId === page.pageId;
+                          return (
+                            <button
+                              key={pageIdentifier}
+                              type="button"
+                              onClick={() => setSelectedHeadlessFacebookPageId(pageIdentifier)}
+                              className={cn(
+                                'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                isSelected
+                                  ? 'border-pink-500 bg-pink-50'
+                                  : 'border-gray-200 bg-white hover:border-pink-300',
+                              )}
+                            >
+                              <p className="font-semibold text-gray-800">{page.name}</p>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+            </div>
+            <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setHeadlessModeData(null);
+                  setSelectedHeadlessFacebookPageId(null);
+                  setHeadlessFacebookPages([]);
+                }}
+                disabled={isSavingHeadlessSelection}
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                {t('cancel')}
+              </Button>
+              <Button
+                onClick={handleSaveHeadlessFacebookPage}
+                disabled={!selectedHeadlessFacebookPageId || isSavingHeadlessSelection}
+                className="bg-pink-600 text-white hover:bg-pink-700"
+              >
+                {isSavingHeadlessSelection
+                  ? (
+                      <>
+                        <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                        {t('saving') || 'Saving...'}
+                      </>
+                    )
+                  : (
+                      t('save') || 'Save'
+                    )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Headless Mode: LinkedIn Organization Selection Dialog */}
+        <Dialog
+          open={headlessModeData?.platform === 'linkedin' && headlessModeData?.step === 'select_organization'}
+          onOpenChange={(open) => {
+            if (!open) {
+              setHeadlessModeData(null);
+              setSelectedLinkedInOrgId(null);
+              setLinkedinOrganizations([]);
+            }
+          }}
+        >
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>{(t('select_linkedin_organization') as string) || 'Select LinkedIn Account'}</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              {linkedinOrganizations.length === 0
+                ? (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600">
+                        {(t('linkedin_personal_only') as string) || 'You can post as your personal account. No organizations available.'}
+                      </p>
+                      <Button
+                        onClick={() => handleSaveHeadlessLinkedInOrganization('personal')}
+                        disabled={isSavingHeadlessSelection}
+                        className="w-full bg-pink-600 text-white hover:bg-pink-700"
+                      >
+                        {isSavingHeadlessSelection
+                          ? (
+                              <>
+                                <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                                {t('saving') || 'Saving...'}
+                              </>
+                            )
+                          : (
+                              <>
+                                <User className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                {(t('connect_as_personal') as string) || 'Connect as Personal Account'}
+                              </>
+                            )}
+                      </Button>
+                    </div>
+                  )
+                : (
+                    <div className="space-y-3">
+                      <p className="text-sm text-gray-600">
+                        {(t('select_posting_account') as string) || 'Select how you want to post:'}
+                      </p>
+                      {/* Personal Option */}
+                      <button
+                        type="button"
+                        onClick={() => handleSaveHeadlessLinkedInOrganization('personal')}
+                        disabled={isSavingHeadlessSelection}
+                        className={cn(
+                          'w-full rounded-lg border-2 p-4 text-left transition-all',
+                          'border-gray-200 bg-white hover:border-pink-300 hover:bg-gray-50',
+                        )}
+                      >
+                        <div className="flex items-center gap-2">
+                          <User className="h-5 w-5 text-gray-600" />
+                          <span className="font-medium text-gray-900">
+                            {(t('post_as_personal') as string) || 'Post as Personal Account'}
+                          </span>
+                        </div>
+                      </button>
+                      {/* Organization Options */}
+                      <div className="max-h-64 space-y-2 overflow-y-auto">
+                        {linkedinOrganizations.map((org) => {
+                          const isSelected = selectedLinkedInOrgId === org.id;
+                          return (
+                            <button
+                              key={org.id}
+                              type="button"
+                              onClick={() => handleSaveHeadlessLinkedInOrganization('organization', {
+                                id: org.id,
+                                name: org.name,
+                                vanityName: org.urn,
+                              })}
+                              disabled={isSavingHeadlessSelection}
+                              className={cn(
+                                'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                isSelected
+                                  ? 'border-pink-500 bg-pink-50'
+                                  : 'border-gray-200 bg-white hover:border-pink-300',
+                              )}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Building2 className="h-5 w-5 text-gray-600" />
+                                <div>
+                                  <p className="font-semibold text-gray-800">{org.name}</p>
+                                  {org.urn && (
+                                    <p className="text-xs text-gray-500">{org.urn}</p>
+                                  )}
+                                </div>
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+            </div>
+            <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setHeadlessModeData(null);
+                  setSelectedLinkedInOrgId(null);
+                  setLinkedinOrganizations([]);
+                }}
+                disabled={isSavingHeadlessSelection}
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+              >
+                {t('cancel')}
               </Button>
             </DialogFooter>
           </DialogContent>

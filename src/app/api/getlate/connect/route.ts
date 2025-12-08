@@ -20,7 +20,7 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const Schema = z.object({
-      platform: z.enum(['twitter', 'x', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'threads']),
+      platform: z.enum(['twitter', 'x', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'threads', 'googlebusiness']),
       brandId: z.string().uuid(),
       redirectUrl: z.string().url().optional(),
     });
@@ -121,11 +121,14 @@ export async function POST(request: NextRequest) {
     }
 
     // Use the official /connect endpoint with redirect_url parameter
-    // Parameter order: (platform, profileId, redirectUrl)
+    // Enable headless mode for Facebook, LinkedIn, and Google Business Profile
+    // This allows users to complete connections without redirecting to getlate.dev
+    const supportsHeadless = getlatePlatform === 'facebook' || getlatePlatform === 'linkedin' || getlatePlatform === 'googlebusiness';
     const connectResult = await getlateClient.connectAccount(
       getlatePlatform as any,
       brandRecord.getlate_profile_id,
       finalRedirectUrl,
+      supportsHeadless, // Enable headless mode for supported platforms
     );
 
     // Validate that we got an auth URL

@@ -17,7 +17,8 @@ export type GetlatePlatform
     | 'linkedin'
     | 'tiktok'
     | 'youtube'
-    | 'threads';
+    | 'threads'
+    | 'googlebusiness';
 
 export type GetlateProfile = {
   id?: string;
@@ -293,14 +294,19 @@ export class GetlateClient {
    * According to Getlate API docs:
    * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL
    *
+   * Headless mode (Facebook, LinkedIn, Google Business Profile):
+   * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL&headless=true
+   *
    * Note: Getlate API returns JSON with authUrl instead of redirecting directly
-   * Success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
+   * Standard mode success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
+   * Headless mode redirect: redirect_url?profileId=X&tempToken=Y&userProfile=Z&connect_token=CT&platform=PLATFORM&step=STEP
    * Error redirect: redirect_url?error=ERROR_TYPE&platform=PLATFORM
    */
   async connectAccount(
     platform: GetlatePlatform,
     profileId: string,
     redirectUrl?: string,
+    headless?: boolean,
   ): Promise<{ authUrl: string; state?: string }> {
     // Normalize platform name (x -> twitter for Getlate API)
     const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
@@ -311,6 +317,11 @@ export class GetlateClient {
     // Add redirect_url if provided
     if (redirectUrl) {
       endpoint += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
+    }
+
+    // Add headless=true for supported platforms (Facebook, LinkedIn, Google Business Profile)
+    if (headless && (normalizedPlatform === 'facebook' || normalizedPlatform === 'linkedin' || normalizedPlatform === 'googlebusiness')) {
+      endpoint += `&headless=true`;
     }
 
     // Getlate API returns JSON with authUrl, not a redirect
@@ -1224,6 +1235,192 @@ export class GetlateClient {
     });
 
     return response;
+  }
+
+  /**
+   * Get Facebook pages during headless OAuth flow
+   * Uses GET /v1/connect/facebook/select-page endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async getFacebookPagesForSelection(
+    profileId: string,
+    tempToken: string,
+    connectToken: string,
+  ): Promise<GetlateFacebookPage[]> {
+    const endpoint = `/connect/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+    });
+
+    const rawPages = Array.isArray(response?.pages)
+      ? response.pages
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawPages)) {
+      return [];
+    }
+
+    return rawPages
+      .map((page: any) => ({
+        id: page._id || page.id || page.pageId || page.facebookPageId,
+        name: page.name || page.pageName || page.title || 'Page',
+        pageId: page.pageId || page.facebookPageId || page.id,
+        pageName: page.pageName || page.name || page.title,
+        pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
+        accessToken: page.pageAccessToken || page.accessToken,
+        metadata: page.metadata || {},
+      }))
+      .filter(page => !!page.id && !!page.name);
+  }
+
+  /**
+   * Select a Facebook page during headless OAuth flow
+   * Uses POST /v1/connect/facebook/select-page endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectFacebookPageForConnection(
+    payload: {
+      profileId: string;
+      pageId: string;
+      tempToken: string;
+      userProfile: any;
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/facebook/select-page', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        pageId: payload.pageId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
+  }
+
+  /**
+   * Select a LinkedIn organization during headless OAuth flow
+   * Uses POST /v1/connect/linkedin/select-organization endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectLinkedInOrganizationForConnection(
+    payload: {
+      profileId: string;
+      tempToken: string;
+      userProfile: any;
+      accountType: 'personal' | 'organization';
+      selectedOrganization?: {
+        id: string;
+        name: string;
+        vanityName?: string;
+      };
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/linkedin/select-organization', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        accountType: payload.accountType,
+        selectedOrganization: payload.selectedOrganization,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
+  }
+
+  /**
+   * Get Google Business locations during headless OAuth flow
+   * Uses GET /v1/connect/googlebusiness/locations endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async getGoogleBusinessLocations(
+    profileId: string,
+    tempToken: string,
+    connectToken: string,
+  ): Promise<Array<{
+    id: string;
+    name: string;
+    address?: string;
+    phoneNumber?: string;
+    website?: string;
+  }>> {
+    const endpoint = `/connect/googlebusiness/locations?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+    });
+
+    const rawLocations = Array.isArray(response?.locations)
+      ? response.locations
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawLocations)) {
+      return [];
+    }
+
+    return rawLocations
+      .map((location: any) => ({
+        id: location.locationId || location.id || location._id,
+        name: location.name || location.locationName || 'Location',
+        address: location.address || location.formattedAddress,
+        phoneNumber: location.phoneNumber || location.phone,
+        website: location.website || location.websiteUrl,
+      }))
+      .filter(location => !!location.id && !!location.name);
+  }
+
+  /**
+   * Select a Google Business location during headless OAuth flow
+   * Uses POST /v1/connect/googlebusiness/select-location endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectGoogleBusinessLocation(
+    payload: {
+      profileId: string;
+      locationId: string;
+      tempToken: string;
+      userProfile: any;
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/googlebusiness/select-location', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        locationId: payload.locationId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
   }
 }
 

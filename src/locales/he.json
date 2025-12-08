@@ -399,7 +399,11 @@
     "linkedin_org_updated": "ארגון ה-LinkedIn עודכן בהצלחה",
     "save_org_error": "נכשל בשמירת בחירת הארגון",
     "fetch_orgs_error": "נכשל בטעינת הארגונים",
-    "facebook_page_not_found": "הדף שנבחר לא נמצא"
+    "facebook_page_not_found": "הדף שנבחר לא נמצא",
+    "linkedin_personal_only": "אתה יכול לפרסם כחשבון אישי. אין ארגונים זמינים.",
+    "select_posting_account": "בחר איך תרצה לפרסם:",
+    "post_as_personal": "פרסם כחשבון אישי",
+    "connect_as_personal": "חבר כחשבון אישי"
   },
   "Settings": {
     "title": "הגדרות",

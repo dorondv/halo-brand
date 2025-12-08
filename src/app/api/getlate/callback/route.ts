@@ -71,11 +71,17 @@ export async function GET(request: NextRequest) {
     // Extract all parameters using our custom extractor
     // Getlate API returns success params: connected, profileId, username
     // Or error params: error, platform
+    // Headless mode params: profileId, tempToken, userProfile, connect_token, platform, step
     const connected = extractParam('connected');
     const profileId = extractParam('profileId');
     const username = extractParam('username');
     const error = extractParam('error');
     const platform = extractParam('platform');
+    const step = extractParam('step'); // Headless mode step: select_page, select_organization, select_location
+    const tempToken = extractParam('tempToken');
+    const userProfile = extractParam('userProfile');
+    const connectToken = extractParam('connect_token');
+    const organizations = extractParam('organizations'); // LinkedIn organizations (URL-encoded JSON)
 
     // Handle OAuth errors and cancellations
     // Check for error parameter first (Getlate returns error on failure)
@@ -115,7 +121,46 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Handle success case - Getlate returns: connected, profileId, username
+    // Handle headless mode callback (has step parameter)
+    // Headless mode redirects directly to our app with OAuth data
+    // We need to redirect to connections page with headless mode parameters
+    if (step) {
+      const origin = request.nextUrl.origin
+        || request.headers.get('origin')
+        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+        || 'http://localhost:3000';
+
+      const redirectUrl = new URL('/connections', origin);
+
+      // Pass all headless mode parameters to the connections page
+      redirectUrl.searchParams.set('headless', 'true');
+      redirectUrl.searchParams.set('step', step);
+      if (profileId) {
+        redirectUrl.searchParams.set('profileId', profileId);
+      }
+      if (tempToken) {
+        redirectUrl.searchParams.set('tempToken', tempToken);
+      }
+      if (userProfile) {
+        redirectUrl.searchParams.set('userProfile', userProfile);
+      }
+      if (connectToken) {
+        redirectUrl.searchParams.set('connect_token', connectToken);
+      }
+      if (platform) {
+        redirectUrl.searchParams.set('platform', platform);
+      }
+      if (organizations) {
+        redirectUrl.searchParams.set('organizations', organizations);
+      }
+      if (brandId) {
+        redirectUrl.searchParams.set('brandId', brandId);
+      }
+
+      return NextResponse.redirect(redirectUrl);
+    }
+
+    // Handle standard mode success case - Getlate returns: connected, profileId, username
     // Note: 'connected' might be the platform name (e.g., 'facebook') instead of 'true'
     if (!connected || !profileId) {
       console.error('Missing required parameters:', { connected, profileId, username, error, platform, brandId });

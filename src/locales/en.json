@@ -399,7 +399,11 @@
     "linkedin_org_updated": "LinkedIn organization updated successfully",
     "save_org_error": "Failed to save organization selection",
     "fetch_orgs_error": "Failed to fetch organizations",
-    "facebook_page_not_found": "Selected page not found"
+    "facebook_page_not_found": "Selected page not found",
+    "linkedin_personal_only": "You can post as your personal account. No organizations available.",
+    "select_posting_account": "Select how you want to post:",
+    "post_as_personal": "Post as Personal Account",
+    "connect_as_personal": "Connect as Personal Account"
   },
   "Settings": {
     "title": "Settings",
