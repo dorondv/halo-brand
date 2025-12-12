@@ -92,7 +92,8 @@ export type GetlatePost = {
 };
 
 export type GetlateAnalyticsPost = {
-  _id: string;
+  _id: string; // External Post ID (from synced analytics)
+  postId?: string; // Late Post ID (for posts scheduled via API)
   content: string;
   publishedAt: string;
   scheduledFor: string;
@@ -105,9 +106,29 @@ export type GetlateAnalyticsPost = {
     shares: number;
     clicks: number;
     views: number;
+    engagementRate?: number;
     lastUpdated: string;
   };
-  platforms: Array<{
+  // Single post endpoint response format (detailed per-platform analytics)
+  platformAnalytics?: Array<{
+    platform: string;
+    status: string;
+    accountId?: string;
+    accountUsername?: string;
+    analytics: {
+      impressions: number;
+      reach: number;
+      likes: number;
+      comments: number;
+      shares: number;
+      clicks: number;
+      views: number;
+      engagementRate: number;
+      lastUpdated: string;
+    };
+  }>;
+  // List endpoint response format (simplified platform analytics)
+  platforms?: Array<{
     platform: string;
     status: string;
     analytics: {
@@ -121,6 +142,7 @@ export type GetlateAnalyticsPost = {
       engagementRate: number;
       lastUpdated: string;
     };
+    platformPostUrl?: string; // May be in platforms array
   }>;
   platform: string;
   platformPostUrl?: string;
@@ -129,6 +151,7 @@ export type GetlateAnalyticsPost = {
   thumbnailUrl?: string;
   mediaType?: string;
   mediaItems?: unknown[];
+  metadata?: Record<string, unknown>; // Additional metadata from API
 };
 
 export type GetlateAnalyticsResponse = {
@@ -145,6 +168,27 @@ export type GetlateAnalyticsResponse = {
     total: number;
     pages: number;
   };
+};
+
+export type GetlateFollowerStatsResponse = {
+  accounts: Array<{
+    _id: string;
+    platform: string;
+    username: string;
+    currentFollowers: number;
+    growth: number;
+    growthPercentage: number;
+    dataPoints: number;
+  }>;
+  stats: Record<string, Array<{
+    date: string;
+    followers: number;
+  }>>;
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  granularity: 'daily' | 'weekly' | 'monthly';
 };
 
 // Legacy type for backward compatibility
@@ -719,8 +763,13 @@ export class GetlateClient {
   /**
    * Get analytics for posts
    * ⚠️ Requires Analytics add-on. Returns HTTP 402 if not enabled.
-   * Rate limit: 30 requests per hour per user
+   * Rate limit: 150 requests per hour per user (for refresh operations)
+   * Reading cached analytics data does not count against rate limit
    * Returns structured response with overview, posts, and pagination
+   *
+   * Response format:
+   * - Single post (with postId param): Returns single GetlateAnalyticsPost with platformAnalytics array
+   * - List (no postId): Returns GetlateAnalyticsResponse with posts array and pagination
    */
   async getAnalytics(params: {
     profileId?: string;
@@ -750,7 +799,9 @@ export class GetlateClient {
       queryParams.append('toDate', params.toDate);
     }
     if (params.limit) {
-      queryParams.append('limit', params.limit.toString());
+      // Limit range: 1-100 (default: 50)
+      const limit = Math.min(100, Math.max(1, params.limit));
+      queryParams.append('limit', limit.toString());
     }
     if (params.page) {
       queryParams.append('page', params.page.toString());
@@ -764,6 +815,39 @@ export class GetlateClient {
 
     const endpoint = `/analytics${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.request<GetlateAnalyticsResponse>(endpoint);
+  }
+
+  /**
+   * Get follower stats and growth metrics for connected social accounts
+   * Requires analytics add-on subscription
+   * Rate limit: 150 requests per hour per user
+   */
+  async getFollowerStats(params?: {
+    accountIds?: string; // Comma-separated list of account IDs (optional, defaults to all user's accounts)
+    profileId?: string;
+    fromDate?: string; // Start date in YYYY-MM-DD format (defaults to 30 days ago)
+    toDate?: string; // End date in YYYY-MM-DD format (defaults to today)
+    granularity?: 'daily' | 'weekly' | 'monthly'; // Data aggregation level (default: 'daily')
+  }): Promise<GetlateFollowerStatsResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.accountIds) {
+      queryParams.append('accountIds', params.accountIds);
+    }
+    if (params?.profileId) {
+      queryParams.append('profileId', params.profileId);
+    }
+    if (params?.fromDate) {
+      queryParams.append('fromDate', params.fromDate);
+    }
+    if (params?.toDate) {
+      queryParams.append('toDate', params.toDate);
+    }
+    if (params?.granularity) {
+      queryParams.append('granularity', params.granularity);
+    }
+
+    const endpoint = `/accounts/follower-stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request<GetlateFollowerStatsResponse>(endpoint);
   }
 
   /**

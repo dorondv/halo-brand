@@ -25,6 +25,10 @@ import {
   getCachedPosts,
   syncAnalyticsInBackground,
 } from '@/libs/dashboard-cache';
+import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
+import { getGetlateAnalyticsOverview } from '@/libs/getlate-overview';
+import { getGetlatePosts } from '@/libs/getlate-posts';
+import { calculateScoresForPosts } from '@/libs/post-score-calculator';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
 import { DashboardWrapper } from './DashboardWrapper';
@@ -164,11 +168,31 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     { posts: previousPostsData, analytics: previousAnalyticsData },
     _accountsData,
     demographics,
+    followerStatsData,
+    getlateOverview, // Get overview data from Getlate API (totalPosts, publishedPosts, scheduledPosts)
+    getlatePosts, // Get posts directly from Getlate API (exact structure)
   ] = await Promise.all([
     getCachedPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getCachedPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
     getCachedAccounts(supabase, userId, selectedBrandId),
     getCachedDemographics(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
+    getFollowerStatsFromGetlate(supabase, userId, selectedBrandId, {
+      fromDate: rangeFrom,
+      toDate: rangeTo,
+      granularity: granularity === 'day' ? 'daily' : granularity === 'week' ? 'weekly' : granularity === 'month' ? 'monthly' : 'daily',
+    }),
+    getGetlateAnalyticsOverview(supabase, userId, selectedBrandId, {
+      fromDate: rangeFrom.toISOString().split('T')[0],
+      toDate: rangeTo.toISOString().split('T')[0],
+      platform: selectedPlatform || undefined,
+    }),
+    getGetlatePosts(supabase, userId, selectedBrandId, {
+      fromDate: rangeFrom.toISOString().split('T')[0],
+      toDate: rangeTo.toISOString().split('T')[0],
+      platform: selectedPlatform || undefined,
+      limit: 100, // Max allowed by Getlate API
+      page: 1,
+    }),
   ]);
 
   // Trigger background analytics sync (non-blocking)
@@ -264,7 +288,24 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
     const analyticsDate = normalizeAnalyticsDateToDateOnly(new Date(a.date));
     // Include analytics if date is >= rangeFrom and <= rangeTo (inclusive)
-    return analyticsDate >= normalizedRangeFrom && analyticsDate <= normalizedRangeTo;
+    const isInDateRange = analyticsDate >= normalizedRangeFrom && analyticsDate <= normalizedRangeTo;
+    if (!isInDateRange) {
+      return false;
+    }
+
+    // Only include published posts (External Post IDs)
+    // Check metadata for isExternal flag and status
+    const metadata = (a.metadata as any) || {};
+    const isExternal = metadata.isExternal !== undefined ? metadata.isExternal : true; // Default to true (External Post)
+    const status = metadata.platformStatus || metadata.status;
+
+    // Only include if:
+    // 1. isExternal is true (synced from platform) OR
+    // 2. status is 'published' (published posts)
+    // Exclude drafts and scheduled posts that haven't been published yet
+    const isPublished = isExternal || status === 'published';
+
+    return isPublished;
   });
 
   // Deduplicate analytics entries: only keep one entry per post_id + platform + date combination
@@ -273,30 +314,56 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Aggregate metric sums from date-filtered post_analytics
   let totalImpressions = 0;
+  let _totalReach = 0; // Available for future metric cards
+  let _totalClicks = 0; // Available for future metric cards
+  let _totalViews = 0; // Available for future metric cards
   let totalEngagement = 0;
   let totalFollowers = 0;
 
-  // Count unique posts from both posts table and analytics (to include external posts synced from Getlate)
-  const uniquePostIds = new Set<string>();
-  if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
-    for (const post of dateFilteredPosts) {
-      if (post?.id) {
-        uniquePostIds.add(post.id);
+  // Use Getlate API overview data for post counts (matches Getlate API exactly)
+  // Fallback to manual counting if Getlate overview is not available
+  let totalPosts = 0;
+
+  if (getlateOverview) {
+    // Use Getlate API overview data (exact match with API response)
+    // For dashboard display, use publishedPosts since we're showing published posts
+    // totalPosts includes all posts (published + scheduled + draft)
+    totalPosts = getlateOverview.publishedPosts || 0;
+    // Note: getlateOverview also provides:
+    // - totalPosts: total number of posts (all statuses)
+    // - publishedPosts: number of published posts (what we display)
+    // - scheduledPosts: number of scheduled posts
+    // - lastSync: last sync timestamp
+  } else {
+    // Fallback: Count unique published posts (External Post IDs only)
+    // dateFilteredAnalytics is already filtered to only published posts
+    const uniquePostIds = new Set<string>();
+    if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
+      for (const post of dateFilteredPosts) {
+        // Only include published posts
+        if (post?.id && post.status === 'published') {
+          uniquePostIds.add(post.id);
+        }
       }
     }
-  }
-  // Also include posts that have analytics but might not be in posts table
-  for (const analytics of dateFilteredAnalytics) {
-    if (analytics.post_id) {
-      uniquePostIds.add(analytics.post_id);
+    // Include posts from analytics (already filtered to published posts only)
+    for (const analytics of dateFilteredAnalytics) {
+      if (analytics.post_id) {
+        uniquePostIds.add(analytics.post_id);
+      }
     }
+    totalPosts = uniquePostIds.size;
   }
-  const totalPosts = uniquePostIds.size;
 
   // Calculate totals from date-filtered analytics (now deduplicated)
   // Engagement = likes + comments + shares (all engagement types)
   for (const analytics of dateFilteredAnalytics) {
     totalImpressions += Number(analytics.impressions ?? 0);
+    // Extract reach, clicks, views from metadata (stored by sync function)
+    const metadata = (analytics.metadata as any) || {};
+    _totalReach += Number(metadata.reach ?? 0);
+    _totalClicks += Number(metadata.clicks ?? 0);
+    _totalViews += Number(metadata.views ?? 0);
     // Ensure we're using the correct field names and handling null/undefined
     const likes = Number(analytics.likes ?? 0);
     const comments = Number(analytics.comments ?? 0);
@@ -521,8 +588,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Helper function to build series map from analytics data
   // Note: Followers should be set separately from platformMap, not from post metadata
-  const buildSeriesMap = (analytics: typeof analyticsData): Record<string, { followers: number; impressions: number; count: number; engagement: number }> => {
-    const map: Record<string, { followers: number; impressions: number; count: number; engagement: number }> = {};
+  const buildSeriesMap = (analytics: typeof analyticsData): Record<string, { followers: number; impressions: number; count: number; engagement: number; engagementRate: number }> => {
+    const map: Record<string, { followers: number; impressions: number; count: number; engagement: number; engagementRate: number }> = {};
 
     if (!analytics || !Array.isArray(analytics)) {
       return map;
@@ -537,7 +604,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const key = getGranularityKey(analyticsDate);
 
       if (!map[key]) {
-        map[key] = { followers: 0, impressions: 0, count: 0, engagement: 0 };
+        map[key] = { followers: 0, impressions: 0, count: 0, engagement: 0, engagementRate: 0 };
       }
 
       map[key].impressions += Number(a.impressions ?? 0);
@@ -545,12 +612,34 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const likes = Number(a.likes ?? 0);
       const comments = Number(a.comments ?? 0);
       const shares = Number(a.shares ?? 0);
-      map[key].engagement += likes + comments + shares;
+      const engagement = likes + comments + shares;
+      map[key].engagement += engagement;
       map[key].count += 1;
+
+      // Calculate engagement rate from metadata if available, otherwise calculate
+      const metadata = (a.metadata as any) || {};
+      const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
+      const impressions = Number(a.impressions ?? 0);
+      const calculatedRate = engagementRateFromMetadata !== null
+        ? engagementRateFromMetadata
+        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+      // Average engagement rate (will be recalculated per date key)
+      map[key].engagementRate = calculatedRate;
 
       // Note: Followers will be set from platformMap after building the series map
       // This ensures we use the correct followers from accounts, not post metadata
     }
+
+    // Recalculate engagement rate per date key (average of all posts for that date)
+    for (const key in map) {
+      const data = map[key];
+      if (data && data.count > 0 && data.impressions > 0) {
+        // Recalculate as total engagement / total impressions for that date
+        data.engagementRate = (data.engagement / data.impressions) * 100;
+      }
+    }
+
     return map;
   };
 
@@ -628,6 +717,9 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Recalculate metrics based on filtered analytics data (platform + date filtered)
   let filteredImpressions = 0;
+  let _filteredReach = 0; // Available for future metric cards
+  let _filteredClicks = 0; // Available for future metric cards
+  let _filteredViews = 0; // Available for future metric cards
   let filteredEngagement = 0;
   let filteredFollowers = 0;
 
@@ -651,6 +743,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Calculate from filtered analytics (only analytics for the selected platform)
   for (const a of finalFilteredAnalytics) {
     filteredImpressions += Number(a.impressions ?? 0);
+    // Extract reach, clicks, views from metadata
+    const metadata = (a.metadata as any) || {};
+    _filteredReach += Number(metadata.reach ?? 0);
+    _filteredClicks += Number(metadata.clicks ?? 0);
+    _filteredViews += Number(metadata.views ?? 0);
     // Calculate engagement: likes + comments + shares
     const likes = Number(a.likes ?? 0);
     const comments = Number(a.comments ?? 0);
@@ -700,6 +797,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // If platform is selected, use filtered metrics, otherwise use totals
   const displayImpressions = selectedPlatform && selectedPlatform !== 'all' ? filteredImpressions : totalImpressions;
+  // Note: reach, clicks, and views are calculated and displayed in the PostsTable component per post
+  // Aggregate totals (_totalReach, _totalClicks, _totalViews) are available if needed for future metric cards
   const displayEngagement = selectedPlatform && selectedPlatform !== 'all' ? filteredEngagement : totalEngagement;
   const displayFollowers = selectedPlatform && selectedPlatform !== 'all' ? filteredFollowers : totalFollowers;
   const displayPosts = selectedPlatform && selectedPlatform !== 'all' ? filteredPostsCount : totalPosts;
@@ -780,17 +879,68 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     };
   });
 
-  // Generate follower trend series based on date series
-  // Use displayFollowers (from platformMap/accounts) for all dates since followers are a snapshot
-  // When platform is selected, displayFollowers already contains the correct platform-specific followers
-  const followerTrendSeries = dateSeries.map((dateKey) => {
-    // Use displayFollowers which is already correctly calculated from platformMap/accounts
-    // This ensures we use real-time follower data from accounts, not post metadata
-    return {
-      date: dateKey,
-      followers: displayFollowers || 0,
-    };
-  });
+  // Generate follower trend series from Getlate API follower stats
+  // Use real historical data from Getlate if available, otherwise fallback to current snapshot
+  let followerTrendSeries: Array<{ date: string; followers: number }> = [];
+
+  if (followerStatsData && followerStatsData.followerTrend && followerStatsData.followerTrend.length > 0) {
+    // Use real follower stats from Getlate API
+    // Map Getlate data to match date series granularity
+    const followerStatsMap = new Map<string, number>();
+    for (const stat of followerStatsData.followerTrend) {
+      const statDate = new Date(stat.date);
+      let key: string;
+
+      switch (granularity) {
+        case 'day':
+          key = format(statDate, 'yyyy-MM-dd');
+          break;
+        case 'week':
+          key = format(startOfDay(statDate), 'yyyy-MM-dd');
+          break;
+        case 'month':
+          key = format(startOfMonth(statDate), 'yyyy-MM');
+          break;
+        case 'year':
+          key = format(statDate, 'yyyy');
+          break;
+        default:
+          key = format(statDate, 'yyyy-MM-dd');
+      }
+
+      // For same key, take the maximum (latest) follower count
+      const existing = followerStatsMap.get(key) || 0;
+      followerStatsMap.set(key, Math.max(existing, stat.followers));
+    }
+
+    // Generate series matching dateSeries keys
+    followerTrendSeries = dateSeries.map((dateKey) => {
+      const followers = followerStatsMap.get(dateKey) || 0;
+      return {
+        date: dateKey,
+        followers,
+      };
+    });
+
+    // If no data for some dates, interpolate or use last known value
+    let lastKnownFollowers = 0;
+    for (let i = 0; i < followerTrendSeries.length; i++) {
+      const current = followerTrendSeries[i];
+      if (current && current.followers === 0 && lastKnownFollowers > 0) {
+        current.followers = lastKnownFollowers;
+      } else if (current && current.followers > 0) {
+        lastKnownFollowers = current.followers;
+      }
+    }
+  } else {
+    // Fallback: Use displayFollowers (current snapshot) for all dates
+    followerTrendSeries = dateSeries.map((dateKey) => {
+      return {
+        date: dateKey,
+        followers: displayFollowers || 0,
+      };
+    });
+  }
 
   // Calculate platform metrics from platformMap (already aggregated from analytics)
   const platformFollowersMap = new Map<string, { followers: number; change: number }>();
@@ -853,28 +1003,134 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   }
 
-  // Calculate growth/change percentages
-  // For now, set to 0 (real calculation requires historical data)
-  // TODO: Implement real change calculation when historical follower data is available
-  for (const [plat, data] of platformFollowersMap.entries()) {
-    if (data.followers > 0 && data.change === 0) {
-      // Real change calculation requires historical data comparison
-      platformFollowersMap.set(plat, { ...data, change: 0 });
+  // Calculate growth/change percentages using follower stats from Getlate API
+  // Use real growth data from Getlate if available
+  const followerStatsAccounts = followerStatsData && 'accounts' in followerStatsData ? followerStatsData.accounts : undefined;
+  if (followerStatsAccounts && Array.isArray(followerStatsAccounts) && followerStatsAccounts.length > 0) {
+    // Map account growth data by platform
+    const accountGrowthMap = new Map<string, { growth: number; growthPercentage: number }>();
+    for (const account of followerStatsAccounts) {
+      const plat = normalizePlatform(account.platform);
+      const existing = accountGrowthMap.get(plat);
+      // Sum growth across all accounts on the same platform
+      if (existing) {
+        accountGrowthMap.set(plat, {
+          growth: existing.growth + (account.growth || 0),
+          growthPercentage: existing.growthPercentage + (account.growthPercentage || 0),
+        });
+      } else {
+        accountGrowthMap.set(plat, {
+          growth: account.growth || 0,
+          growthPercentage: account.growthPercentage || 0,
+        });
+      }
+    }
+
+    // Update platform followers map with real growth data
+    for (const [plat, data] of platformFollowersMap.entries()) {
+      const growthData = accountGrowthMap.get(plat);
+      if (growthData) {
+        platformFollowersMap.set(plat, {
+          ...data,
+          change: growthData.growthPercentage, // Use percentage change
+        });
+      }
+    }
+  } else {
+    // Fallback: Calculate change from follower trend if available
+    if (followerTrendSeries.length > 1) {
+      const firstFollowers = followerTrendSeries[0]?.followers || 0;
+      const lastFollowers = followerTrendSeries[followerTrendSeries.length - 1]?.followers || 0;
+      const totalGrowth = lastFollowers - firstFollowers;
+      const totalGrowthPercentage = firstFollowers > 0 ? (totalGrowth / firstFollowers) * 100 : 0;
+
+      // Distribute growth percentage across platforms proportionally
+      for (const [plat, data] of platformFollowersMap.entries()) {
+        if (data.followers > 0 && totalFollowers > 0) {
+          const platformShare = data.followers / totalFollowers;
+          const platformGrowthPercentage = totalGrowthPercentage * platformShare;
+          platformFollowersMap.set(plat, {
+            ...data,
+            change: platformGrowthPercentage,
+          });
+        }
+      }
     }
   }
 
-  // Generate net follower growth based on date series
-  // Calculate from actual follower changes (if we have historical data)
-  // Otherwise show 0 (no growth data available)
-  const netGrowthSeries = dateSeries.map((dateKey) => {
-    // For now, show 0 if no historical comparison data available
-    // TODO: Implement real growth calculation when historical follower data is available
-    // Real growth calculation requires comparing current followers with previous period
-    return {
-      date: dateKey,
-      growth: 0, // Real growth calculation requires historical data
-    };
-  });
+  // Generate net follower growth from Getlate API follower stats
+  // Use real growth data from Getlate if available, otherwise calculate from follower trend
+  let netGrowthSeries: Array<{ date: string; growth: number }> = [];
+
+  if (followerStatsData && followerStatsData.netGrowth && followerStatsData.netGrowth.length > 0) {
+    // Use real net growth data from Getlate API
+    // Map Getlate data to match date series granularity
+    const growthStatsMap = new Map<string, number>();
+    for (const stat of followerStatsData.netGrowth) {
+      const statDate = new Date(stat.date);
+      let key: string;
+
+      switch (granularity) {
+        case 'day':
+          key = format(statDate, 'yyyy-MM-dd');
+          break;
+        case 'week':
+          key = format(startOfDay(statDate), 'yyyy-MM-dd');
+          break;
+        case 'month':
+          key = format(startOfMonth(statDate), 'yyyy-MM');
+          break;
+        case 'year':
+          key = format(statDate, 'yyyy');
+          break;
+        default:
+          key = format(statDate, 'yyyy-MM-dd');
+      }
+
+      // Sum growth for same key (multiple accounts)
+      const existing = growthStatsMap.get(key) || 0;
+      growthStatsMap.set(key, existing + stat.growth);
+    }
+
+    // Generate series matching dateSeries keys
+    netGrowthSeries = dateSeries.map((dateKey) => {
+      const growth = growthStatsMap.get(dateKey) || 0;
+      return {
+        date: dateKey,
+        growth,
+      };
+    });
+  } else if (followerTrendSeries.length > 0) {
+    // Calculate growth from follower trend (day-to-day change)
+    netGrowthSeries = followerTrendSeries.map((current, index) => {
+      if (index === 0) {
+        return {
+          date: current.date,
+          growth: 0, // No previous day to compare
+        };
+      }
+      const previous = followerTrendSeries[index - 1];
+      if (!previous) {
+        return {
+          date: current.date,
+          growth: 0,
+        };
+      }
+      const growth = current.followers - previous.followers;
+      return {
+        date: current.date,
+        growth,
+      };
+    });
+  } else {
+    // Fallback: Show zeros if no data available
+    netGrowthSeries = dateSeries.map((dateKey) => {
+      return {
+        date: dateKey,
+        growth: 0,
+      };
+    });
+  }
 
   // Calculate posts by platform from actual data
   const postsByPlatformData = Array.from(platformPostsCount.entries())
@@ -891,11 +1147,18 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     : postsByPlatformData;
 
   // Generate engagement rate series based on date series
+  // Use engagementRate from series map (calculated from actual analytics data)
   const engagementRateSeries = dateSeries.map((dateKey) => {
     const seriesData = activeSeriesMap[dateKey] || filteredSeriesMap[dateKey];
-    const rate = seriesData && seriesData.impressions > 0
-      ? (seriesData.engagement / seriesData.impressions) * 100
-      : 0; // No fallback - use 0 if no data
+    let rate = 0;
+    if (seriesData) {
+      // Use stored engagementRate if available, otherwise calculate
+      if (seriesData.engagementRate !== undefined && seriesData.engagementRate > 0) {
+        rate = seriesData.engagementRate;
+      } else if (seriesData.impressions > 0) {
+        rate = (seriesData.engagement / seriesData.impressions) * 100;
+      }
+    }
     return {
       date: dateKey,
       rate: Math.round(rate * 10) / 10,
@@ -1266,17 +1529,234 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     score: number;
     engagementRate: number;
     engagement: number;
+    likes: number;
+    comments: number;
+    shares: number;
     impressions: number;
+    reach: number;
+    clicks: number;
+    views: number;
     date: string;
     postContent: string;
     platform: string;
     mediaUrls?: string[];
     imageUrl?: string;
+    platformPostUrl?: string | null;
   }> | undefined;
 
-  // Generate filtered posts table data from actual posts AND analytics
-  // Include posts that exist only in analytics (external posts synced from Getlate)
-  if ((finalFilteredPosts && finalFilteredPosts.length > 0) || (finalFilteredAnalytics && finalFilteredAnalytics.length > 0)) {
+  // Generate filtered posts table data from Getlate API posts (exact structure)
+  // If Getlate API posts are available, use them directly; otherwise fallback to database posts
+  if (getlatePosts && getlatePosts.length > 0) {
+    // Use Getlate API posts directly - filter by date range and platform
+    const filteredGetlatePosts = getlatePosts.filter((post) => {
+      // Filter by date range (use publishedAt or scheduledFor)
+      const postDate = post.publishedAt ? new Date(post.publishedAt) : (post.scheduledFor ? new Date(post.scheduledFor) : null);
+      if (postDate) {
+        const normalizedPostDate = normalizeAnalyticsDateToDateOnly(postDate);
+        if (normalizedPostDate < normalizedRangeFrom || normalizedPostDate > normalizedRangeTo) {
+          return false;
+        }
+      }
+
+      // Filter by platform if selected
+      if (selectedPlatform && selectedPlatform !== 'all') {
+        const normalizedSelectedPlatform = normalizePlatform(selectedPlatform);
+        const postPlatform = normalizePlatform(post.platform || '');
+        if (postPlatform !== normalizedSelectedPlatform) {
+          return false;
+        }
+      }
+
+      // Only include published posts (External Post IDs)
+      // Check status and isExternal flag
+      const isPublished = post.status === 'published' || post.isExternal === true;
+      return isPublished;
+    });
+
+    // Collect posts for scoring
+    const postsForScoring = filteredGetlatePosts.map((post: any) => {
+      // Extract analytics from Getlate API structure
+      // Priority: platformAnalytics (detailed) > platforms array > top-level analytics
+      let analytics = post.analytics;
+      if (post.platformAnalytics && post.platformAnalytics.length > 0) {
+        // Use first platform's analytics (or aggregate if needed)
+        analytics = post.platformAnalytics[0].analytics;
+      } else if (post.platforms && post.platforms.length > 0) {
+        // Use first platform's analytics from platforms array
+        analytics = post.platforms[0].analytics;
+      }
+
+      // Extract metrics for scoring (ensure numbers)
+      const impressions = Number(analytics.impressions || 0);
+      const likes = Number(analytics.likes || 0);
+      const comments = Number(analytics.comments || 0);
+      const shares = Number(analytics.shares || 0);
+      const engagement = likes + comments + shares;
+
+      // Calculate engagement rate for scoring
+      // Use from API if available, otherwise calculate
+      const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
+        ? Number(analytics.engagementRate)
+        : null;
+
+      const engagementRate = engagementRateFromAPI !== null
+        ? engagementRateFromAPI
+        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+      // Extract media URLs from Getlate API structure and normalize for consistent rendering
+      const rawMediaUrlsForScoring: string[] = [];
+      if (post.thumbnailUrl) {
+        rawMediaUrlsForScoring.push(String(post.thumbnailUrl).trim());
+      }
+      if (post.mediaItems && Array.isArray(post.mediaItems)) {
+        for (const item of post.mediaItems) {
+          if (typeof item === 'object' && item !== null && 'url' in item) {
+            const url = String((item as any).url).trim();
+            if (url && url.length > 0 && !rawMediaUrlsForScoring.includes(url)) {
+              rawMediaUrlsForScoring.push(url);
+            }
+          }
+        }
+      }
+
+      // Normalize and sort URLs to prevent hydration mismatch
+      const mediaUrls = rawMediaUrlsForScoring
+        .filter((url): url is string => Boolean(url && typeof url === 'string' && url.length > 0))
+        .sort((a: string, b: string) => {
+          // Sort by normalized URL (without query params) for consistency
+          try {
+            const urlA = new URL(a);
+            const urlB = new URL(b);
+            const normalizedA = `${urlA.origin}${urlA.pathname}`;
+            const normalizedB = `${urlB.origin}${urlB.pathname}`;
+            return normalizedA.localeCompare(normalizedB);
+          } catch {
+            // If URL parsing fails, sort by original strings
+            return a.localeCompare(b);
+          }
+        });
+
+      return {
+        id: post._id, // Use External Post ID
+        platform: normalizePlatform(post.platform || 'unknown'),
+        metadata: post.metadata || {},
+        mediaUrls,
+        metrics: {
+          impressions,
+          engagement,
+          engagementRate,
+        },
+      };
+    });
+
+    // Calculate smart scores (returns Map<string, number>)
+    const smartScores = calculateScoresForPosts(postsForScoring);
+
+    // Generate table data from Getlate API posts
+    postsTableData = filteredGetlatePosts.map((post: any) => {
+      // Extract analytics from Getlate API structure
+      // Priority: platformAnalytics (detailed) > platforms array > top-level analytics
+      let analytics = post.analytics;
+      if (post.platformAnalytics && post.platformAnalytics.length > 0) {
+        // Use first platform's analytics (most detailed)
+        analytics = post.platformAnalytics[0].analytics;
+      } else if (post.platforms && post.platforms.length > 0) {
+        // Use first platform's analytics from platforms array
+        analytics = post.platforms[0].analytics;
+      }
+
+      // Extract all metrics from Getlate API analytics structure
+      const impressions = Number(analytics.impressions || 0);
+      const likes = Number(analytics.likes || 0);
+      const comments = Number(analytics.comments || 0);
+      const shares = Number(analytics.shares || 0);
+      const reach = Number(analytics.reach || 0);
+      const clicks = Number(analytics.clicks || 0);
+      const views = Number(analytics.views || 0);
+
+      // Calculate engagement as sum of likes, comments, shares
+      const engagement = likes + comments + shares;
+
+      // Calculate engagement rate: use from API if available, otherwise calculate
+      // Engagement rate = (total engagement / impressions) * 100
+      // If impressions is 0, engagement rate is 0
+      const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
+        ? Number(analytics.engagementRate)
+        : null;
+
+      const engagementRate = engagementRateFromAPI !== null
+        ? engagementRateFromAPI
+        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+      // Round engagement rate to 2 decimal places for display
+      const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
+
+      // Extract platformPostUrl from Getlate API structure
+      let platformPostUrl: string | null = null;
+      if (post.platformPostUrl) {
+        platformPostUrl = post.platformPostUrl;
+      } else if (post.platforms && post.platforms.length > 0) {
+        platformPostUrl = post.platforms[0].platformPostUrl || null;
+      }
+
+      // Extract media URLs and normalize for consistent rendering
+      const rawMediaUrls: string[] = [];
+      if (post.thumbnailUrl) {
+        rawMediaUrls.push(String(post.thumbnailUrl).trim());
+      }
+      if (post.mediaItems && Array.isArray(post.mediaItems)) {
+        for (const item of post.mediaItems) {
+          if (typeof item === 'object' && item !== null && 'url' in item) {
+            const url = String((item as any).url).trim();
+            if (url && url.length > 0 && !rawMediaUrls.includes(url)) {
+              rawMediaUrls.push(url);
+            }
+          }
+        }
+      }
+
+      // Normalize and sort URLs to prevent hydration mismatch
+      const mediaUrls = rawMediaUrls
+        .filter((url): url is string => Boolean(url && typeof url === 'string' && url.length > 0))
+        .sort((a: string, b: string) => {
+          // Sort by normalized URL (without query params) for consistency
+          try {
+            const urlA = new URL(a);
+            const urlB = new URL(b);
+            const normalizedA = `${urlA.origin}${urlA.pathname}`;
+            const normalizedB = `${urlB.origin}${urlB.pathname}`;
+            return normalizedA.localeCompare(normalizedB);
+          } catch {
+            // If URL parsing fails, sort by original strings
+            return a.localeCompare(b);
+          }
+        });
+
+      // Get score
+      const score = smartScores.get(post._id) || 0;
+
+      return {
+        id: post._id, // External Post ID
+        score: Math.round(score), // Round score to integer (0-100)
+        engagementRate: roundedEngagementRate, // Use rounded engagement rate
+        engagement,
+        likes,
+        comments,
+        shares,
+        impressions,
+        reach,
+        clicks,
+        views,
+        date: post.publishedAt || post.scheduledFor || new Date().toISOString(),
+        postContent: post.content || '',
+        platform: normalizePlatform(post.platform || 'unknown'),
+        mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+        imageUrl: post.thumbnailUrl || undefined,
+        platformPostUrl,
+      };
+    });
+  } else if ((finalFilteredPosts && finalFilteredPosts.length > 0) || (finalFilteredAnalytics && finalFilteredAnalytics.length > 0)) {
+    // Fallback: Use database posts if Getlate API posts are not available
     // Create a map of post_id -> latest analytics for quick lookup
     type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any; platform?: string | null };
     const latestAnalyticsByPost = new Map<string, AnalyticsEntry>();
@@ -1305,24 +1785,134 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       }
     }
 
-    // Get all unique post IDs from analytics (includes posts that might not be in posts table)
+    // Get all unique published post IDs (External Post IDs only)
+    // finalFilteredAnalytics is already filtered to only published posts
     const allPostIds = new Set<string>();
     for (const analytics of finalFilteredAnalytics) {
+      // Only include published posts (already filtered, but double-check)
       if (analytics.post_id) {
-        allPostIds.add(analytics.post_id);
+        const metadata = (analytics.metadata as any) || {};
+        const isExternal = metadata.isExternal !== undefined ? metadata.isExternal : true;
+        const status = metadata.platformStatus || metadata.status;
+
+        // Only add if published (External Post)
+        if (isExternal || status === 'published') {
+          allPostIds.add(analytics.post_id);
+        }
       }
     }
-    // Also add posts from posts table
+    // Also add published posts from posts table
     if (finalFilteredPosts && Array.isArray(finalFilteredPosts)) {
       for (const post of finalFilteredPosts) {
-        if (post?.id) {
+        // Only include published posts
+        if (post?.id && post.status === 'published') {
           allPostIds.add(post.id);
         }
       }
     }
 
-    // Generate table data for all posts (from both posts table and analytics)
-    postsTableData = Array.from(allPostIds).map((postId) => {
+    // First, collect all posts with their metrics for smart score calculation
+    const postsForScoring = Array.from(allPostIds).map((postId) => {
+      const p = postsById.get(postId);
+      const analytics = latestAnalyticsByPost.get(postId);
+      const postData = p || {
+        id: postId,
+        content: (analytics?.metadata as any)?.content || 'Post from Getlate',
+        created_at: analytics?.date || new Date().toISOString(),
+        image_url: (analytics?.metadata as any)?.thumbnailUrl || null,
+        metadata: analytics?.metadata || {},
+        platforms: analytics?.platform ? [{ platform: analytics.platform }] : null,
+      };
+
+      const postAnalytics = latestAnalyticsByPost.get(postId);
+      const impressions = postAnalytics ? Number(postAnalytics.impressions ?? 0) : 0;
+      const likes = postAnalytics ? Number(postAnalytics.likes ?? 0) : 0;
+      const comments = postAnalytics ? Number(postAnalytics.comments ?? 0) : 0;
+      const shares = postAnalytics ? Number(postAnalytics.shares ?? 0) : 0;
+      const metadata = postAnalytics ? ((postAnalytics.metadata as any) || {}) : {};
+      const engagement = likes + comments + shares;
+      const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
+      const engagementRate = engagementRateFromMetadata !== null
+        ? engagementRateFromMetadata
+        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+      // Get platform
+      let platform = 'unknown';
+      const platformsFromAnalytics = postPlatformMap.get(postId);
+      if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
+        const platformsArray = Array.from(platformsFromAnalytics);
+        platform = platformsArray[0] || 'unknown';
+      } else {
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(postId);
+        if (platformsFromScheduled && platformsFromScheduled.size > 0) {
+          const platformsArray = Array.from(platformsFromScheduled);
+          platform = platformsArray[0] || 'unknown';
+        } else {
+          const postPlatforms = (postData as any)?.platforms;
+          if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+            const firstPlatform = postPlatforms[0];
+            if (typeof firstPlatform === 'string') {
+              platform = normalizePlatform(firstPlatform);
+            } else if (firstPlatform?.platform) {
+              platform = normalizePlatform(firstPlatform.platform);
+            }
+          }
+          if (platform === 'unknown') {
+            const meta = (postData as any)?.metadata as any;
+            platform = normalizePlatform(meta?.platform ?? (postAnalytics?.platform || 'unknown'));
+          }
+        }
+      }
+
+      // Extract media URLs
+      const meta = (postData as any)?.metadata as any;
+      const rawMediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const mediaUrls = rawMediaUrls
+        .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
+        .map((url: string) => String(url).trim())
+        .filter((url: string) => url.length > 0);
+      const rawImageUrl = (postData as any)?.image_url;
+      const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' ? String(rawImageUrl).trim() : null;
+      const finalMediaUrls = mediaUrls.length > 0
+        ? mediaUrls
+        : (imageUrl && imageUrl.length > 0 ? [imageUrl] : []);
+
+      return {
+        id: postId,
+        platform,
+        metadata: meta,
+        mediaUrls: finalMediaUrls,
+        metrics: {
+          impressions,
+          engagement,
+          engagementRate,
+        },
+      };
+    });
+
+    // Calculate smart scores for all posts (relative to brand's top 10 posts of same type)
+    const smartScores = calculateScoresForPosts(postsForScoring);
+
+    // Generate table data for all posts (only published posts with External Post IDs)
+    // Filter to only include posts that have analytics (published posts)
+    const publishedPostIds = Array.from(allPostIds).filter((postId) => {
+      const analytics = latestAnalyticsByPost.get(postId);
+      if (!analytics) {
+        // If no analytics, check if post is published
+        const post = postsById.get(postId);
+        return post && post.status === 'published';
+      }
+
+      // Verify analytics is from published post (External Post ID)
+      const metadata = (analytics.metadata as any) || {};
+      const isExternal = metadata.isExternal !== undefined ? metadata.isExternal : true;
+      const status = metadata.platformStatus || metadata.status;
+
+      // Only include if published
+      return isExternal || status === 'published';
+    });
+
+    postsTableData = publishedPostIds.map((postId) => {
       // Get post from posts table if it exists, otherwise create from analytics
       const p = postsById.get(postId);
       const analytics = latestAnalyticsByPost.get(postId);
@@ -1339,12 +1929,26 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
       // Get analytics for this post (latest entry)
       const postAnalytics = latestAnalyticsByPost.get(postId);
+      // Extract all metrics directly from analytics columns (from Getlate API)
       const impressions = postAnalytics ? Number(postAnalytics.impressions ?? 0) : 0;
-      const engagement = postAnalytics
-        ? Number(postAnalytics.likes ?? 0) + Number(postAnalytics.comments ?? 0) + Number(postAnalytics.shares ?? 0)
-        : 0;
-      const engagementRate = impressions > 0 ? (engagement / impressions) * 100 : 0;
-      const score = Math.floor(engagementRate * 100 + engagement / 10); // Simple score calculation
+      const likes = postAnalytics ? Number(postAnalytics.likes ?? 0) : 0;
+      const comments = postAnalytics ? Number(postAnalytics.comments ?? 0) : 0;
+      const shares = postAnalytics ? Number(postAnalytics.shares ?? 0) : 0;
+      const metadata = postAnalytics ? ((postAnalytics.metadata as any) || {}) : {};
+      // Extract reach, clicks, views from metadata (stored by sync function)
+      const reach = Number(metadata.reach ?? 0);
+      const clicks = Number(metadata.clicks ?? 0);
+      const views = Number(metadata.views ?? 0);
+      // Calculate engagement as sum of likes, comments, shares
+      const engagement = likes + comments + shares;
+      // Use engagementRate from metadata if available, otherwise calculate
+      const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
+      const engagementRate = engagementRateFromMetadata !== null
+        ? engagementRateFromMetadata
+        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+      // Use smart score (relative to brand's top 10 posts of same type)
+      const score = smartScores.get(postId) || 0;
 
       // Get platform using the same priority order as the rest of the dashboard:
       // 1. Analytics platform (most reliable)
@@ -1436,16 +2040,44 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       }
 
       // Ensure consistent mediaUrls array - filter out null/undefined/empty values
-      const finalMediaUrls = mediaUrls.length > 0
-        ? mediaUrls
-        : (imageUrl && imageUrl.length > 0 ? [imageUrl] : []);
+      // Normalize and sort to ensure consistent order (but keep original URLs for image loading)
+      // The PostsTable component will handle URL normalization for consistent rendering
+      const normalizedMediaUrls = mediaUrls
+        .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
+        .map((url: string) => String(url).trim())
+        .filter((url: string) => url.length > 0)
+        .sort((a: string, b: string) => {
+          // Sort by normalized URL (without query params) for consistency, but keep original URLs
+          try {
+            const urlA = new URL(a);
+            const urlB = new URL(b);
+            const normalizedA = `${urlA.origin}${urlA.pathname}`;
+            const normalizedB = `${urlB.origin}${urlB.pathname}`;
+            return normalizedA.localeCompare(normalizedB);
+          } catch {
+            // If URL parsing fails, sort by original strings
+            return a.localeCompare(b);
+          }
+        });
+
+      const normalizedImageUrl = imageUrl && typeof imageUrl === 'string' ? String(imageUrl).trim() : null;
+
+      const finalMediaUrls = normalizedMediaUrls.length > 0
+        ? normalizedMediaUrls
+        : (normalizedImageUrl && normalizedImageUrl.length > 0 ? [normalizedImageUrl] : []);
 
       return {
         id: postId, // Include post ID for unique key generation
         score,
         engagementRate,
         engagement,
+        likes,
+        comments,
+        shares,
         impressions,
+        reach,
+        clicks,
+        views,
         date: postAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
         postContent: (postData as any)?.content ?? '',
         platform,

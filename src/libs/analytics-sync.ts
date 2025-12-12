@@ -57,8 +57,9 @@ export async function syncAnalyticsFromGetlate(
     }
 
     // Fetch analytics from Getlate with pagination support
-    // Getlate API supports pagination: limit (default: 50), page (default: 1)
-    // Rate limit: 30 requests per hour per user
+    // Getlate API supports pagination: limit (default: 50, max: 100), page (default: 1)
+    // Rate limit: 150 requests per hour per user (for refresh operations)
+    // Reading cached analytics data does not count against rate limit
     // We'll fetch all pages to get comprehensive data
     let allGetlateAnalytics: any[] = [];
     let currentPage = 1;
@@ -132,8 +133,11 @@ export async function syncAnalyticsFromGetlate(
 
     // Sync analytics to database
     for (const post of getlateAnalytics) {
-      // GetlateAnalyticsPost uses _id field
-      const getlatePostId = post._id || post.id;
+      // GetlateAnalyticsPost uses _id field (External Post ID from synced analytics)
+      // Also supports postId field (Late Post ID for posts scheduled via API)
+      // Both IDs can be used to correlate posts - platformPostUrl is the unique identifier
+      const getlatePostId = post._id || post.id; // External Post ID
+      // Note: post.postId (Late Post ID) is available but not currently used in sync logic
       if (!getlatePostId) {
         if (process.env.NODE_ENV === 'development') {
           console.warn('[syncAnalyticsFromGetlate] Post missing _id or id:', post);
@@ -363,6 +367,7 @@ export async function syncAnalyticsFromGetlate(
       ));
 
       // Handle multiple platforms: GetlateAnalyticsPost can have analytics per platform
+      // Late API returns either 'platforms' array (list endpoint) or 'platformAnalytics' array (single post endpoint)
       const platformsToProcess: Array<{
         platform: string;
         analytics: {
@@ -376,10 +381,25 @@ export async function syncAnalyticsFromGetlate(
           engagementRate?: number;
           lastUpdated?: string;
         };
+        accountId?: string; // From platformAnalytics (single post endpoint)
+        accountUsername?: string; // From platformAnalytics (single post endpoint)
       }> = [];
 
-      // If post has platform-specific analytics, process each platform separately
-      if (post.platforms && Array.isArray(post.platforms) && post.platforms.length > 0) {
+      // Priority 1: Check platformAnalytics (from single post endpoint)
+      // This is the structure returned by GET /v1/analytics?postId=xxx
+      if (post.platformAnalytics && Array.isArray(post.platformAnalytics) && post.platformAnalytics.length > 0) {
+        for (const platformData of post.platformAnalytics) {
+          if (platformData.platform && platformData.analytics) {
+            platformsToProcess.push({
+              platform: platformData.platform,
+              analytics: platformData.analytics,
+            });
+          }
+        }
+      }
+
+      // Priority 2: Check platforms array (from list endpoint)
+      if (platformsToProcess.length === 0 && post.platforms && Array.isArray(post.platforms) && post.platforms.length > 0) {
         for (const platformData of post.platforms) {
           if (platformData.platform && platformData.analytics) {
             platformsToProcess.push({
@@ -390,7 +410,7 @@ export async function syncAnalyticsFromGetlate(
         }
       }
 
-      // If no platform-specific analytics but post-level analytics exist, use those
+      // Priority 3: If no platform-specific analytics but post-level analytics exist, use those
       if (platformsToProcess.length === 0 && post.analytics) {
         // Use the post-level platform or default to 'unknown'
         const platform = post.platform || 'unknown';
@@ -409,8 +429,9 @@ export async function syncAnalyticsFromGetlate(
       }
 
       // Process each platform's analytics separately
-      for (const { platform, analytics: platformAnalytics } of platformsToProcess) {
-        // Extract engagement metrics from platform analytics
+      for (const { platform, analytics: platformAnalytics, accountId, accountUsername } of platformsToProcess) {
+        // Extract ALL metrics directly from Getlate API analytics object
+        // These values come directly from the API response and represent current/latest values
         const likes = platformAnalytics.likes ?? null;
         const comments = platformAnalytics.comments ?? null;
         const shares = platformAnalytics.shares ?? null;
@@ -420,10 +441,22 @@ export async function syncAnalyticsFromGetlate(
         const views = platformAnalytics.views ?? null;
         const engagementRate = platformAnalytics.engagementRate ?? null;
 
-        // Extract platformPostUrl from the platform data in platforms array
-        // Getlate stores platformPostUrl in platforms[].platformPostUrl
+        // Extract platformPostUrl from multiple sources (priority order):
+        // 1. platformAnalytics array (from single post endpoint) - has accountId/accountUsername
+        // 2. platforms array (from list endpoint) - may have platformPostUrl
+        // 3. post.platformPostUrl (top-level)
         let platformPostUrlFromPlatform = null;
-        if (post.platforms && Array.isArray(post.platforms)) {
+
+        // Priority 1: Check platformAnalytics (single post endpoint)
+        if (post.platformAnalytics && Array.isArray(post.platformAnalytics)) {
+          const platformData = post.platformAnalytics.find((p: any) => p.platform === platform);
+          if (platformData?.platformPostUrl) {
+            platformPostUrlFromPlatform = platformData.platformPostUrl;
+          }
+        }
+
+        // Priority 2: Check platforms array (list endpoint)
+        if (!platformPostUrlFromPlatform && post.platforms && Array.isArray(post.platforms)) {
           const platformData = post.platforms.find((p: any) => {
             const pPlatform = typeof p === 'object' ? p.platform : p;
             return pPlatform === platform;
@@ -476,6 +509,7 @@ export async function syncAnalyticsFromGetlate(
           reach,
           clicks,
           views,
+          engagementRate: calculatedEngagementRate !== null ? calculatedEngagementRate : (existingMetadata.engagementRate ?? null),
           lastUpdated: platformAnalytics.lastUpdated,
           // Post metadata - preserve existing values if new ones are not available
           profileId: post.profileId || existingMetadata.profileId || null,
@@ -487,11 +521,19 @@ export async function syncAnalyticsFromGetlate(
           mediaType: post.mediaType || existingMetadata.mediaType || null,
           // Platform-specific data
           platformStatus: platformStatusValue || existingMetadata.platformStatus || null,
+          // Account information (from platformAnalytics - single post endpoint)
+          accountId: accountId || existingMetadata.accountId || null,
+          accountUsername: accountUsername || existingMetadata.accountUsername || null,
+          // Post IDs (both Late Post ID and External Post ID)
+          postId: post.postId || existingMetadata.postId || null, // Late Post ID
+          getlatePostId: getlatePostId || existingMetadata.getlatePostId || null, // External Post ID (_id)
           // Dates - preserve existing if new ones are not available
           publishedAt: post.publishedAt || existingMetadata.publishedAt || null,
           scheduledFor: post.scheduledFor || existingMetadata.scheduledFor || null,
           // Media data - preserve existing if new ones are not available
           mediaItems: post.mediaItems || existingMetadata.mediaItems || null,
+          // Additional metadata from API
+          ...(post.metadata || {}),
         };
 
         const analyticsData = {
