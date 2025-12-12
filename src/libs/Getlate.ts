@@ -39,7 +39,7 @@ export type GetlateAccount = {
   displayName?: string;
   avatarUrl?: string; // May be profilePicture in API response
   profilePicture?: string; // Getlate API uses profilePicture
-  followerCount?: number;
+  followersCount?: number; // Getlate API uses followersCount in profileData
   isConnected?: boolean; // May be isActive in API response
   isActive?: boolean; // Getlate API uses isActive
   lastSync?: string;
@@ -253,37 +253,80 @@ export class GetlateClient {
     }
 
     // Map Getlate API response format to our interface
-    // API uses: _id, username, profilePicture, isActive
-    // We need: id, accountName, avatarUrl, isConnected
-    return accounts.map((account: any) => ({
-      id: account._id || account.id,
-      _id: account._id,
-      profileId: account.profileId,
-      platform: account.platform,
-      accountName: account.username || account.accountName, // Map username to accountName
-      username: account.username,
-      accountId: account.accountId || account._id, // Use _id as accountId if not provided
-      displayName: account.displayName,
-      avatarUrl: account.profilePicture || account.avatarUrl, // Map profilePicture to avatarUrl
-      profilePicture: account.profilePicture,
-      followerCount: account.followerCount,
-      isConnected: account.isActive !== undefined ? account.isActive : account.isConnected, // Map isActive to isConnected
-      isActive: account.isActive,
-      lastSync: account.lastSync,
-      tokenExpiresAt: account.tokenExpiresAt,
-      permissions: account.permissions,
-      // Preserve accessToken and tempToken if present in the account object
-      accessToken: account.accessToken || account.access_token,
-      tempToken: account.tempToken || account.temp_token,
-      metadata: {
-        ...(account.metadata || {}),
-        // Also include accessToken/tempToken in metadata if they exist
-        ...(account.accessToken ? { accessToken: account.accessToken } : {}),
-        ...(account.tempToken ? { tempToken: account.tempToken } : {}),
-        ...(account.access_token ? { accessToken: account.access_token } : {}),
-        ...(account.temp_token ? { tempToken: account.temp_token } : {}),
-      },
-    })) as GetlateAccount[];
+    // API uses: _id, username, profilePicture, isActive, profileData.followersCount
+    // We need: id, accountName, avatarUrl, isConnected, followersCount
+    return accounts.map((account: any) => {
+      // Extract followersCount from multiple possible locations:
+      // For Facebook: metadata.availablePages[].fan_count (where id matches selectedPageId)
+      // For TikTok: metadata.profileData.followersCount
+      // For other platforms: profileData.followersCount, metadata.followersCount, etc.
+      let followersCount: number | undefined;
+
+      // Facebook-specific: Extract fan_count from selected page
+      if (account.platform === 'facebook' && account.metadata && typeof account.metadata === 'object') {
+        const metadata = account.metadata as any;
+        const selectedPageId = metadata.selectedPageId;
+        const availablePages = metadata.availablePages;
+
+        if (selectedPageId && Array.isArray(availablePages)) {
+          const selectedPage = availablePages.find((page: any) => page.id === selectedPageId);
+          if (selectedPage && typeof selectedPage.fan_count === 'number') {
+            followersCount = selectedPage.fan_count;
+          }
+        }
+      }
+
+      // TikTok-specific: Extract followersCount from metadata.profileData.followersCount
+      if (followersCount === undefined && account.platform === 'tiktok' && account.metadata && typeof account.metadata === 'object') {
+        const metadata = account.metadata as any;
+        if (metadata.profileData && typeof metadata.profileData === 'object' && typeof metadata.profileData.followersCount === 'number') {
+          followersCount = metadata.profileData.followersCount;
+        }
+      }
+
+      // Fallback to other locations if not found above
+      if (followersCount === undefined) {
+        followersCount = account.profileData?.followersCount
+          ?? (account.metadata && typeof account.metadata === 'object' ? (account.metadata as any).followersCount : undefined)
+          ?? (account.metadata && typeof account.metadata === 'object' ? (account.metadata as any).followerCount : undefined)
+          ?? account.followersCount
+          ?? account.followerCount
+          ?? account.profileData?.followerCount
+          ?? undefined;
+      }
+
+      return {
+        id: account._id || account.id,
+        _id: account._id,
+        profileId: account.profileId,
+        platform: account.platform,
+        accountName: account.username || account.accountName, // Map username to accountName
+        username: account.username,
+        accountId: account.accountId || account._id, // Use _id as accountId if not provided
+        displayName: account.displayName,
+        avatarUrl: account.profilePicture || account.avatarUrl, // Map profilePicture to avatarUrl
+        profilePicture: account.profilePicture,
+        followersCount: followersCount ?? 0, // Extract from profileData.followersCount, default to 0
+        isConnected: account.isActive !== undefined ? account.isActive : account.isConnected, // Map isActive to isConnected
+        isActive: account.isActive,
+        lastSync: account.lastSync,
+        tokenExpiresAt: account.tokenExpiresAt,
+        permissions: account.permissions,
+        // Preserve accessToken and tempToken if present in the account object
+        accessToken: account.accessToken || account.access_token,
+        tempToken: account.tempToken || account.temp_token,
+        metadata: {
+          ...(account.metadata || {}),
+          // Preserve profileData if it exists in metadata or as separate field
+          ...(account.profileData ? { profileData: account.profileData } : {}),
+          // Also include accessToken/tempToken in metadata if they exist
+          ...(account.accessToken ? { accessToken: account.accessToken } : {}),
+          ...(account.tempToken ? { tempToken: account.tempToken } : {}),
+          ...(account.access_token ? { accessToken: account.access_token } : {}),
+          ...(account.temp_token ? { tempToken: account.temp_token } : {}),
+        },
+      };
+    }) as GetlateAccount[];
   }
 
   /**

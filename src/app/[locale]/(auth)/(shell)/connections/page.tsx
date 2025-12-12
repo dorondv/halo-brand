@@ -473,13 +473,23 @@ export default function ConnectionsPage() {
     };
   }, [loadBrands]);
 
+  // Track if we've synced on mount to avoid multiple syncs
+  const hasSyncedOnMount = useRef(false);
+
   useEffect(() => {
     // Load accounts when selected brand changes - only when brand actually changes
     if (selectedBrandId) {
-      void loadAccountsFromDB(false, false); // Don't auto-sync, only load from DB
+      // On first load (page refresh), sync accounts from Getlate
+      if (!hasSyncedOnMount.current) {
+        hasSyncedOnMount.current = true;
+        void loadAccountsFromDB(false, true); // Sync on page refresh
+      } else {
+        void loadAccountsFromDB(false, false); // Don't auto-sync on subsequent brand changes
+      }
     } else {
       // Clear accounts when no brand is selected
       setAccounts([]);
+      hasSyncedOnMount.current = false; // Reset when brand is cleared
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrandId]); // Depend on brand ID from context
@@ -1223,9 +1233,9 @@ export default function ConnectionsPage() {
       setFacebookAccountForPages(null);
       setSelectedFacebookPageId(null);
       setFacebookPages([]);
-      // Small delay to ensure database write is complete, then reload accounts to show updated page info
-      await new Promise(resolve => setTimeout(resolve, 300));
-      await loadAccountsFromDB(false, false);
+      // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadAccountsFromDB(false, true); // Force sync to get updated followers count
     } catch (error) {
       console.error('Error saving Facebook page:', error);
       showToast(
@@ -1634,8 +1644,9 @@ export default function ConnectionsPage() {
       setSelectedLinkedInOrgId(null);
       setLinkedinOrganizations([]);
       setLinkedInPostingConfig({ postingType: 'personal' });
-      // Reload accounts to show updated settings
-      await loadAccountsFromDB(false, false);
+      // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
+      await new Promise(resolve => setTimeout(resolve, 500));
+      await loadAccountsFromDB(false, true); // Force sync to get updated followers count
     } catch (error) {
       console.error('Error saving LinkedIn settings:', error);
       showToast(

@@ -301,6 +301,19 @@ export async function PUT(request: NextRequest) {
       console.error('[Getlate Facebook Pages] Failed to update account metadata:', updateError);
     }
 
+    // Sync accounts from Getlate API to get updated followers count for the new page
+    if (socialAccount.brand_id) {
+      // Trigger sync in background (don't await to avoid blocking response)
+      fetch(`${request.nextUrl.origin}/api/getlate/accounts?brandId=${socialAccount.brand_id}`, {
+        method: 'GET',
+        headers: {
+          Cookie: request.headers.get('cookie') || '',
+        },
+      }).catch(() => {
+        // Ignore sync errors - page selection is still successful
+      });
+    }
+
     return NextResponse.json({
       page: {
         id: pageId,

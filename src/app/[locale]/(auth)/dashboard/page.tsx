@@ -1386,8 +1386,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
       // Extract media URLs from post metadata or image_url
       const meta = (postData as any)?.metadata as any;
-      const mediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
-      const imageUrl = (postData as any)?.image_url;
+      const rawMediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      // Filter and normalize URLs to ensure consistent rendering (trim and ensure strings)
+      const mediaUrls = rawMediaUrls
+        .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
+        .map((url: string) => String(url).trim())
+        .filter((url: string) => url.length > 0);
+      const rawImageUrl = (postData as any)?.image_url;
+      const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' ? String(rawImageUrl).trim() : null;
 
       // Extract platformPostUrl from multiple sources (priority order):
       // 1. Analytics metadata (from Getlate sync)
@@ -1429,6 +1435,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         }
       }
 
+      // Ensure consistent mediaUrls array - filter out null/undefined/empty values
+      const finalMediaUrls = mediaUrls.length > 0
+        ? mediaUrls
+        : (imageUrl && imageUrl.length > 0 ? [imageUrl] : []);
+
       return {
         id: postId, // Include post ID for unique key generation
         score,
@@ -1438,8 +1449,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         date: postAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
         postContent: (postData as any)?.content ?? '',
         platform,
-        mediaUrls: mediaUrls.length > 0 ? mediaUrls : (imageUrl ? [imageUrl] : []),
-        imageUrl,
+        mediaUrls: finalMediaUrls,
+        imageUrl: imageUrl && imageUrl.length > 0 ? imageUrl : undefined,
         platformPostUrl, // Add platform post URL for linking
       };
     });

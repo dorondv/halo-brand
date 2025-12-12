@@ -459,6 +459,19 @@ export async function PUT(request: NextRequest) {
       // Don't fail the request if update fails, just log it
     }
 
+    // Sync accounts from Getlate API to get updated followers count for the new organization
+    if (socialAccount.brand_id) {
+      // Trigger sync in background (don't await to avoid blocking response)
+      fetch(`${request.nextUrl.origin}/api/getlate/accounts?brandId=${socialAccount.brand_id}`, {
+        method: 'GET',
+        headers: {
+          Cookie: request.headers.get('cookie') || '',
+        },
+      }).catch(() => {
+        // Ignore sync errors - organization selection is still successful
+      });
+    }
+
     if (finalAccountType === 'organization' && organizationId) {
       return NextResponse.json({
         organization: {

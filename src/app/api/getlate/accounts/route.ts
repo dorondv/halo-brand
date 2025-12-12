@@ -102,7 +102,8 @@ export async function GET(request: NextRequest) {
       const accountIdValue = getlateAccount.accountId || accountId;
       const displayName = getlateAccount.displayName || accountName; // Fallback to accountName if displayName not provided
       const avatarUrl = getlateAccount.avatarUrl || getlateAccount.profilePicture;
-      const followerCount = getlateAccount.followerCount || 0;
+      // Extract followersCount (correct API field name) from GetlateAccount
+      const followerCount = getlateAccount.followersCount ?? 0;
       const lastSync = getlateAccount.lastSync || new Date().toISOString();
       // Getlate API uses 'isActive', getAccounts() maps it to 'isConnected'
       const isConnected = getlateAccount.isConnected !== undefined
@@ -195,6 +196,14 @@ export async function GET(request: NextRequest) {
         }
       } else {
         // Create new account
+        const platformSpecificDataForInsert = {
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          follower_count: followerCount,
+          last_sync: lastSync,
+          ...metadata,
+        };
+
         const { data: newAccount, error: insertError } = await supabase
           .from('social_accounts')
           .insert({
@@ -205,13 +214,7 @@ export async function GET(request: NextRequest) {
             account_id: accountIdValue,
             getlate_account_id: accountId,
             access_token: 'getlate-managed', // Getlate manages tokens
-            platform_specific_data: {
-              display_name: displayName,
-              avatar_url: avatarUrl,
-              follower_count: followerCount,
-              last_sync: lastSync,
-              ...metadata,
-            },
+            platform_specific_data: platformSpecificDataForInsert,
             is_active: isConnected,
           })
           .select()

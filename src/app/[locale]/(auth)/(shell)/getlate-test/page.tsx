@@ -358,11 +358,11 @@ export default async function GetlateTestPage() {
                                 )}
                               </div>
                               <div className="grid grid-cols-2 gap-2 text-sm text-gray-600">
-                                {account.followerCount !== undefined && (
+                                {(typeof account.followersCount === 'number' || typeof account.followerCount === 'number') && (
                                   <div>
                                     <span className="font-medium">Followers:</span>
                                     {' '}
-                                    {account.followerCount.toLocaleString()}
+                                    {(account.followersCount ?? account.followerCount ?? 0).toLocaleString()}
                                   </div>
                                 )}
                                 {account.lastSync && (
