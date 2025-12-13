@@ -1091,11 +1091,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
 
     // Generate series matching dateSeries keys
+    // Use absolute value to show positive growth values
     netGrowthSeries = dateSeries.map((dateKey) => {
       const growth = growthStatsMap.get(dateKey) || 0;
       return {
         date: dateKey,
-        growth,
+        growth: Math.abs(growth), // Always show positive values
       };
     });
   } else if (followerTrendSeries.length > 0) {
@@ -1117,7 +1118,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const growth = current.followers - previous.followers;
       return {
         date: current.date,
-        growth,
+        growth: Math.abs(growth), // Always show positive values
       };
     });
   } else {

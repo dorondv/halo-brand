@@ -116,6 +116,7 @@ export async function getFollowerStatsFromGetlate(
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     // Calculate net growth (change from previous day)
+    // Use absolute value to show positive growth values
     const netGrowth: Array<{ date: string; growth: number }> = [];
     for (let i = 0; i < followerTrend.length; i++) {
       const current = followerTrend[i];
@@ -126,7 +127,7 @@ export async function getFollowerStatsFromGetlate(
       const growth = previous ? current.followers - previous.followers : 0;
       netGrowth.push({
         date: current.date,
-        growth,
+        growth: Math.abs(growth), // Always show positive values
       });
     }
 
