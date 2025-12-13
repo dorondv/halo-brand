@@ -26,7 +26,7 @@
     "settings": "הגדרות",
     "support": "תמיכה",
     "pricing": "תוכניות",
-    "brand_sentiment": "סנטימנט מותג ברשת",
+    "brand_sentiment": "סנטימנט מותג בפלטפורמה",
     "post_sentiment": "ניתוח סמנטי - פוסטים",
     "getlate_test": "בדיקת Getlate API",
     "hello_greeting": "שלום {name}"
@@ -461,7 +461,7 @@
     "save_error": "שגיאה בשמירת ההגדרות"
   },
   "BrandSentiment": {
-    "title": "סנטימנט מותג ברשת",
+    "title": "סנטימנט מותג בפלטפורמה",
     "subtitle": "נתח כיצד המותג שלך נתפס ברחבי האינטרנט",
     "settings_title": "הגדרות ניתוח",
     "settings_description": "הזן מילות מפתח (מופרדות בפסיק) לניתוח הסנטימנט עבור המותג \"{brand}\"",

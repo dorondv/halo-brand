@@ -461,7 +461,7 @@
     "save_error": "Failed to save settings"
   },
   "BrandSentiment": {
-    "title": "Brand Sentiment on Network",
+    "title": "Brand Sentiment on Platform",
     "subtitle": "Analyze how your brand is perceived across the internet",
     "settings_title": "Analysis Settings",
     "settings_description": "Enter keywords (comma-separated) for sentiment analysis for the brand \"{brand}\"",

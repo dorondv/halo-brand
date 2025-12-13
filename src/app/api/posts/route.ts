@@ -153,42 +153,61 @@ export async function POST(request: Request) {
           }
 
           // Map platforms to Getlate format with proper account IDs
-          const getlatePlatformsArray = (payload.platforms || []).map((p) => {
-            // Check if account_id is already a getlate_account_id or needs to be looked up
-            const getlateAccountId = getlateIdMap.get(p.account_id)
-              || localIdToGetlateMap.get(p.account_id);
+          // IMPORTANT: Deduplicate platforms to prevent multiple posts for the same platform
+          // Getlate API should only have one entry per platform per post
+          const seenPlatforms = new Set<string>();
+          const getlatePlatformsArray = (payload.platforms || [])
+            .map((p) => {
+              // Check if account_id is already a getlate_account_id or needs to be looked up
+              const getlateAccountId = getlateIdMap.get(p.account_id)
+                || localIdToGetlateMap.get(p.account_id);
 
-            // If we couldn't find a getlate_account_id, this account might not be connected via Getlate
-            if (!getlateAccountId) {
-              return null;
-            }
+              // If we couldn't find a getlate_account_id, this account might not be connected via Getlate
+              if (!getlateAccountId) {
+                return null;
+              }
 
-            const platform = (p.platform === 'x' ? 'twitter' : p.platform) as GetlatePlatform;
-            const platformSpecificData: Record<string, unknown> = { ...(p.config || {}) };
+              const platform = (p.platform === 'x' ? 'twitter' : p.platform) as GetlatePlatform;
 
-            // If platform has specific mediaItems in config, use those; otherwise use shared mediaItems
-            const platformMediaItems = platformSpecificData.mediaItems as Array<{ type: 'image' | 'video'; url: string }> | undefined;
-            const finalMediaItems = platformMediaItems && platformMediaItems.length > 0 ? platformMediaItems : mediaItems;
+              // Deduplicate: if we've already seen this platform, skip it to prevent duplicate posts
+              // Use platform + accountId as the unique key to allow different accounts of the same platform
+              // But if same platform appears multiple times with different accountIds, we should only use the first one
+              const platformKey = platform; // Use platform as key to ensure only one entry per platform
+              if (seenPlatforms.has(platformKey)) {
+                // Platform already processed - skip to prevent duplicate posts
+                if (process.env.NODE_ENV === 'development') {
+                  console.warn(`[Posts API] Skipping duplicate platform ${platform} to prevent multiple posts`);
+                }
+                return null;
+              }
+              seenPlatforms.add(platformKey);
 
-            // For Facebook, also include mediaItems in platformSpecificData
-            // (though they should also be at root level)
-            if (platform === 'facebook' && finalMediaItems && finalMediaItems.length > 0) {
-              platformSpecificData.mediaItems = finalMediaItems;
-            }
+              const platformSpecificData: Record<string, unknown> = { ...(p.config || {}) };
 
-            // If platform has specific content in config, use that; otherwise use shared content
-            if (platformSpecificData.content) {
-              // Platform-specific content is already in platformSpecificData
-            } else {
-              // Use shared content (will be at root level in Getlate API call)
-            }
+              // If platform has specific mediaItems in config, use those; otherwise use shared mediaItems
+              const platformMediaItems = platformSpecificData.mediaItems as Array<{ type: 'image' | 'video'; url: string }> | undefined;
+              const finalMediaItems = platformMediaItems && platformMediaItems.length > 0 ? platformMediaItems : mediaItems;
 
-            return {
-              platform,
-              accountId: getlateAccountId, // Getlate API expects accountId (camelCase)
-              platformSpecificData,
-            };
-          }).filter(Boolean) as Array<{
+              // For Facebook, also include mediaItems in platformSpecificData
+              // (though they should also be at root level)
+              if (platform === 'facebook' && finalMediaItems && finalMediaItems.length > 0) {
+                platformSpecificData.mediaItems = finalMediaItems;
+              }
+
+              // If platform has specific content in config, use that; otherwise use shared content
+              if (platformSpecificData.content) {
+                // Platform-specific content is already in platformSpecificData
+              } else {
+                // Use shared content (will be at root level in Getlate API call)
+              }
+
+              return {
+                platform,
+                accountId: getlateAccountId, // Getlate API expects accountId (camelCase)
+                platformSpecificData,
+              };
+            })
+            .filter(Boolean) as Array<{
             platform: GetlatePlatform;
             accountId: string;
             platformSpecificData?: Record<string, unknown>;
@@ -198,13 +217,42 @@ export async function POST(request: Request) {
           if (getlatePlatformsArray.length === 0) {
             // Continue with local post creation
           } else {
+          // Extract title from platform-specific data if available (for YouTube, LinkedIn)
+          // Check if any platform has a title in platformSpecificData
+            let sharedTitle: string | undefined;
+            const platformsWithTitle = getlatePlatformsArray.filter(p =>
+              p.platformSpecificData?.title && typeof p.platformSpecificData.title === 'string',
+            );
+            // If YouTube or LinkedIn have titles, use the first one as shared title
+            if (platformsWithTitle.length > 0) {
+              const youtubeOrLinkedIn = platformsWithTitle.find(p =>
+                p.platform === 'youtube' || p.platform === 'linkedin',
+              );
+              if (youtubeOrLinkedIn?.platformSpecificData?.title) {
+                sharedTitle = youtubeOrLinkedIn.platformSpecificData.title as string;
+              } else {
+              // Use first available title
+                sharedTitle = platformsWithTitle[0]?.platformSpecificData?.title as string;
+              }
+            }
+            // Fallback: Check metadata.platform_content for title (if not found in platformSpecificData)
+            if (!sharedTitle && payload.metadata?.platform_content) {
+              const platformContent = payload.metadata.platform_content as Record<string, { title?: string }>;
+              const firstPlatformWithTitle = Object.values(platformContent).find((pc: any) => pc?.title);
+              if (firstPlatformWithTitle?.title) {
+                sharedTitle = firstPlatformWithTitle.title;
+              }
+            }
+
             // Create post in Getlate
             // According to Getlate API docs: content and mediaItems are shared at root level
             // Platform-specific content goes in platformSpecificData.content for each platform
+            // Title can be at root level (for YouTube, LinkedIn) or in platformSpecificData
             // Use mediaItems format (required by Getlate API for proper media handling)
             const getlatePost = await getlateClient.createPost({
               profileId: brandRecord.getlate_profile_id,
               content: payload.content, // Shared content (platform-specific content is in platformSpecificData)
+              title: sharedTitle, // Optional title (for YouTube, LinkedIn) - can also be in platformSpecificData
               // Send mediaItems at root level (Getlate API format)
               // Platform-specific mediaItems are in platformSpecificData.mediaItems
               mediaItems,
