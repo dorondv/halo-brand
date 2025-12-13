@@ -189,9 +189,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     getGetlatePosts(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom.toISOString().split('T')[0],
       toDate: rangeTo.toISOString().split('T')[0],
-      platform: selectedPlatform || undefined,
-      limit: 100, // Max allowed by Getlate API
-      page: 1,
+      platform: (selectedPlatform === 'all' ? 'all' : selectedPlatform) as any,
     }),
   ]);
 
@@ -1546,29 +1544,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   // Generate filtered posts table data from Getlate API posts (exact structure)
   // If Getlate API posts are available, use them directly; otherwise fallback to database posts
+  // Note: getlatePosts already includes all pages and is filtered by date range and platform from API
+  // We only need to filter for published posts to match the overview count
   if (getlatePosts && getlatePosts.length > 0) {
-    // Use Getlate API posts directly - filter by date range and platform
+    // Filter for published posts only (matches getlateOverview.publishedPosts count)
+    // The API already filters by date range and platform, so we only need to check status
     const filteredGetlatePosts = getlatePosts.filter((post) => {
-      // Filter by date range (use publishedAt or scheduledFor)
-      const postDate = post.publishedAt ? new Date(post.publishedAt) : (post.scheduledFor ? new Date(post.scheduledFor) : null);
-      if (postDate) {
-        const normalizedPostDate = normalizeAnalyticsDateToDateOnly(postDate);
-        if (normalizedPostDate < normalizedRangeFrom || normalizedPostDate > normalizedRangeTo) {
-          return false;
-        }
-      }
-
-      // Filter by platform if selected
-      if (selectedPlatform && selectedPlatform !== 'all') {
-        const normalizedSelectedPlatform = normalizePlatform(selectedPlatform);
-        const postPlatform = normalizePlatform(post.platform || '');
-        if (postPlatform !== normalizedSelectedPlatform) {
-          return false;
-        }
-      }
-
       // Only include published posts (External Post IDs)
-      // Check status and isExternal flag
+      // Check status and isExternal flag - this matches what Getlate API counts as "publishedPosts"
       const isPublished = post.status === 'published' || post.isExternal === true;
       return isPublished;
     });
