@@ -273,6 +273,12 @@ export async function POST(request: Request) {
     }
   }
 
+  // Determine post status:
+  // 1. If scheduled_for is provided, status is 'scheduled'
+  // 2. Otherwise, status is 'published' (immediate post, not draft)
+  // Note: Posts created immediately should be 'published', not 'draft'
+  const postStatus: 'draft' | 'scheduled' | 'published' = payload.scheduled_for ? 'scheduled' : 'published';
+
   // Create post in local database
   const { data: inserted, error } = await supabase.from('posts').insert([
     {
@@ -287,7 +293,7 @@ export async function POST(request: Request) {
       getlate_post_id: getlatePostId,
       timezone: payload.timezone,
       platforms: getlatePlatforms,
-      status: payload.scheduled_for ? 'scheduled' : 'draft',
+      status: postStatus,
     },
   ]).select();
 
