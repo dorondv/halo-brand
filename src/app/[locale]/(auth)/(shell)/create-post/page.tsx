@@ -2308,7 +2308,12 @@ export default function CreatePostPage() {
         await createPostForBrand(selectedBrandId, brandAccounts);
       }
 
+      // Navigate to dashboard and refresh to show the new post
       router.push('/dashboard');
+      // Refresh after a short delay to ensure navigation completes
+      setTimeout(() => {
+        router.refresh();
+      }, 100);
     } catch (submitError) {
       console.error('Error creating post:', submitError);
       setError(submitError instanceof Error ? submitError.message : t('error_create_post_failed'));
