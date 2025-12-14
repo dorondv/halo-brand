@@ -423,7 +423,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                               </div>
                             </td>
                             <td className={`max-w-[300px] min-w-[200px] px-2 py-2 text-xs text-gray-700 sm:max-w-md sm:px-3 sm:py-2 sm:text-sm ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
-                              {/* Media Thumbnail */}
+                              {/* Media Thumbnails - Show all media */}
                               {(() => {
                                 // Normalize and stabilize media URLs to prevent hydration mismatch
                                 // Create array with both original and normalized URLs for sorting
@@ -464,41 +464,62 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                                   }
                                 }
 
-                                // Take only the first media URL (use original for Image src to preserve query params if needed)
-                                const firstUrlPair = urlPairs[0];
-
-                                if (!firstUrlPair) {
+                                if (urlPairs.length === 0) {
                                   return null;
                                 }
 
-                                // Use stable key based ONLY on post ID (never on URL to prevent hydration mismatch)
-                                const mediaKey = post.id ? `media-${post.id}` : `media-unknown`;
-                                const firstMediaUrl = firstUrlPair.original; // Use original URL for Image src
-                                const isVideo = firstMediaUrl.toLowerCase().includes('.mp4') || firstMediaUrl.toLowerCase().includes('.mov')
-                                  || firstMediaUrl.toLowerCase().includes('.avi') || firstMediaUrl.toLowerCase().includes('.webm')
-                                  || firstMediaUrl.toLowerCase().includes('.m4v') || firstMediaUrl.toLowerCase().includes('video');
+                                // Show all media items in a grid layout
+                                // Limit to 4 items for display (show "+X more" if more exist)
+                                const maxDisplay = 4;
+                                const displayItems = urlPairs.slice(0, maxDisplay);
+                                const remainingCount = urlPairs.length - maxDisplay;
 
                                 return (
-                                  <div className={`mb-1 flex items-center gap-1 sm:mb-2 sm:gap-2 ${localeCode === 'he' ? 'flex-row justify-start' : 'justify-start'}`}>
-                                    <div key={mediaKey} className="relative h-12 w-12 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100 sm:h-16 sm:w-16">
-                                      {isVideo
-                                        ? (
-                                            <div className="flex h-full w-full items-center justify-center bg-gray-900">
-                                              <Play className="h-4 w-4 text-white sm:h-6 sm:w-6" fill="white" />
-                                            </div>
-                                          )
-                                        : (
-                                            <Image
-                                              key={mediaKey} // Stable key based on post ID only
-                                              src={firstMediaUrl}
-                                              alt="Post media"
-                                              fill
-                                              className="object-cover"
-                                              sizes="64px"
-                                              unoptimized={!firstMediaUrl.startsWith('/') && !firstMediaUrl.includes('supabase.co') && !firstMediaUrl.includes('getlate.dev')}
-                                            />
-                                          )}
-                                    </div>
+                                  <div className={`mb-1 flex flex-wrap items-center gap-1 sm:mb-2 sm:gap-1.5 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
+                                    {displayItems.map((urlPair, index) => {
+                                      const mediaUrl = urlPair.original;
+                                      const isVideo = mediaUrl.toLowerCase().includes('.mp4') || mediaUrl.toLowerCase().includes('.mov')
+                                        || mediaUrl.toLowerCase().includes('.avi') || mediaUrl.toLowerCase().includes('.webm')
+                                        || mediaUrl.toLowerCase().includes('.m4v') || mediaUrl.toLowerCase().includes('video');
+
+                                      // Use stable key based on post ID and index
+                                      const mediaKey = post.id ? `media-${post.id}-${index}` : `media-unknown-${index}`;
+
+                                      return (
+                                        <div
+                                          key={mediaKey}
+                                          className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100 sm:h-14 sm:w-14"
+                                          title={mediaUrl}
+                                        >
+                                          {isVideo
+                                            ? (
+                                                <div className="flex h-full w-full items-center justify-center bg-gray-900">
+                                                  <Play className="h-3 w-3 text-white sm:h-4 sm:w-4" fill="white" />
+                                                </div>
+                                              )
+                                            : (
+                                                <Image
+                                                  key={mediaKey}
+                                                  src={mediaUrl}
+                                                  alt={`Post media ${index + 1}`}
+                                                  fill
+                                                  className="object-cover"
+                                                  sizes="56px"
+                                                  unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
+                                                />
+                                              )}
+                                        </div>
+                                      );
+                                    })}
+                                    {remainingCount > 0 && (
+                                      <div
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-xs font-medium text-gray-600 sm:h-14 sm:w-14 sm:text-sm"
+                                        title={`${remainingCount} more media items`}
+                                      >
+                                        +
+                                        {remainingCount}
+                                      </div>
+                                    )}
                                   </div>
                                 );
                               })()}

@@ -1636,54 +1636,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     // Calculate smart scores (returns Map<string, number>)
     const smartScores = calculateScoresForPosts(postsForScoring);
 
-    // Generate table data from Getlate API posts
-    postsTableData = filteredGetlatePosts.map((post: any) => {
-      // Extract analytics from Getlate API structure
-      // Priority: platformAnalytics (detailed) > platforms array > top-level analytics
-      let analytics = post.analytics;
-      if (post.platformAnalytics && post.platformAnalytics.length > 0) {
-        // Use first platform's analytics (most detailed)
-        analytics = post.platformAnalytics[0].analytics;
-      } else if (post.platforms && post.platforms.length > 0) {
-        // Use first platform's analytics from platforms array
-        analytics = post.platforms[0].analytics;
-      }
+    // Generate table data from Getlate API posts - expand to one row per platform
+    const expandedPosts: typeof postsTableData = [];
 
-      // Extract all metrics from Getlate API analytics structure
-      const impressions = Number(analytics.impressions || 0);
-      const likes = Number(analytics.likes || 0);
-      const comments = Number(analytics.comments || 0);
-      const shares = Number(analytics.shares || 0);
-      const reach = Number(analytics.reach || 0);
-      const clicks = Number(analytics.clicks || 0);
-      const views = Number(analytics.views || 0);
-
-      // Calculate engagement as sum of likes, comments, shares
-      const engagement = likes + comments + shares;
-
-      // Calculate engagement rate: use from API if available, otherwise calculate
-      // Engagement rate = (total engagement / impressions) * 100
-      // If impressions is 0, engagement rate is 0
-      const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
-        ? Number(analytics.engagementRate)
-        : null;
-
-      const engagementRate = engagementRateFromAPI !== null
-        ? engagementRateFromAPI
-        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
-
-      // Round engagement rate to 2 decimal places for display
-      const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
-
-      // Extract platformPostUrl from Getlate API structure
-      let platformPostUrl: string | null = null;
-      if (post.platformPostUrl) {
-        platformPostUrl = post.platformPostUrl;
-      } else if (post.platforms && post.platforms.length > 0) {
-        platformPostUrl = post.platforms[0].platformPostUrl || null;
-      }
-
-      // Extract media URLs and normalize for consistent rendering
+    for (const post of filteredGetlatePosts) {
+      // Extract media URLs (shared across all platforms)
       const rawMediaUrls: string[] = [];
       if (post.thumbnailUrl) {
         rawMediaUrls.push(String(post.thumbnailUrl).trim());
@@ -1703,7 +1660,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const mediaUrls = rawMediaUrls
         .filter((url): url is string => Boolean(url && typeof url === 'string' && url.length > 0))
         .sort((a: string, b: string) => {
-          // Sort by normalized URL (without query params) for consistency
           try {
             const urlA = new URL(a);
             const urlB = new URL(b);
@@ -1711,34 +1667,127 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             const normalizedB = `${urlB.origin}${urlB.pathname}`;
             return normalizedA.localeCompare(normalizedB);
           } catch {
-            // If URL parsing fails, sort by original strings
             return a.localeCompare(b);
           }
         });
 
-      // Get score
-      const score = smartScores.get(post._id) || 0;
+      // Get base score (will be same for all platforms of this post)
+      const baseScore = smartScores.get(post._id) || 0;
 
-      return {
-        id: post._id, // External Post ID
-        score: Math.round(score), // Round score to integer (0-100)
-        engagementRate: roundedEngagementRate, // Use rounded engagement rate
-        engagement,
-        likes,
-        comments,
-        shares,
-        impressions,
-        reach,
-        clicks,
-        views,
-        date: post.publishedAt || post.scheduledFor || new Date().toISOString(),
-        postContent: post.content || '',
-        platform: normalizePlatform(post.platform || 'unknown'),
-        mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
-        imageUrl: post.thumbnailUrl || undefined,
-        platformPostUrl,
-      };
-    });
+      // Determine which platforms to show
+      // Priority: platformAnalytics > platforms array > single platform
+      let platformsToProcess: Array<{
+        platform: string;
+        status: string;
+        analytics: any;
+        platformPostUrl?: string;
+      }> = [];
+
+      if (post.platformAnalytics && Array.isArray(post.platformAnalytics) && post.platformAnalytics.length > 0) {
+        // Use platformAnalytics (most detailed, per-platform data)
+        // Try to find platformPostUrl from platforms array or root level
+        platformsToProcess = post.platformAnalytics.map((pa: any) => {
+          const platformName = pa.platform || 'unknown';
+          // Try to find platformPostUrl from platforms array
+          let platformPostUrl: string | undefined;
+          if (post.platforms && Array.isArray(post.platforms)) {
+            const matchingPlatform = post.platforms.find((p: any) =>
+              (p.platform || '').toLowerCase() === platformName.toLowerCase(),
+            );
+            if (matchingPlatform?.platformPostUrl) {
+              platformPostUrl = matchingPlatform.platformPostUrl;
+            }
+          }
+          // Fallback to root level platformPostUrl if platform matches
+          if (!platformPostUrl && post.platformPostUrl
+            && normalizePlatform(post.platform || '') === normalizePlatform(platformName)) {
+            platformPostUrl = post.platformPostUrl;
+          }
+
+          return {
+            platform: platformName,
+            status: pa.status || 'unknown',
+            analytics: pa.analytics || {},
+            platformPostUrl,
+          };
+        });
+      } else if (post.platforms && Array.isArray(post.platforms) && post.platforms.length > 0) {
+        // Use platforms array (simplified per-platform data)
+        platformsToProcess = post.platforms.map((p: any) => ({
+          platform: p.platform || 'unknown',
+          status: p.status || 'unknown',
+          analytics: p.analytics || {},
+          platformPostUrl: p.platformPostUrl || undefined,
+        }));
+      } else {
+        // Fallback to single platform (root level)
+        platformsToProcess = [{
+          platform: post.platform || 'unknown',
+          status: post.status || 'unknown',
+          analytics: post.analytics || {},
+          platformPostUrl: post.platformPostUrl || undefined,
+        }];
+      }
+
+      // Create one row per platform, only for published platforms
+      for (const platformData of platformsToProcess) {
+        // Only show successfully published platforms
+        if (platformData.status !== 'published') {
+          continue;
+        }
+
+        const platform = normalizePlatform(platformData.platform);
+        const analytics = platformData.analytics;
+
+        // Extract metrics from platform-specific analytics
+        const impressions = Number(analytics.impressions || 0);
+        const likes = Number(analytics.likes || 0);
+        const comments = Number(analytics.comments || 0);
+        const shares = Number(analytics.shares || 0);
+        const reach = Number(analytics.reach || 0);
+        const clicks = Number(analytics.clicks || 0);
+        const views = Number(analytics.views || 0);
+
+        // Calculate engagement
+        const engagement = likes + comments + shares;
+
+        // Calculate engagement rate
+        const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
+          ? Number(analytics.engagementRate)
+          : null;
+
+        const engagementRate = engagementRateFromAPI !== null
+          ? engagementRateFromAPI
+          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+        const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
+
+        // Get platform-specific URL
+        const platformPostUrl = platformData.platformPostUrl || post.platformPostUrl || null;
+
+        expandedPosts.push({
+          id: `${post._id}-${platform}`, // Unique ID per platform
+          score: Math.round(baseScore),
+          engagementRate: roundedEngagementRate,
+          engagement,
+          likes,
+          comments,
+          shares,
+          impressions,
+          reach,
+          clicks,
+          views,
+          date: post.publishedAt || post.scheduledFor || new Date().toISOString(),
+          postContent: post.content || '',
+          platform,
+          mediaUrls: mediaUrls.length > 0 ? mediaUrls : undefined,
+          imageUrl: post.thumbnailUrl || undefined,
+          platformPostUrl, // Platform-specific URL
+        });
+      }
+    }
+
+    postsTableData = expandedPosts;
   } else if ((finalFilteredPosts && finalFilteredPosts.length > 0) || (finalFilteredAnalytics && finalFilteredAnalytics.length > 0)) {
     // Fallback: Use database posts if Getlate API posts are not available
     // Create a map of post_id -> latest analytics for quick lookup
@@ -1896,7 +1945,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       return isExternal || status === 'published';
     });
 
-    postsTableData = publishedPostIds.map((postId) => {
+    // Expand posts to one row per platform (only published platforms)
+    const expandedPostsFromDb: typeof postsTableData = [];
+
+    for (const postId of publishedPostIds) {
       // Get post from posts table if it exists, otherwise create from analytics
       const p = postsById.get(postId);
       const analytics = latestAnalyticsByPost.get(postId);
@@ -1911,71 +1963,9 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         platforms: analytics?.platform ? [{ platform: analytics.platform }] : null,
       };
 
-      // Get analytics for this post (latest entry)
-      const postAnalytics = latestAnalyticsByPost.get(postId);
-      // Extract all metrics directly from analytics columns (from Getlate API)
-      const impressions = postAnalytics ? Number(postAnalytics.impressions ?? 0) : 0;
-      const likes = postAnalytics ? Number(postAnalytics.likes ?? 0) : 0;
-      const comments = postAnalytics ? Number(postAnalytics.comments ?? 0) : 0;
-      const shares = postAnalytics ? Number(postAnalytics.shares ?? 0) : 0;
-      const metadata = postAnalytics ? ((postAnalytics.metadata as any) || {}) : {};
-      // Extract reach, clicks, views from metadata (stored by sync function)
-      const reach = Number(metadata.reach ?? 0);
-      const clicks = Number(metadata.clicks ?? 0);
-      const views = Number(metadata.views ?? 0);
-      // Calculate engagement as sum of likes, comments, shares
-      const engagement = likes + comments + shares;
-      // Use engagementRate from metadata if available, otherwise calculate
-      const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
-      const engagementRate = engagementRateFromMetadata !== null
-        ? engagementRateFromMetadata
-        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
-
-      // Use smart score (relative to brand's top 10 posts of same type)
-      const score = smartScores.get(postId) || 0;
-
-      // Get platform using the same priority order as the rest of the dashboard:
-      // 1. Analytics platform (most reliable)
-      // 2. Scheduled posts -> social accounts -> platform
-      // 3. Post platforms array (from Getlate)
-      // 4. Post metadata.platform
-      let platform = 'unknown';
-
-      // Priority 1: Analytics platform
-      const platformsFromAnalytics = postPlatformMap.get(postId);
-      if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
-        const platformsArray = Array.from(platformsFromAnalytics);
-        platform = platformsArray[0] || 'unknown';
-      } else {
-        // Priority 2: Scheduled posts -> social accounts
-        const platformsFromScheduled = postPlatformMapFromScheduled.get(postId);
-        if (platformsFromScheduled && platformsFromScheduled.size > 0) {
-          const platformsArray = Array.from(platformsFromScheduled);
-          platform = platformsArray[0] || 'unknown';
-        } else {
-          // Priority 3: Post platforms array (from Getlate)
-          const postPlatforms = (postData as any)?.platforms;
-          if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
-            const firstPlatform = postPlatforms[0];
-            if (typeof firstPlatform === 'string') {
-              platform = normalizePlatform(firstPlatform);
-            } else if (firstPlatform?.platform) {
-              platform = normalizePlatform(firstPlatform.platform);
-            }
-          }
-
-          // Priority 4: Post metadata
-          if (platform === 'unknown') {
-            const meta = (postData as any)?.metadata as any;
-            platform = normalizePlatform(meta?.platform ?? (postAnalytics?.platform || 'unknown'));
-          }
-        }
-      }
-
-      // Extract media URLs from post metadata or image_url
+      // Extract media URLs (shared across all platforms)
       const meta = (postData as any)?.metadata as any;
       const rawMediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
-      // Filter and normalize URLs to ensure consistent rendering (trim and ensure strings)
       const mediaUrls = rawMediaUrls
         .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
         .map((url: string) => String(url).trim())
@@ -1983,55 +1973,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const rawImageUrl = (postData as any)?.image_url;
       const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' ? String(rawImageUrl).trim() : null;
 
-      // Extract platformPostUrl from multiple sources (priority order):
-      // 1. Analytics metadata (from Getlate sync)
-      // 2. Post platforms array (direct from Getlate API response stored in post.platforms)
-      let platformPostUrl: string | null = null;
-
-      // Priority 1: Search through all analytics entries for this post
-      const allPostAnalytics = allAnalyticsByPost.get(postId) || [];
-      for (const analyticsEntry of allPostAnalytics) {
-        const analyticsMetadata = analyticsEntry?.metadata as any;
-        if (analyticsMetadata?.platformPostUrl) {
-          platformPostUrl = analyticsMetadata.platformPostUrl;
-          break; // Found it, no need to continue searching
-        }
-      }
-
-      // Priority 2: If not found in analytics, check post's platforms array
-      // This is where Getlate stores platformPostUrl in the original API response
-      if (!platformPostUrl) {
-        const postPlatforms = (postData as any)?.platforms;
-        if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
-          // Find the platform that matches the current platform
-          for (const platformData of postPlatforms) {
-            // Handle both object and string formats
-            const platformObj = typeof platformData === 'object' ? platformData : null;
-            if (platformObj?.platformPostUrl) {
-              platformPostUrl = platformObj.platformPostUrl;
-              break; // Found it
-            }
-          }
-          // If still not found, try the first platform's platformPostUrl regardless of match
-          if (!platformPostUrl) {
-            const firstPlatform = postPlatforms[0];
-            const firstPlatformObj = typeof firstPlatform === 'object' ? firstPlatform : null;
-            if (firstPlatformObj?.platformPostUrl) {
-              platformPostUrl = firstPlatformObj.platformPostUrl;
-            }
-          }
-        }
-      }
-
-      // Ensure consistent mediaUrls array - filter out null/undefined/empty values
-      // Normalize and sort to ensure consistent order (but keep original URLs for image loading)
-      // The PostsTable component will handle URL normalization for consistent rendering
       const normalizedMediaUrls = mediaUrls
         .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
         .map((url: string) => String(url).trim())
         .filter((url: string) => url.length > 0)
         .sort((a: string, b: string) => {
-          // Sort by normalized URL (without query params) for consistency, but keep original URLs
           try {
             const urlA = new URL(a);
             const urlB = new URL(b);
@@ -2039,37 +1985,171 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             const normalizedB = `${urlB.origin}${urlB.pathname}`;
             return normalizedA.localeCompare(normalizedB);
           } catch {
-            // If URL parsing fails, sort by original strings
             return a.localeCompare(b);
           }
         });
 
       const normalizedImageUrl = imageUrl && typeof imageUrl === 'string' ? String(imageUrl).trim() : null;
-
       const finalMediaUrls = normalizedMediaUrls.length > 0
         ? normalizedMediaUrls
         : (normalizedImageUrl && normalizedImageUrl.length > 0 ? [normalizedImageUrl] : []);
 
-      return {
-        id: postId, // Include post ID for unique key generation
-        score,
-        engagementRate,
-        engagement,
-        likes,
-        comments,
-        shares,
-        impressions,
-        reach,
-        clicks,
-        views,
-        date: postAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
-        postContent: (postData as any)?.content ?? '',
-        platform,
-        mediaUrls: finalMediaUrls,
-        imageUrl: imageUrl && imageUrl.length > 0 ? imageUrl : undefined,
-        platformPostUrl, // Add platform post URL for linking
-      };
-    });
+      // Get base score (same for all platforms of this post)
+      const baseScore = smartScores.get(postId) || 0;
+
+      // Determine which platforms this post was published on
+      // Priority: Analytics platforms > Scheduled platforms > Post platforms array > Single platform
+      const platformsSet = new Set<string>();
+
+      // Priority 1: Analytics platforms (most reliable - from post_analytics table)
+      const platformsFromAnalytics = postPlatformMap.get(postId);
+      if (platformsFromAnalytics && platformsFromAnalytics.size > 0) {
+        platformsFromAnalytics.forEach((plat) => {
+          if (plat !== 'unknown') {
+            platformsSet.add(plat);
+          }
+        });
+      }
+
+      // Priority 2: Scheduled posts -> social accounts
+      if (platformsSet.size === 0) {
+        const platformsFromScheduled = postPlatformMapFromScheduled.get(postId);
+        if (platformsFromScheduled && platformsFromScheduled.size > 0) {
+          platformsFromScheduled.forEach((plat) => {
+            if (plat !== 'unknown') {
+              platformsSet.add(plat);
+            }
+          });
+        }
+      }
+
+      // Priority 3: Post platforms array (from Getlate)
+      if (platformsSet.size === 0) {
+        const postPlatforms = (postData as any)?.platforms;
+        if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+          postPlatforms.forEach((platformData: any) => {
+            let platformName = 'unknown';
+            if (typeof platformData === 'string') {
+              platformName = normalizePlatform(platformData);
+            } else if (platformData?.platform) {
+              platformName = normalizePlatform(platformData.platform);
+            }
+            if (platformName !== 'unknown') {
+              platformsSet.add(platformName);
+            }
+          });
+        }
+      }
+
+      // Priority 4: Single platform fallback
+      if (platformsSet.size === 0) {
+        const postAnalytics = latestAnalyticsByPost.get(postId);
+        const meta = (postData as any)?.metadata as any;
+        const fallbackPlatform = normalizePlatform(meta?.platform ?? (postAnalytics?.platform || 'unknown'));
+        if (fallbackPlatform !== 'unknown') {
+          platformsSet.add(fallbackPlatform);
+        }
+      }
+
+      // If still no platforms, skip this post
+      if (platformsSet.size === 0) {
+        continue;
+      }
+
+      // Get all analytics entries for this post to find platform-specific data
+      const allPostAnalytics = allAnalyticsByPost.get(postId) || [];
+
+      // Create one row per platform
+      for (const platformName of platformsSet) {
+        const platform = normalizePlatform(platformName);
+
+        // Find platform-specific analytics if available
+        // Look for analytics entry that matches this platform
+        let platformAnalytics = latestAnalyticsByPost.get(postId);
+        let platformPostUrl: string | null = null;
+
+        // Search for platform-specific analytics and URL
+        for (const analyticsEntry of allPostAnalytics) {
+          const analyticsPlatform = normalizePlatform(analyticsEntry?.platform || 'unknown');
+          if (analyticsPlatform === platform) {
+            platformAnalytics = analyticsEntry;
+            const analyticsMetadata = analyticsEntry?.metadata as any;
+            if (analyticsMetadata?.platformPostUrl) {
+              platformPostUrl = analyticsMetadata.platformPostUrl;
+              break; // Found platform-specific data
+            }
+          }
+        }
+
+        // If no platform-specific analytics found, use latest analytics
+        if (!platformAnalytics) {
+          platformAnalytics = latestAnalyticsByPost.get(postId);
+        }
+
+        // If still no platform-specific URL, check post platforms array
+        if (!platformPostUrl) {
+          const postPlatforms = (postData as any)?.platforms;
+          if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+            for (const platformData of postPlatforms) {
+              const platformObj = typeof platformData === 'object' ? platformData : null;
+              const platformDataName = platformObj?.platform
+                ? normalizePlatform(platformObj.platform)
+                : (typeof platformData === 'string' ? normalizePlatform(platformData) : 'unknown');
+
+              if (platformDataName === platform && platformObj?.platformPostUrl) {
+                platformPostUrl = platformObj.platformPostUrl;
+                break;
+              }
+            }
+            // If still not found, try first platform's URL
+            if (!platformPostUrl) {
+              const firstPlatform = postPlatforms[0];
+              const firstPlatformObj = typeof firstPlatform === 'object' ? firstPlatform : null;
+              if (firstPlatformObj?.platformPostUrl) {
+                platformPostUrl = firstPlatformObj.platformPostUrl;
+              }
+            }
+          }
+        }
+
+        // Extract metrics from platform-specific analytics or fallback to latest
+        const impressions = platformAnalytics ? Number(platformAnalytics.impressions ?? 0) : 0;
+        const likes = platformAnalytics ? Number(platformAnalytics.likes ?? 0) : 0;
+        const comments = platformAnalytics ? Number(platformAnalytics.comments ?? 0) : 0;
+        const shares = platformAnalytics ? Number(platformAnalytics.shares ?? 0) : 0;
+        const analyticsMetadata = platformAnalytics ? ((platformAnalytics.metadata as any) || {}) : {};
+        const reach = Number(analyticsMetadata.reach ?? 0);
+        const clicks = Number(analyticsMetadata.clicks ?? 0);
+        const views = Number(analyticsMetadata.views ?? 0);
+        const engagement = likes + comments + shares;
+        const engagementRateFromMetadata = analyticsMetadata.engagementRate !== undefined ? Number(analyticsMetadata.engagementRate) : null;
+        const engagementRate = engagementRateFromMetadata !== null
+          ? engagementRateFromMetadata
+          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+
+        expandedPostsFromDb.push({
+          id: `${postId}-${platform}`, // Unique ID per platform
+          score: baseScore,
+          engagementRate,
+          engagement,
+          likes,
+          comments,
+          shares,
+          impressions,
+          reach,
+          clicks,
+          views,
+          date: platformAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
+          postContent: (postData as any)?.content ?? '',
+          platform,
+          mediaUrls: finalMediaUrls,
+          imageUrl: imageUrl && imageUrl.length > 0 ? imageUrl : undefined,
+          platformPostUrl, // Platform-specific URL
+        });
+      }
+    }
+
+    postsTableData = expandedPostsFromDb;
   }
   // If no posts, postsTableData remains undefined and component shows empty state
 
