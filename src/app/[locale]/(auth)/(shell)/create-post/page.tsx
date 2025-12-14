@@ -118,14 +118,17 @@ const ThreadsIcon = ({ className, style }: { className?: string; style?: React.C
   </svg>
 );
 
+// Platform display order
+const PLATFORM_ORDER: Platform[] = ['facebook', 'instagram', 'threads', 'tiktok', 'linkedin', 'x', 'youtube'];
+
 const PLATFORM_ICON_CONFIG = {
-  instagram: { icon: InstagramIcon, color: 'text-white', bg: 'bg-pink-500', name: 'Instagram' },
-  x: { icon: XIcon, color: 'text-white', bg: 'bg-pink-500', name: 'X (Twitter)' },
   facebook: { icon: FacebookIcon, color: 'text-white', bg: 'bg-pink-500', name: 'Facebook' },
-  linkedin: { icon: LinkedInIcon, color: 'text-white', bg: 'bg-pink-500', name: 'LinkedIn' },
-  youtube: { icon: YouTubeIcon, color: 'text-white', bg: 'bg-pink-500', name: 'YouTube' },
-  tiktok: { icon: TikTokIcon, color: 'text-white', bg: 'bg-pink-500', name: 'TikTok' },
+  instagram: { icon: InstagramIcon, color: 'text-white', bg: 'bg-pink-500', name: 'Instagram' },
   threads: { icon: ThreadsIcon, color: 'text-white', bg: 'bg-pink-500', name: 'Threads' },
+  tiktok: { icon: TikTokIcon, color: 'text-white', bg: 'bg-pink-500', name: 'TikTok' },
+  linkedin: { icon: LinkedInIcon, color: 'text-white', bg: 'bg-pink-500', name: 'LinkedIn' },
+  x: { icon: XIcon, color: 'text-white', bg: 'bg-pink-500', name: 'X (Twitter)' },
+  youtube: { icon: YouTubeIcon, color: 'text-white', bg: 'bg-pink-500', name: 'YouTube' },
 } as const;
 
 // Default formats based on Getlate API documentation: https://docs.getlate.dev
@@ -1493,7 +1496,25 @@ export default function CreatePostPage() {
     return map;
   }, [variants]);
 
-  const selectedPlatforms = useMemo(() => Array.from(formatMap.keys()), [formatMap]);
+  const selectedPlatforms = useMemo(() => {
+    const platforms = Array.from(formatMap.keys());
+    // Sort platforms according to PLATFORM_ORDER
+    return platforms.sort((a, b) => {
+      const indexA = PLATFORM_ORDER.indexOf(a);
+      const indexB = PLATFORM_ORDER.indexOf(b);
+      // If platform not found in order, put it at the end
+      if (indexA === -1 && indexB === -1) {
+        return 0;
+      }
+      if (indexA === -1) {
+        return 1;
+      }
+      if (indexB === -1) {
+        return -1;
+      }
+      return indexA - indexB;
+    });
+  }, [formatMap]);
   const isPlatformSelected = selectedPlatforms.length > 0;
 
   // Validate platform content and return errors
@@ -2355,13 +2376,10 @@ export default function CreatePostPage() {
                       <div className="space-y-4">
                         {/* Platform Selection Bar (Metricool-style horizontal bar) - Only Connected Platforms */}
                         <div className="flex items-center gap-2 overflow-x-auto pb-2">
-                          {Object.entries(PLATFORM_ICON_CONFIG)
-                            .filter(([platformKey]) => {
-                              const platform = platformKey as Platform;
-                              return isPlatformConnected(platform);
-                            })
-                            .map(([platformKey, config]) => {
-                              const platform = platformKey as Platform;
+                          {PLATFORM_ORDER
+                            .filter(platform => isPlatformConnected(platform))
+                            .map((platform) => {
+                              const config = PLATFORM_ICON_CONFIG[platform];
                               const Icon = config.icon;
                               const selectedFormats = Array.from(formatMap.get(platform) ?? []);
                               const isSelected = selectedFormats.length > 0;
