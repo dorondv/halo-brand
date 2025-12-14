@@ -134,8 +134,7 @@ export async function POST(request: Request) {
                   url,
                 };
               });
-            } catch (error) {
-              console.error('[Posts API] Error uploading media to Getlate:', error);
+            } catch {
               // Fallback to original URLs in mediaItems format
               mediaItems = rawMediaUrls.map((url: string) => {
                 const urlLower = url.toLowerCase();
@@ -175,36 +174,56 @@ export async function POST(request: Request) {
               const platformKey = platform; // Use platform as key to ensure only one entry per platform
               if (seenPlatforms.has(platformKey)) {
                 // Platform already processed - skip to prevent duplicate posts
-                if (process.env.NODE_ENV === 'development') {
-                  console.warn(`[Posts API] Skipping duplicate platform ${platform} to prevent multiple posts`);
-                }
                 return null;
               }
               seenPlatforms.add(platformKey);
 
+              // Start with platform-specific config from frontend
               const platformSpecificData: Record<string, unknown> = { ...(p.config || {}) };
 
+              // Handle platform-specific mediaItems
               // If platform has specific mediaItems in config, use those; otherwise use shared mediaItems
               const platformMediaItems = platformSpecificData.mediaItems as Array<{ type: 'image' | 'video'; url: string }> | undefined;
-              const finalMediaItems = platformMediaItems && platformMediaItems.length > 0 ? platformMediaItems : mediaItems;
-
-              // For Facebook, also include mediaItems in platformSpecificData
-              // (though they should also be at root level)
-              if (platform === 'facebook' && finalMediaItems && finalMediaItems.length > 0) {
-                platformSpecificData.mediaItems = finalMediaItems;
+              if (platformMediaItems && platformMediaItems.length > 0) {
+                // Platform has specific media - use it
+                platformSpecificData.mediaItems = platformMediaItems;
+              } else if (mediaItems && mediaItems.length > 0) {
+                // Use shared mediaItems for this platform
+                // Some platforms (like Facebook) may need mediaItems in platformSpecificData
+                if (platform === 'facebook' || platform === 'instagram' || platform === 'threads') {
+                  platformSpecificData.mediaItems = mediaItems;
+                }
               }
 
-              // If platform has specific content in config, use that; otherwise use shared content
-              if (platformSpecificData.content) {
-                // Platform-specific content is already in platformSpecificData
-              } else {
-                // Use shared content (will be at root level in Getlate API call)
+              // Handle platform-specific content
+              // If platform has specific content in config, it's already in platformSpecificData.content
+              // Otherwise, shared content (payload.content) will be used at root level
+              // Note: Don't set platformSpecificData.content to shared content - let Getlate use root level content
+
+              // Ensure format is set if provided
+              if (platformSpecificData.format) {
+                // Format is already set from config
+              }
+
+              // Ensure firstComment is included if provided
+              if (platformSpecificData.firstComment) {
+                // firstComment is already set from config
+              }
+
+              // Ensure platform-specific hashtags are included if provided
+              if (platformSpecificData.hashtags && Array.isArray(platformSpecificData.hashtags)) {
+                // Hashtags are already set from config
+              }
+
+              // Ensure platform-specific title is included if provided (for YouTube, LinkedIn)
+              if (platformSpecificData.title) {
+                // Title is already set from config
               }
 
               return {
                 platform,
                 accountId: getlateAccountId, // Getlate API expects accountId (camelCase)
-                platformSpecificData,
+                platformSpecificData: Object.keys(platformSpecificData).length > 0 ? platformSpecificData : undefined,
               };
             })
             .filter(Boolean) as Array<{
@@ -249,10 +268,64 @@ export async function POST(request: Request) {
             // Platform-specific content goes in platformSpecificData.content for each platform
             // Title can be at root level (for YouTube, LinkedIn) or in platformSpecificData
             // Use mediaItems format (required by Getlate API for proper media handling)
+            // Set publishNow to true if not scheduled (for immediate publishing)
+
+            // Ensure LinkedIn and YouTube have title in platformSpecificData if title exists
+            // Some platforms require title in platformSpecificData, not just root level
+            // Also ensure LinkedIn has proper content structure and media handling
+            getlatePlatformsArray.forEach((platform) => {
+              if (platform.platform === 'linkedin' || platform.platform === 'youtube') {
+                if (!platform.platformSpecificData) {
+                  platform.platformSpecificData = {};
+                }
+
+                // Ensure title is in platformSpecificData for LinkedIn/YouTube
+                if (sharedTitle && !platform.platformSpecificData.title) {
+                  platform.platformSpecificData.title = sharedTitle;
+                }
+
+                // LinkedIn-specific: Handle media items properly
+                // LinkedIn supports up to 20 images, single video, or single PDF
+                // LinkedIn doesn't support mixing media types in a single post
+                if (platform.platform === 'linkedin') {
+                  // Get mediaItems from platformSpecificData or use shared mediaItems
+                  const platformMediaItems = platform.platformSpecificData.mediaItems as Array<{ type: string; url: string }> | undefined;
+                  const finalMediaItems = platformMediaItems || mediaItems;
+
+                  if (finalMediaItems && finalMediaItems.length > 0) {
+                    const hasImages = finalMediaItems.some(m => m.type === 'image');
+                    const hasVideos = finalMediaItems.some(m => m.type === 'video');
+
+                    // If mixing media types, prefer images (more reliable for LinkedIn)
+                    if (hasImages && hasVideos) {
+                      const imageItems = finalMediaItems.filter(m => m.type === 'image');
+                      platform.platformSpecificData.mediaItems = imageItems;
+                    } else {
+                      // Ensure mediaItems are set in platformSpecificData for LinkedIn
+                      platform.platformSpecificData.mediaItems = finalMediaItems;
+                    }
+
+                    // LinkedIn has a limit of 20 images
+                    if (hasImages && finalMediaItems.length > 20) {
+                      platform.platformSpecificData.mediaItems = finalMediaItems.slice(0, 20);
+                    }
+                  }
+
+                  // LinkedIn: Ensure content is set if platform-specific content exists
+                  // If no platform-specific content, LinkedIn will use root-level content
+                  if (platform.platformSpecificData.content) {
+                    // Platform-specific content is already set
+                  } else if (payload.content) {
+                    // For LinkedIn, ensure content is available (will use root-level)
+                  }
+                }
+              }
+            });
+
             const getlatePost = await getlateClient.createPost({
               profileId: brandRecord.getlate_profile_id,
               content: payload.content, // Shared content (platform-specific content is in platformSpecificData)
-              title: sharedTitle, // Optional title (for YouTube, LinkedIn) - can also be in platformSpecificData
+              title: sharedTitle, // Optional title (for YouTube, LinkedIn) - also in platformSpecificData
               // Send mediaItems at root level (Getlate API format)
               // Platform-specific mediaItems are in platformSpecificData.mediaItems
               mediaItems,
@@ -261,6 +334,8 @@ export async function POST(request: Request) {
               platforms: getlatePlatformsArray,
               // Add hashtags if provided
               hashtags: payload.hashtags,
+              // Publish immediately if not scheduled
+              publishNow: !payload.scheduled_for,
             });
 
             getlatePostId = getlatePost.id || (getlatePost as any)._id;
