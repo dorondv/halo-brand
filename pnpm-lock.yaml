@@ -102,6 +102,9 @@ importers:
       '@commitlint/prompt-cli':
         specifier: ^20.1.0
         version: 20.1.0(@types/node@24.9.2)(typescript@5.9.3)
+      '@electric-sql/pglite':
+        specifier: ^0.3.11
+        version: 0.3.11
       '@electric-sql/pglite-socket':
         specifier: ^0.0.16
         version: 0.0.16(@electric-sql/pglite@0.3.11)
