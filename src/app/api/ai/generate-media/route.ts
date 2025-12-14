@@ -15,9 +15,9 @@ const generateMediaSchema = z.object({
 export async function POST(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
 
-    if (!session) {
+    if (authError || !user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
@@ -93,10 +93,10 @@ export async function POST(request: Request) {
     const { data: userRecord } = await supabase
       .from('users')
       .select('id')
-      .eq('email', session.user.email)
+      .eq('email', user.email)
       .maybeSingle();
 
-    const userId = userRecord?.id || session.user.id;
+    const userId = userRecord?.id || user.id;
     const fileName = `${userId}/ai-generated/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
 
     // Upload to Supabase Storage
