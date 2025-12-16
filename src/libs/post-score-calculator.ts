@@ -118,6 +118,7 @@ export function detectPostType(
 
 /**
  * Calculate benchmark metrics from top 10 posts of the same type
+ * Includes minimum thresholds to prevent inflated scores
  */
 function calculateBenchmarks(
   posts: PostWithMetrics[],
@@ -168,19 +169,26 @@ function calculateBenchmarks(
   const avgEngagement = top10.reduce((sum, p) => sum + p.metrics.engagement, 0) / top10.length;
   const avgEngagementRate = top10.reduce((sum, p) => sum + p.metrics.engagementRate, 0) / top10.length;
 
+  // Apply minimum thresholds to prevent inflated scores when benchmarks are too low
+  // These thresholds ensure that posts with very low engagement don't get high scores
+  const MIN_ENGAGEMENT_THRESHOLD = 5; // Minimum engagement to be considered "good"
+  const MIN_IMPRESSIONS_THRESHOLD = 10; // Minimum impressions to be considered meaningful
+  const MIN_ENGAGEMENT_RATE_THRESHOLD = 0.5; // Minimum 0.5% engagement rate
+
   return {
-    topImpressions,
-    topEngagement,
-    topEngagementRate,
-    avgImpressions,
-    avgEngagement,
-    avgEngagementRate,
+    topImpressions: Math.max(topImpressions, MIN_IMPRESSIONS_THRESHOLD),
+    topEngagement: Math.max(topEngagement, MIN_ENGAGEMENT_THRESHOLD),
+    topEngagementRate: Math.max(topEngagementRate, MIN_ENGAGEMENT_RATE_THRESHOLD),
+    avgImpressions: Math.max(avgImpressions, MIN_IMPRESSIONS_THRESHOLD),
+    avgEngagement: Math.max(avgEngagement, MIN_ENGAGEMENT_THRESHOLD),
+    avgEngagementRate: Math.max(avgEngagementRate, MIN_ENGAGEMENT_RATE_THRESHOLD),
   };
 }
 
 /**
  * Calculate smart relative score for a post
- * Score is 0-100, relative to brand's top 10 posts of the same type
+ * Score is 0-100, combining relative performance with absolute performance indicators
+ * This ensures posts with objectively better metrics score higher
  */
 export function calculateSmartScore(
   post: PostWithMetrics,
@@ -198,50 +206,93 @@ export function calculateSmartScore(
     && benchmarks.topEngagementRate === 0
   ) {
     // Fallback: simple score based on engagement rate and engagement
-    return Math.min(100, Math.floor(metrics.engagementRate * 2 + Math.min(metrics.engagement / 100, 50)));
+    // Cap at 50 for posts without benchmarks to prevent inflated scores
+    return Math.min(50, Math.floor(metrics.engagementRate * 2 + Math.min(metrics.engagement / 100, 30)));
   }
 
+  // PART 1: Relative performance score (0-70 points max)
   // Normalize metrics relative to benchmarks
   // Each metric contributes to the score:
-  // - Impressions: 30% weight
-  // - Engagement: 40% weight
-  // - Engagement Rate: 30% weight
+  // - Impressions: 25% weight
+  // - Engagement: 50% weight (most important)
+  // - Engagement Rate: 25% weight
 
-  // Normalize impressions (0-1 scale)
+  // Normalize impressions (0-1 scale) with logarithmic scaling for better distribution
   const impressionsScore = benchmarks.topImpressions > 0
-    ? Math.min(1, metrics.impressions / benchmarks.topImpressions)
+    ? Math.min(1, Math.log10(1 + metrics.impressions) / Math.log10(1 + benchmarks.topImpressions))
     : 0;
 
-  // Normalize engagement (0-1 scale)
+  // Normalize engagement (0-1 scale) with logarithmic scaling
   const engagementScore = benchmarks.topEngagement > 0
-    ? Math.min(1, metrics.engagement / benchmarks.topEngagement)
+    ? Math.min(1, Math.log10(1 + metrics.engagement) / Math.log10(1 + benchmarks.topEngagement))
     : 0;
 
-  // Normalize engagement rate (0-1 scale)
+  // Normalize engagement rate (0-1 scale) - linear for percentage
   const engagementRateScore = benchmarks.topEngagementRate > 0
     ? Math.min(1, metrics.engagementRate / benchmarks.topEngagementRate)
     : 0;
 
-  // Calculate weighted composite score
-  const compositeScore
-    = impressionsScore * 0.3
-      + engagementScore * 0.4
-      + engagementRateScore * 0.3;
+  // Calculate weighted composite score (relative performance)
+  const relativeScore = (
+    impressionsScore * 0.25
+    + engagementScore * 0.50
+    + engagementRateScore * 0.25
+  ) * 70; // Scale to 0-70 points
 
-  // Convert to 0-100 scale
-  // Use a curve to make the score distribution more meaningful
-  // Posts that exceed benchmarks get bonus points
-  let finalScore = compositeScore * 100;
+  // PART 2: Absolute performance bonus (0-30 points max)
+  // Reward posts with objectively good metrics regardless of relative performance
+  let absoluteBonus = 0;
 
-  // Bonus for exceeding top benchmarks
+  // Engagement bonus: reward posts with meaningful engagement
+  if (metrics.engagement >= 20) {
+    absoluteBonus += 15; // High engagement bonus
+  } else if (metrics.engagement >= 10) {
+    absoluteBonus += 10; // Medium engagement bonus
+  } else if (metrics.engagement >= 5) {
+    absoluteBonus += 5; // Low engagement bonus
+  }
+
+  // Engagement rate bonus: reward posts with good engagement rates
+  if (metrics.engagementRate >= 5) {
+    absoluteBonus += 10; // Excellent engagement rate
+  } else if (metrics.engagementRate >= 2) {
+    absoluteBonus += 5; // Good engagement rate
+  } else if (metrics.engagementRate >= 1) {
+    absoluteBonus += 2; // Decent engagement rate
+  }
+
+  // Impressions bonus: reward posts with good reach
+  if (metrics.impressions >= 1000) {
+    absoluteBonus += 5; // High impressions
+  } else if (metrics.impressions >= 500) {
+    absoluteBonus += 3; // Medium impressions
+  } else if (metrics.impressions >= 100) {
+    absoluteBonus += 1; // Low impressions
+  }
+
+  // Cap absolute bonus at 30 points
+  absoluteBonus = Math.min(30, absoluteBonus);
+
+  // PART 3: Bonus for exceeding top benchmarks (0-10 points max)
+  let benchmarkBonus = 0;
   if (metrics.impressions >= benchmarks.topImpressions && benchmarks.topImpressions > 0) {
-    finalScore += 5; // Bonus for top impressions
+    benchmarkBonus += 3; // Bonus for top impressions
   }
   if (metrics.engagement >= benchmarks.topEngagement && benchmarks.topEngagement > 0) {
-    finalScore += 5; // Bonus for top engagement
+    benchmarkBonus += 4; // Bonus for top engagement (most important)
   }
   if (metrics.engagementRate >= benchmarks.topEngagementRate && benchmarks.topEngagementRate > 0) {
-    finalScore += 5; // Bonus for top engagement rate
+    benchmarkBonus += 3; // Bonus for top engagement rate
+  }
+  benchmarkBonus = Math.min(10, benchmarkBonus);
+
+  // Calculate final score: relative (0-70) + absolute bonus (0-30) + benchmark bonus (0-10)
+  let finalScore = relativeScore + absoluteBonus + benchmarkBonus;
+
+  // Ensure posts with very low engagement don't score too high
+  // If engagement is less than 2, cap the score at 40
+  if (metrics.engagement < 2) {
+    finalScore = Math.min(40, finalScore);
   }
 
   // Cap at 100
