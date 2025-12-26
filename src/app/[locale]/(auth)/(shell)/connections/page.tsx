@@ -462,6 +462,47 @@ export default function ConnectionsPage() {
     }
   }, [selectedBrandId, brands]);
 
+  const syncNow = useCallback(async (silent = false) => {
+    if (!selectedBrandId || !selectedBrand?.getlate_profile_id) {
+      if (!silent) {
+        showToast(
+          t('sync_error_no_brand') || 'No brand selected or brand not linked to Getlate profile',
+          'error',
+        );
+      }
+      return;
+    }
+
+    try {
+      const response = await fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
+        throw new Error(errorData.error || 'Failed to sync accounts');
+      }
+
+      // Small delay to ensure database write is complete
+      await new Promise(resolve => setTimeout(resolve, 500));
+
+      // Reload accounts from DB to show updated follower counts
+      await loadAccountsFromDB(true, false);
+
+      if (!silent) {
+        showToast(
+          t('sync_success_description') || 'Accounts synced successfully. Follower counts updated.',
+          'success',
+        );
+      }
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to sync accounts';
+      console.error('[Connections] Sync error:', errorMessage);
+      // Only show error toast if not silent (silent mode for background sync)
+      if (!silent) {
+        showToast(errorMessage, 'error');
+      }
+    }
+  }, [selectedBrandId, selectedBrand, loadAccountsFromDB, showToast, t]);
+
   useEffect(() => {
     // Load brands on mount - using setTimeout to avoid cascading renders warning
     const timeoutId = setTimeout(() => {
@@ -473,26 +514,29 @@ export default function ConnectionsPage() {
     };
   }, [loadBrands]);
 
-  // Track if we've synced on mount to avoid multiple syncs
-  const hasSyncedOnMount = useRef(false);
+  // Track last synced brand to avoid redundant syncs
+  const lastSyncedBrandId = useRef<string | null>(null);
 
   useEffect(() => {
     // Load accounts when selected brand changes - only when brand actually changes
     if (selectedBrandId) {
-      // On first load (page refresh), sync accounts from Getlate
-      if (!hasSyncedOnMount.current) {
-        hasSyncedOnMount.current = true;
-        void loadAccountsFromDB(false, true); // Sync on page refresh
-      } else {
-        void loadAccountsFromDB(false, false); // Don't auto-sync on subsequent brand changes
+      // Load accounts from DB first (immediate, shows existing data)
+      void loadAccountsFromDB(false, false);
+
+      // If brand has Getlate profile and hasn't been synced yet, sync in background
+      const currentBrand = brands.find(b => b.id === selectedBrandId);
+      if (currentBrand?.getlate_profile_id && lastSyncedBrandId.current !== selectedBrandId) {
+        lastSyncedBrandId.current = selectedBrandId;
+        // Trigger sync in background (silent mode - no toast notifications)
+        void syncNow(true);
       }
     } else {
       // Clear accounts when no brand is selected
       setAccounts([]);
-      hasSyncedOnMount.current = false; // Reset when brand is cleared
+      lastSyncedBrandId.current = null; // Reset when brand is cleared
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedBrandId]); // Depend on brand ID from context
+  }, [selectedBrandId, brands]); // Depend on brand ID and brands array
 
   // Handle headless mode OAuth callback
   useEffect(() => {
@@ -651,29 +695,53 @@ export default function ConnectionsPage() {
 
       // Wait a bit for database commit, then reload accounts
       // Use a longer delay to ensure sync completed on server
-      const reloadTimeout = setTimeout(() => {
+      const reloadTimeout = setTimeout(async () => {
         const currentBrandId = brandIdFromUrl || selectedBrandId;
 
         if (currentBrandId) {
           // Clear accounts first to force a fresh load
-          // Use a function to update state to avoid direct setState in useEffect
-          setAccounts(() => []);
+          setAccounts([]);
+
+          // Wait a bit more to ensure database is fully updated
+          await new Promise(resolve => setTimeout(resolve, 500));
+
           // Reload from DB - sync already completed on server side
-          void loadAccountsFromDB(true, false); // skipSync=true to avoid double sync, forceSync=false
+          await loadAccountsFromDB(true, false); // skipSync=true to avoid double sync, forceSync=false
+
+          // Sync follower counts to ensure latest data and reload accounts
+          const currentBrand = brands.find(b => b.id === currentBrandId);
+          if (currentBrand?.getlate_profile_id) {
+            // Wait a bit before syncing to ensure DB is ready
+            await new Promise(resolve => setTimeout(resolve, 500));
+            await syncNow(true);
+          }
         }
-      }, 1000); // Wait 1 second for DB commit
+      }, 1500); // Wait 1.5 seconds for DB commit
 
       // If sync failed on server, retry sync once
       let retryTimeout: NodeJS.Timeout | undefined;
       if (!synced) {
-        retryTimeout = setTimeout(() => {
+        retryTimeout = setTimeout(async () => {
           const currentBrandId = brandIdFromUrl || selectedBrandId;
 
           if (currentBrandId) {
+            // Clear accounts to force refresh
+            setAccounts([]);
+
+            // Wait a bit before retry
+            await new Promise(resolve => setTimeout(resolve, 500));
+
             // Retry sync from Getlate
-            void loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
+            await loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
+
+            // Also sync follower counts after retry and reload accounts
+            const currentBrand = brands.find(b => b.id === currentBrandId);
+            if (currentBrand?.getlate_profile_id) {
+              await new Promise(resolve => setTimeout(resolve, 500));
+              await syncNow(true);
+            }
           }
-        }, 1500);
+        }, 2000);
       }
 
       return () => {
@@ -1129,13 +1197,16 @@ export default function ConnectionsPage() {
         return;
       }
 
-      // Remove from UI immediately
-      setAccounts(prev => prev.filter(acc => acc.id !== accountIdToDisconnect));
       setAccountToDisconnect(null);
       showToast(t('account_disconnected_success'), 'success');
 
       // Reload accounts with skipSync=true to prevent Getlate sync from reactivating it
-      await loadAccountsFromDB(true);
+      await loadAccountsFromDB(true, false);
+
+      // Sync follower counts for remaining accounts and reload
+      if (selectedBrand?.getlate_profile_id) {
+        await syncNow(true);
+      }
     } catch (error) {
       console.error('Error disconnecting account:', error);
       showToast(t('connection_error'), 'error');
@@ -1236,6 +1307,11 @@ export default function ConnectionsPage() {
       // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadAccountsFromDB(false, true); // Force sync to get updated followers count
+
+      // Also sync follower counts to ensure latest data and reload accounts
+      if (selectedBrand?.getlate_profile_id) {
+        await syncNow(true);
+      }
     } catch (error) {
       console.error('Error saving Facebook page:', error);
       showToast(
@@ -1369,9 +1445,16 @@ export default function ConnectionsPage() {
       setHeadlessFacebookPages([]);
 
       // Reload accounts after a delay
-      setTimeout(() => {
-        if (headlessModeData.brandId || selectedBrandId) {
-          void loadAccountsFromDB(false, true);
+      setTimeout(async () => {
+        const brandId = headlessModeData.brandId || selectedBrandId;
+        if (brandId) {
+          await loadAccountsFromDB(false, true);
+
+          // Sync follower counts and reload accounts
+          const currentBrand = brands.find(b => b.id === brandId);
+          if (currentBrand?.getlate_profile_id) {
+            await syncNow(true);
+          }
         }
       }, 1000);
     } catch (error) {
@@ -1426,9 +1509,16 @@ export default function ConnectionsPage() {
       setSelectedLinkedInOrgId(null);
 
       // Reload accounts after a delay
-      setTimeout(() => {
-        if (headlessModeData.brandId || selectedBrandId) {
-          void loadAccountsFromDB(false, true);
+      setTimeout(async () => {
+        const brandId = headlessModeData.brandId || selectedBrandId;
+        if (brandId) {
+          await loadAccountsFromDB(false, true);
+
+          // Sync follower counts and reload accounts
+          const currentBrand = brands.find(b => b.id === brandId);
+          if (currentBrand?.getlate_profile_id) {
+            await syncNow(true);
+          }
         }
       }, 1000);
     } catch (error) {
@@ -1647,6 +1737,11 @@ export default function ConnectionsPage() {
       // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
       await new Promise(resolve => setTimeout(resolve, 500));
       await loadAccountsFromDB(false, true); // Force sync to get updated followers count
+
+      // Also sync follower counts to ensure latest data and reload accounts
+      if (selectedBrand?.getlate_profile_id) {
+        await syncNow(true);
+      }
     } catch (error) {
       console.error('Error saving LinkedIn settings:', error);
       showToast(
@@ -2101,7 +2196,7 @@ export default function ConnectionsPage() {
           open={!!accountToDisconnect}
           onOpenChange={() => setAccountToDisconnect(null)}
         >
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('are_you_sure')}</DialogTitle>
             </DialogHeader>
