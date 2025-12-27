@@ -103,8 +103,8 @@ export function DashboardShell({ children }: Props) {
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
           <div className="flex items-center justify-between">
-            <div className="shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
-              <Logo width={120} height={30} className="text-white" />
+            <div className="shrink-0 pb-1">
+              <Logo width={130} height={35} />
             </div>
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
               <X className="h-6 w-6" />

@@ -43,8 +43,8 @@ export default async function MarketingPage() {
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
-            <Logo width={140} height={35} className="text-white" />
+          <div className="flex-shrink-0 pb-2">
+            <Logo width={140} height={40} />
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>

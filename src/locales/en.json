@@ -116,7 +116,7 @@
     "feature_ai_desc": "AI-driven recommendations and insights",
     "signup_title": "Get started now",
     "signup_subtitle": "Join us and start managing your brand smartly",
-    "benefits_title": "Why Halo Brand?",
+    "benefits_title": "Why Branda?",
     "benefit_free_title": "Free to start",
     "benefit_free_desc": "Start for free and scale as needed",
     "benefit_easy_title": "Easy to use",
@@ -126,7 +126,7 @@
     "stat_active_users": "Active users",
     "stat_managed_posts": "Managed posts",
     "stat_satisfaction": "Satisfaction",
-    "footer_copyright": "© Halo Brand 2024. All rights reserved."
+    "footer_copyright": "© Branda 2024. All rights reserved."
   },
   "Auth": {
     "email_label": "Email",

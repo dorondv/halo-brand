@@ -27,8 +27,8 @@ export default async function SignUpPage() {
       {/* Header */}
       <header className="container mx-auto px-6 pt-6 pb-2">
         <div className="flex items-center justify-center">
-          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
-            <Logo width={140} height={35} className="text-white" />
+          <div className="flex-shrink-0 pb-2">
+            <Logo width={150} height={40} />
           </div>
         </div>
       </header>

@@ -35,7 +35,7 @@ import { DashboardWrapper } from './DashboardWrapper';
 import { MetricCardsClient } from './MetricCardsClient';
 
 export const metadata: Metadata = {
-  title: 'Halo Brand - Dashboard',
+  title: 'Branda - Dashboard',
   description: 'Dashboard for social media analytics',
 };
 
