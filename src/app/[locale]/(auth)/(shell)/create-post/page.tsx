@@ -2324,6 +2324,28 @@ export default function CreatePostPage() {
 
   return (
     <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* AI Generation Loader Overlay */}
+      {isGeneratingAll && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="relative rounded-2xl bg-white p-8 shadow-2xl">
+            <div className="flex flex-col items-center gap-4">
+              <div className="relative">
+                <div className="h-16 w-16 animate-spin rounded-full border-4 border-pink-200 border-t-pink-600" />
+                <Wand2 className="absolute top-1/2 left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-pink-600" />
+              </div>
+              <div className="text-center">
+                <h3 className="text-lg font-semibold text-slate-900">
+                  {isRTL ? 'יוצר תוכן באמצעות AI...' : 'Generating content with AI...'}
+                </h3>
+                <p className="mt-1 text-sm text-slate-600">
+                  {isRTL ? 'אנא המתן, זה עשוי לקחת כמה רגעים' : 'Please wait, this may take a few moments'}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mx-auto max-w-[1600px] px-6 py-6">
         {/* Header */}
         <div className="mb-6">
@@ -2458,7 +2480,7 @@ export default function CreatePostPage() {
                               </div>
 
                             </CardHeader>
-                            <CardContent className="p-6">
+                            <CardContent className={cn('p-6', isGeneratingAll && 'pointer-events-none opacity-50')}>
                               <div className="space-y-4">
                                 {/* Create with AI Button - First */}
                                 <div className="flex items-center justify-center">
