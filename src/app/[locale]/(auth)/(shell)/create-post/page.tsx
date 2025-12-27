@@ -2388,7 +2388,6 @@ export default function CreatePostPage() {
                               const Icon = config.icon;
                               const selectedFormats = Array.from(formatMap.get(platform) ?? []);
                               const isSelected = selectedFormats.length > 0;
-                              const availableFormats = platformFormats[platform] || [];
                               const isConnected = isPlatformConnected(platform);
 
                               // Only render if platform is connected
@@ -2417,7 +2416,7 @@ export default function CreatePostPage() {
                                     disabled={!isConnected || !selectedBrandId}
                                     className={cn(
                                       'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
-                                      config.bg,
+                                      isSelected ? config.bg : 'bg-slate-300',
                                       (!isConnected || !selectedBrandId) && 'cursor-not-allowed opacity-50',
                                     )}
                                     title={
@@ -2428,25 +2427,8 @@ export default function CreatePostPage() {
                                             : undefined
                                     }
                                   >
-                                    <Icon className="h-5 w-5 text-white" />
+                                    <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-slate-600')} />
                                   </button>
-                                  {isSelected && availableFormats.length > 0 && isConnected && (
-                                    <Select
-                                      value={selectedFormats[0] || availableFormats[0] || ''}
-                                      onValueChange={value => handleToggleFormat(platform, value as Format)}
-                                    >
-                                      <SelectTrigger className="h-8 min-w-[80px] border-0 bg-transparent px-2 py-0 text-xs font-medium shadow-none hover:bg-transparent">
-                                        <SelectValue placeholder="POST" />
-                                      </SelectTrigger>
-                                      <SelectContent>
-                                        {availableFormats.map(format => (
-                                          <SelectItem key={format} value={format}>
-                                            {FORMAT_LABELS[format]}
-                                          </SelectItem>
-                                        ))}
-                                      </SelectContent>
-                                    </Select>
-                                  )}
                                 </div>
                               );
                             })}
@@ -2474,38 +2456,7 @@ export default function CreatePostPage() {
                                   </Button>
                                 )}
                               </div>
-                              {/* Platform badges */}
-                              {selectedPlatforms.length > 0 && (
-                                <div className="mt-2 flex flex-wrap items-center gap-2">
-                                  {selectedPlatforms.map((platform) => {
-                                    const Icon = PLATFORM_ICON_CONFIG[platform]?.icon;
-                                    const config = PLATFORM_ICON_CONFIG[platform];
-                                    const selectedFormats = Array.from(formatMap.get(platform) ?? []);
-                                    return (
-                                      <div
-                                        key={platform}
-                                        className={cn(
-                                          'flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium',
-                                          'bg-white border-pink-200 text-slate-700',
-                                        )}
-                                      >
-                                        {Icon && (
-                                          <div className={cn('flex h-4 w-4 items-center justify-center rounded', config.bg)}>
-                                            <Icon className="h-2.5 w-2.5 text-white" />
-                                          </div>
-                                        )}
-                                        <span>{config.name}</span>
-                                        {selectedFormats[0] && (
-                                          <span className="text-slate-400">
-                                            •
-                                            {FORMAT_LABELS[selectedFormats[0] as Format]}
-                                          </span>
-                                        )}
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              )}
+
                             </CardHeader>
                             <CardContent className="p-6">
                               <div className="space-y-4">
@@ -2638,31 +2589,65 @@ export default function CreatePostPage() {
                                   </div>
                                 )}
 
-                                {/* Title Input - Campaign name or title */}
-                                <div className="space-y-2">
-                                  <label className="text-sm font-medium text-slate-700">
-                                    {isRTL ? 'כותרת קמפיין (אופציונלי)' : 'Campaign Name / Title (Optional)'}
-                                  </label>
-                                  <Input
-                                    value={postTitle || (firstPlatform ? (platformContent[firstPlatform]?.title || '') : '')}
-                                    onChange={(e) => {
-                                      const newTitle = e.target.value;
-                                      setPostTitle(newTitle);
-                                      // Update title for all selected platforms
-                                      selectedPlatforms.forEach((platform) => {
-                                        setPlatformContent(prev => ({
-                                          ...prev,
-                                          [platform]: {
-                                            ...(prev[platform] || { caption: '', title: '', link: '', mediaUrls: [], hashtags: [] }),
-                                            title: newTitle,
-                                          },
-                                        }));
-                                      });
-                                    }}
-                                    placeholder={t('post_title_placeholder')}
-                                    className="border-slate-200 bg-white focus:border-pink-400"
-                                  />
-                                </div>
+                                {/* Post Type Display - Show as label in unified mode, editable in per-platform mode */}
+                                {selectedPlatforms.length > 0 && editMode === 'unified' && (() => {
+                                  // Get formats for all selected platforms
+                                  const platformFormatsList = selectedPlatforms.map((platform) => {
+                                    const selectedFormats = Array.from(formatMap.get(platform) ?? []);
+                                    const format = selectedFormats[0];
+                                    return { platform, format };
+                                  });
+
+                                  // Check if all platforms have the same format
+                                  const formats = platformFormatsList.map(p => p.format).filter(Boolean);
+                                  const allSameFormat = formats.length > 0 && formats.every(f => f === formats[0]);
+
+                                  // If all platforms have the same format, show it once; otherwise show per platform
+                                  if (allSameFormat && formats[0]) {
+                                    return (
+                                      <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+                                        <label className="text-sm font-semibold text-slate-900">
+                                          {isRTL ? 'סוג פוסט:' : 'Post Type:'}
+                                        </label>
+                                        <span className="rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
+                                          {FORMAT_LABELS[formats[0] as Format]}
+                                        </span>
+                                      </div>
+                                    );
+                                  }
+
+                                  // Show formats per platform
+                                  return (
+                                    <div className={cn('space-y-2', isRTL && 'text-right')}>
+                                      <label className="block text-sm font-semibold text-slate-900">
+                                        {isRTL ? 'סוגי פוסט:' : 'Post Types:'}
+                                      </label>
+                                      <div className={cn('flex flex-wrap gap-2', isRTL && 'flex-row-reverse')}>
+                                        {platformFormatsList.map(({ platform, format }) => {
+                                          const config = PLATFORM_ICON_CONFIG[platform];
+                                          if (!format) {
+                                            return null;
+                                          }
+                                          return (
+                                            <div
+                                              key={platform}
+                                              className={cn('flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-xs', 'border-pink-200')}
+                                            >
+                                              {config.icon && (
+                                                <div className={cn('flex h-4 w-4 items-center justify-center rounded', config.bg)}>
+                                                  <config.icon className="h-2.5 w-2.5 text-white" />
+                                                </div>
+                                              )}
+                                              <span className="font-medium text-slate-700">{config.name}</span>
+                                              <span className="text-pink-600">•</span>
+                                              <span className="text-pink-600">{FORMAT_LABELS[format as Format]}</span>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
+                                    </div>
+                                  );
+                                })()}
 
                                 {/* Caption Textarea */}
                                 <div className="relative">
