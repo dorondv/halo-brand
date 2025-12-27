@@ -189,7 +189,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     getGetlatePosts(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom.toISOString().split('T')[0],
       toDate: rangeTo.toISOString().split('T')[0],
-      platform: (selectedPlatform === 'all' ? 'all' : selectedPlatform) as any,
+      platform: 'all' as any, // Always fetch all platforms - filtering happens in PostsTable component
     }),
   ]);
 
@@ -318,39 +318,31 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   let totalEngagement = 0;
   let totalFollowers = 0;
 
-  // Use Getlate API overview data for post counts (matches Getlate API exactly)
-  // Fallback to manual counting if Getlate overview is not available
-  let totalPosts = 0;
+  // Count unique published posts (External Post IDs only)
+  // Always use database count as primary source - it's already filtered by brand and date
+  // dateFilteredAnalytics is already filtered to only published posts
+  const uniquePostIds = new Set<string>();
+  if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
+    for (const post of dateFilteredPosts) {
+      // Only include published posts
+      if (post?.id && post.status === 'published') {
+        uniquePostIds.add(post.id);
+      }
+    }
+  }
+  // Include posts from analytics (already filtered to published posts only)
+  for (const analytics of dateFilteredAnalytics) {
+    if (analytics.post_id) {
+      uniquePostIds.add(analytics.post_id);
+    }
+  }
+  let totalPosts = uniquePostIds.size;
 
-  if (getlateOverview) {
-    // Use Getlate API overview data (exact match with API response)
-    // For dashboard display, use publishedPosts since we're showing published posts
-    // totalPosts includes all posts (published + scheduled + draft)
+  // Use Getlate API overview as validation/fallback only if database count is 0
+  // This ensures we show correct counts even when Getlate API returns 0 or null
+  if (totalPosts === 0 && getlateOverview && getlateOverview.publishedPosts > 0) {
+    // Fallback to Getlate API if database shows 0 but API shows posts
     totalPosts = getlateOverview.publishedPosts || 0;
-    // Note: getlateOverview also provides:
-    // - totalPosts: total number of posts (all statuses)
-    // - publishedPosts: number of published posts (what we display)
-    // - scheduledPosts: number of scheduled posts
-    // - lastSync: last sync timestamp
-  } else {
-    // Fallback: Count unique published posts (External Post IDs only)
-    // dateFilteredAnalytics is already filtered to only published posts
-    const uniquePostIds = new Set<string>();
-    if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
-      for (const post of dateFilteredPosts) {
-        // Only include published posts
-        if (post?.id && post.status === 'published') {
-          uniquePostIds.add(post.id);
-        }
-      }
-    }
-    // Include posts from analytics (already filtered to published posts only)
-    for (const analytics of dateFilteredAnalytics) {
-      if (analytics.post_id) {
-        uniquePostIds.add(analytics.post_id);
-      }
-    }
-    totalPosts = uniquePostIds.size;
   }
 
   // Calculate totals from date-filtered analytics (now deduplicated)
@@ -1206,15 +1198,18 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   });
 
   // Count unique previous period posts from both posts table and analytics
+  // Only include published posts (matching current period logic)
   const uniquePreviousPostIds = new Set<string>();
   if (previousDateFilteredPosts && Array.isArray(previousDateFilteredPosts)) {
     for (const post of previousDateFilteredPosts) {
-      if (post?.id) {
+      // Only include published posts (matching current period logic)
+      if (post?.id && post.status === 'published') {
         uniquePreviousPostIds.add(post.id);
       }
     }
   }
   // Also include posts that have analytics but might not be in posts table
+  // previousDateFilteredAnalytics is already filtered to published posts only
   for (const analytics of previousDateFilteredAnalytics) {
     if (analytics.post_id) {
       uniquePreviousPostIds.add(analytics.post_id);

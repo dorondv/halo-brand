@@ -8,6 +8,7 @@ import Image from 'next/image';
 import React, { useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/libs/cn';
 import { utcToLocal } from '@/libs/timezone';
 
@@ -147,13 +148,32 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   const [sortColumn, setSortColumn] = React.useState<string | null>('date');
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = React.useState(1);
+  const [selectedPlatform, setSelectedPlatform] = React.useState<string>('all');
   const postsPerPage = 5;
 
-  // Stabilize posts array to prevent hydration mismatches
-  // Use useMemo to ensure consistent reference and processing
+  // Get unique platforms from posts
+  const availablePlatforms = useMemo(() => {
+    const platforms = new Set<string>();
+    posts.forEach((post) => {
+      if (post.platform) {
+        platforms.add(post.platform.toLowerCase());
+      }
+    });
+    return Array.from(platforms).sort();
+  }, [posts]);
+
+  // Stabilize posts array and filter by platform
   const displayPosts = useMemo(() => {
+    // Filter by platform if selected
+    let filteredPosts = posts;
+    if (selectedPlatform !== 'all') {
+      filteredPosts = posts.filter(post =>
+        post.platform?.toLowerCase() === selectedPlatform.toLowerCase(),
+      );
+    }
+
     // Ensure all numeric values are properly converted to numbers
-    return posts.map(post => ({
+    return filteredPosts.map(post => ({
       ...post,
       score: Number(post.score) || 0,
       engagementRate: Number(post.engagementRate) || 0,
@@ -166,7 +186,7 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
       clicks: Number(post.clicks) || 0,
       views: Number(post.views) || 0,
     }));
-  }, [posts]);
+  }, [posts, selectedPlatform]);
 
   const handleSort = (column: string) => {
     if (sortColumn === column) {
@@ -236,19 +256,64 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
     setCurrentPage(page);
   };
 
+  const handlePlatformFilterChange = (value: string) => {
+    setSelectedPlatform(value);
+    setCurrentPage(1); // Reset to first page when filter changes
+  };
+
+  // Platform display names
+  const getPlatformDisplayName = (platform: string) => {
+    const platformLower = platform.toLowerCase();
+    const platformMap: Record<string, string> = {
+      instagram: 'Instagram',
+      facebook: 'Facebook',
+      x: 'X (Twitter)',
+      twitter: 'X (Twitter)',
+      youtube: 'YouTube',
+      linkedin: 'LinkedIn',
+      tiktok: 'TikTok',
+      threads: 'Threads',
+    };
+    return platformMap[platformLower] || platform.charAt(0).toUpperCase() + platform.slice(1);
+  };
+
   return (
     <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-          <FileText className="h-5 w-5 text-pink-600" />
-          {t('posts_details_title')}
-        </CardTitle>
-        <p className="mt-2 text-sm text-gray-600">
-          {t('posts_details_description')}
-        </p>
-        <p className="mt-1 text-xs text-gray-500">
-          {t('posts_table_scroll_hint') || '← Scroll horizontally to see all metrics →'}
-        </p>
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex-1">
+            <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+              <FileText className="h-5 w-5 text-pink-600" />
+              {t('posts_details_title')}
+            </CardTitle>
+            <p className="mt-2 text-sm text-gray-600">
+              {t('posts_details_description')}
+            </p>
+            <p className="mt-1 text-xs text-gray-500">
+              {t('posts_table_scroll_hint') || '← Scroll horizontally to see all metrics →'}
+            </p>
+          </div>
+          {availablePlatforms.length > 0 && (
+            <div className={cn('flex items-center gap-2', localeCode === 'he' && 'flex-row-reverse')}>
+              <label className={cn('text-sm font-medium text-gray-700 whitespace-nowrap', localeCode === 'he' && 'text-right')}>
+                {localeCode === 'he' ? 'פלטפורמה:' : 'Platform:'}
+              </label>
+              <Select value={selectedPlatform} onValueChange={handlePlatformFilterChange}>
+                <SelectTrigger className={cn('w-[180px]', localeCode === 'he' && 'flex-row-reverse')}>
+                  <SelectValue placeholder={localeCode === 'he' ? 'כל הפלטפורמות' : 'All Platforms'} />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">{localeCode === 'he' ? 'כל הפלטפורמות' : 'All Platforms'}</SelectItem>
+                  {availablePlatforms.map(platform => (
+                    <SelectItem key={platform} value={platform}>
+                      {getPlatformDisplayName(platform)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
       </CardHeader>
       <CardContent>
         <div className="relative">
