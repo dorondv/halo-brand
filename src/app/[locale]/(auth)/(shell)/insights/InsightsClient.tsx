@@ -285,7 +285,7 @@ export function InsightsClient() {
         <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
-          className={`flex flex-col items-start justify-between gap-6 md:flex-row md:items-center ${isRTL ? 'md:flex-row-reverse' : ''}`}
+          className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center"
         >
           <div>
             <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
