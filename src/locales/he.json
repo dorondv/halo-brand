@@ -172,7 +172,7 @@
     "stat_active_users": "משתמשים פעילים",
     "stat_managed_posts": "פוסטים מנוהלים",
     "stat_satisfaction": "שביעות רצון",
-    "footer_copyright": "© Branda 2024. כל הזכויות שמורות."
+    "footer_copyright": "© Branda {year}. כל הזכויות שמורות."
   },
   "Auth": {
     "email_label": "אימייל",

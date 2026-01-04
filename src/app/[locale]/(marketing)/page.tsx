@@ -216,7 +216,7 @@ export default async function MarketingPage() {
 
       {/* Footer */}
       <footer className="container mx-auto px-6 py-8 text-center text-gray-600">
-        <p>{t('footer_copyright')}</p>
+        <p>{t('footer_copyright', { year: new Date().getFullYear() })}</p>
       </footer>
     </div>
   );
