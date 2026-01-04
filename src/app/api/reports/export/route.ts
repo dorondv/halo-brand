@@ -1,8 +1,17 @@
 import type { NextRequest } from 'next/server';
 import { Buffer } from 'node:buffer';
+import { eachDayOfInterval, endOfDay, format, startOfDay } from 'date-fns';
 import jsPDF from 'jspdf';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import {
+  generateEngagementChart,
+  generateEngagementRateChart,
+  generateFollowersTrendChart,
+  generateImpressionsChart,
+  generateNetFollowerGrowthChart,
+  generatePostsByPlatformChart,
+} from '@/lib/chart-generator-quickchart';
 import { getCachedAccounts, getCachedPosts } from '@/libs/dashboard-cache';
 import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlatePosts } from '@/libs/getlate-posts';
@@ -128,8 +137,8 @@ export async function POST(request: NextRequest) {
           };
         });
 
-      // Fetch follower stats for growth report
-      if (reportType === 'growth') {
+      // Fetch follower stats for growth report and comprehensive report (for charts)
+      if (reportType === 'growth' || reportType === 'comprehensive') {
         followerStats = await getFollowerStatsFromGetlate(supabase, userId, brandId ?? null, {
           fromDate: dateFromDate,
           toDate: dateToDate,
@@ -218,6 +227,12 @@ export async function POST(request: NextRequest) {
     // Generate report data based on report type
     const reportData = generateReportData(reportType, filteredPosts, filteredAnalytics, accounts, dateFrom, dateTo, followerStats);
 
+    // Calculate chart data for PDF reports
+    let chartData: ChartData | undefined;
+    if (exportFormat === 'pdf') {
+      chartData = calculateChartData(filteredAnalytics, filteredPosts, dateFrom, dateTo, followerStats);
+    }
+
     // Generate file based on format
     let fileContent: string | Buffer;
     let mimeType: string;
@@ -239,7 +254,7 @@ export async function POST(request: NextRequest) {
         fileName = `${defaultFileName}.xlsx`;
         break;
       case 'pdf':
-        fileContent = generatePDF(reportData, reportType, reportName || 'Report', dateFrom, dateTo);
+        fileContent = await generatePDF(reportData, reportType, reportName || 'Report', dateFrom, dateTo, chartData);
         mimeType = 'application/pdf';
         fileName = `${defaultFileName}.pdf`;
         break;
@@ -772,13 +787,129 @@ function generateCSV(data: ReportData, _reportType: string): string {
   return `\uFEFF${lines.join('\n')}`;
 }
 
-function generatePDF(
+type ChartData = {
+  engagementSeries?: Array<{ date: string; engagement: number }>;
+  impressionsSeries?: Array<{ date: string; impressions: number }>;
+  followerTrendSeries?: Array<{ date: string; followers: number }>;
+  netGrowthSeries?: Array<{ date: string; growth: number }>;
+  postsByPlatform?: Array<{ platform: string; posts: number }>;
+  engagementRateSeries?: Array<{ date: string; rate: number }>;
+};
+
+function calculateChartData(
+  analytics: any[],
+  posts: any[],
+  dateFrom: string,
+  dateTo: string,
+  followerStats?: any,
+): ChartData {
+  const dateFromDate = startOfDay(new Date(dateFrom));
+  const dateToDate = endOfDay(new Date(dateTo));
+  const dateSeries = eachDayOfInterval({ start: dateFromDate, end: dateToDate }).map(d => format(d, 'yyyy-MM-dd'));
+
+  // Calculate engagement series
+  const engagementByDate = new Map<string, number>();
+  for (const analytic of analytics) {
+    const date = analytic.date || format(new Date(analytic.created_at || new Date()), 'yyyy-MM-dd');
+    const engagement = (analytic.likes || 0) + (analytic.comments || 0) + (analytic.shares || 0);
+    const existing = engagementByDate.get(date) || 0;
+    engagementByDate.set(date, existing + engagement);
+  }
+  const engagementSeries = dateSeries.map(date => ({
+    date,
+    engagement: engagementByDate.get(date) || 0,
+  }));
+
+  // Calculate impressions series
+  const impressionsByDate = new Map<string, number>();
+  for (const analytic of analytics) {
+    const date = analytic.date || format(new Date(analytic.created_at || new Date()), 'yyyy-MM-dd');
+    const impressions = analytic.impressions || 0;
+    const existing = impressionsByDate.get(date) || 0;
+    impressionsByDate.set(date, existing + impressions);
+  }
+  const impressionsSeries = dateSeries.map(date => ({
+    date,
+    impressions: impressionsByDate.get(date) || 0,
+  }));
+
+  // Calculate engagement rate series
+  const engagementRateSeries = dateSeries.map((date) => {
+    const engagement = engagementByDate.get(date) || 0;
+    const impressions = impressionsByDate.get(date) || 0;
+    const rate = impressions > 0 ? (engagement / impressions) * 100 : 0;
+    return {
+      date,
+      rate: Math.round(rate * 10) / 10,
+    };
+  });
+
+  // Calculate posts by platform
+  const postsByPlatformMap = new Map<string, number>();
+  for (const post of posts) {
+    const platforms = (post.platforms as string[]) || [];
+    for (const platform of platforms) {
+      const normalized = platform.toLowerCase().trim();
+      const displayName = normalized.charAt(0).toUpperCase() + normalized.slice(1);
+      const existing = postsByPlatformMap.get(displayName) || 0;
+      postsByPlatformMap.set(displayName, existing + 1);
+    }
+  }
+  const postsByPlatform = Array.from(postsByPlatformMap.entries())
+    .map(([platform, posts]) => ({ platform, posts }))
+    .filter(p => p.posts > 0);
+
+  // Calculate follower trend and net growth from follower stats
+  let followerTrendSeries: Array<{ date: string; followers: number }> = [];
+  let netGrowthSeries: Array<{ date: string; growth: number }> = [];
+
+  if (followerStats) {
+    if (followerStats.followerTrend && Array.isArray(followerStats.followerTrend)) {
+      followerTrendSeries = followerStats.followerTrend.map((stat: any) => ({
+        date: stat.date || format(new Date(), 'yyyy-MM-dd'),
+        followers: stat.followers || 0,
+      }));
+    }
+
+    if (followerStats.netGrowth && Array.isArray(followerStats.netGrowth)) {
+      netGrowthSeries = followerStats.netGrowth.map((stat: any) => ({
+        date: stat.date || format(new Date(), 'yyyy-MM-dd'),
+        growth: Math.abs(stat.growth || 0),
+      }));
+    } else if (followerTrendSeries.length > 0) {
+      // Calculate growth from follower trend
+      netGrowthSeries = followerTrendSeries.map((current, index) => {
+        if (index === 0) {
+          return { date: current.date, growth: 0 };
+        }
+        const previous = followerTrendSeries[index - 1];
+        if (!previous) {
+          return { date: current.date, growth: 0 };
+        }
+        const growth = current.followers - previous.followers;
+        return { date: current.date, growth: Math.abs(growth) };
+      });
+    }
+  }
+
+  return {
+    engagementSeries,
+    impressionsSeries,
+    followerTrendSeries: followerTrendSeries.length > 0 ? followerTrendSeries : undefined,
+    netGrowthSeries: netGrowthSeries.length > 0 ? netGrowthSeries : undefined,
+    postsByPlatform: postsByPlatform.length > 0 ? postsByPlatform : undefined,
+    engagementRateSeries,
+  };
+}
+
+async function generatePDF(
   data: ReportData,
   reportType: string,
   reportName: string,
   dateFrom: string,
   dateTo: string,
-): Buffer {
+  chartData?: ChartData,
+): Promise<Buffer> {
   // eslint-disable-next-line new-cap
   const doc = new jsPDF('p', 'mm', 'a4');
   const pageWidth = doc.internal.pageSize.getWidth();
@@ -855,6 +986,27 @@ function generatePDF(
       return `${(num / 1000).toFixed(1)}K`;
     }
     return num.toString();
+  };
+
+  // Helper function to add chart image to PDF
+  const addChartImage = async (chartBuffer: Buffer, title: string, imgWidth: number, imgHeight: number) => {
+    checkPageBreak(imgHeight + lineHeight * 2);
+    try {
+      // Convert buffer to base64 data URL
+      const base64Image = chartBuffer.toString('base64');
+      const imageDataUrl = `data:image/png;base64,${base64Image}`;
+
+      // Add chart image to PDF
+      doc.addImage(imageDataUrl, 'PNG', margin, yPosition, imgWidth, imgHeight);
+      yPosition += imgHeight + lineHeight;
+    } catch (error) {
+      console.error(`Error adding ${title} to PDF:`, error);
+      // Fallback to text if image fails
+      doc.setFontSize(10);
+      doc.setTextColor(colors.textLight[0]!, colors.textLight[1]!, colors.textLight[2]!);
+      doc.text(`${title} (chart generation failed)`, margin, yPosition);
+      yPosition += lineHeight * 2;
+    }
   };
 
   // Add header with brand color
@@ -996,6 +1148,134 @@ function generatePDF(
       startY + rightCol.length * (boxHeight + 3),
     );
     yPosition += lineHeight * 1.5;
+  }
+
+  // Charts section - Add charts based on report type
+  if (chartData) {
+    const chartHeight = 50; // Height in mm for each chart
+    const chartWidth = maxWidth;
+
+    // Comprehensive report: Show all relevant charts
+    if (reportType === 'comprehensive') {
+      if (chartData.engagementSeries && chartData.engagementSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateEngagementChart(chartData.engagementSeries);
+          await addChartImage(chartImage, 'Engagement Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating engagement chart:', error);
+        }
+      }
+
+      if (chartData.impressionsSeries && chartData.impressionsSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateImpressionsChart(chartData.impressionsSeries);
+          await addChartImage(chartImage, 'Impressions Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating impressions chart:', error);
+        }
+      }
+
+      if (chartData.postsByPlatform && chartData.postsByPlatform.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generatePostsByPlatformChart(chartData.postsByPlatform);
+          await addChartImage(chartImage, 'Posts by Platform Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating posts by platform chart:', error);
+        }
+      }
+
+      if (chartData.engagementRateSeries && chartData.engagementRateSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateEngagementRateChart(chartData.engagementRateSeries);
+          await addChartImage(chartImage, 'Engagement Rate Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating engagement rate chart:', error);
+        }
+      }
+    }
+
+    // Engagement report: Show engagement-related charts
+    if (reportType === 'engagement') {
+      if (chartData.engagementSeries && chartData.engagementSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateEngagementChart(chartData.engagementSeries);
+          await addChartImage(chartImage, 'Engagement Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating engagement chart:', error);
+        }
+      }
+
+      if (chartData.engagementRateSeries && chartData.engagementRateSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateEngagementRateChart(chartData.engagementRateSeries);
+          await addChartImage(chartImage, 'Engagement Rate Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating engagement rate chart:', error);
+        }
+      }
+
+      if (chartData.impressionsSeries && chartData.impressionsSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateImpressionsChart(chartData.impressionsSeries);
+          await addChartImage(chartImage, 'Impressions Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating impressions chart:', error);
+        }
+      }
+    }
+
+    // Growth report: Show follower-related charts
+    if (reportType === 'growth') {
+      if (chartData.followerTrendSeries && chartData.followerTrendSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateFollowersTrendChart(chartData.followerTrendSeries);
+          await addChartImage(chartImage, 'Followers Trend Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating followers trend chart:', error);
+        }
+      }
+
+      if (chartData.netGrowthSeries && chartData.netGrowthSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateNetFollowerGrowthChart(chartData.netGrowthSeries);
+          await addChartImage(chartImage, 'Net Follower Growth Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating net growth chart:', error);
+        }
+      }
+    }
+
+    // Posts report: Show posts-related charts
+    if (reportType === 'posts') {
+      if (chartData.postsByPlatform && chartData.postsByPlatform.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generatePostsByPlatformChart(chartData.postsByPlatform);
+          await addChartImage(chartImage, 'Posts by Platform Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating posts by platform chart:', error);
+        }
+      }
+
+      if (chartData.engagementSeries && chartData.engagementSeries.length > 0) {
+        checkPageBreak(chartHeight + lineHeight * 2);
+        try {
+          const chartImage = await generateEngagementChart(chartData.engagementSeries);
+          await addChartImage(chartImage, 'Engagement Chart', chartWidth, chartHeight);
+        } catch (error) {
+          console.error('Error generating engagement chart:', error);
+        }
+      }
+    }
   }
 
   // Data section with better styling

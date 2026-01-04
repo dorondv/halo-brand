@@ -123,6 +123,12 @@ export function ReportsExportClient() {
 
   const handleDateRangePreset = (preset: string) => {
     setDateRangePreset(preset);
+
+    // For custom, don't auto-set dates - let user choose
+    if (preset === 'custom') {
+      return;
+    }
+
     const today = new Date();
     let fromDate: Date;
     let toDate = new Date();
@@ -586,49 +592,57 @@ export function ReportsExportClient() {
                 >
                   {t('date_range_previous_month')}
                 </Button>
+                <Button
+                  type="button"
+                  variant={dateRangePreset === 'custom' ? 'default' : 'outline'}
+                  onClick={() => handleDateRangePreset('custom')}
+                  className={dateRangePreset === 'custom' ? 'bg-pink-500 text-white hover:bg-pink-600' : ''}
+                >
+                  {t('date_range_custom')}
+                </Button>
               </div>
 
-              {/* Date Inputs */}
-              <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2', isRTL && 'flex-row-reverse')}>
-                <div className="space-y-2">
-                  <label htmlFor="date-from" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
-                    {t('date_from')}
-                  </label>
-                  <div className="relative">
-                    <CalendarIcon className={cn('absolute top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400', isRTL ? 'right-3' : 'left-3')} />
-                    <Input
-                      id="date-from"
-                      type="date"
-                      value={dateFrom}
-                      onChange={(e) => {
-                        setDateFrom(e.target.value);
-                        setDateRangePreset(null);
-                      }}
-                      className={cn('w-full', isRTL ? 'pr-9' : 'pl-9', isRTL && 'text-right')}
-                      dir={isRTL ? 'rtl' : 'ltr'}
-                    />
+              {/* Date Inputs - Only show when custom is selected */}
+              {dateRangePreset === 'custom' && (
+                <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2', isRTL && 'flex-row-reverse')}>
+                  <div className="space-y-2">
+                    <label htmlFor="date-from" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
+                      {t('date_from')}
+                    </label>
+                    <div className="relative">
+                      <CalendarIcon className={cn('absolute top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400', isRTL ? 'right-3' : 'left-3')} />
+                      <Input
+                        id="date-from"
+                        type="date"
+                        value={dateFrom}
+                        onChange={(e) => {
+                          setDateFrom(e.target.value);
+                        }}
+                        className={cn('w-full', isRTL ? 'pr-9' : 'pl-9', isRTL && 'text-right')}
+                        dir={isRTL ? 'rtl' : 'ltr'}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <label htmlFor="date-to" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
+                      {t('date_to')}
+                    </label>
+                    <div className="relative">
+                      <CalendarIcon className={cn('absolute top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400', isRTL ? 'right-3' : 'left-3')} />
+                      <Input
+                        id="date-to"
+                        type="date"
+                        value={dateTo}
+                        onChange={(e) => {
+                          setDateTo(e.target.value);
+                        }}
+                        className={cn('w-full', isRTL ? 'pr-9' : 'pl-9', isRTL && 'text-right')}
+                        dir={isRTL ? 'rtl' : 'ltr'}
+                      />
+                    </div>
                   </div>
                 </div>
-                <div className="space-y-2">
-                  <label htmlFor="date-to" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
-                    {t('date_to')}
-                  </label>
-                  <div className="relative">
-                    <CalendarIcon className={cn('absolute top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400', isRTL ? 'right-3' : 'left-3')} />
-                    <Input
-                      id="date-to"
-                      type="date"
-                      value={dateTo}
-                      onChange={(e) => {
-                        setDateTo(e.target.value);
-                        setDateRangePreset(null);
-                      }}
-                      className={cn('w-full', isRTL ? 'pr-9' : 'pl-9', isRTL && 'text-right')}
-                      dir={isRTL ? 'rtl' : 'ltr'}
-                    />
-                  </div>
-                </div>
-              </div>
+              )}
             </CardContent>
           </Card>
         </div>
