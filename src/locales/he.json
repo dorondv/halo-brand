@@ -405,6 +405,7 @@
     "connected_accounts_for": "חשבונות מקושרים עבור:",
     "connect_accounts_description": "חבר את חשבונות המדיה החברתית שלך או הכנס פרטי חשבונות באופן ידני.",
     "connect_demo_accounts": "חבר חשבונות דמו לבדיקת האפליקציה או הכנס פרטי חשבונות באופן ידני.",
+    "follower_count_disclaimer": "מספר העוקבים עשוי להתעדכן עד 24 שעות לאחר החיבור",
     "followers": "עוקבים",
     "not_connected": "לא מחובר",
     "disconnect": "נתק",

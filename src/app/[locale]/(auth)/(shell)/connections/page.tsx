@@ -2025,6 +2025,12 @@ export default function ConnectionsPage() {
               <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
                 {t('connect_accounts_description')}
               </CardDescription>
+              <div className={cn('mt-2 flex items-start gap-2 rounded-md bg-blue-50 p-3', isRTL ? 'flex-row-reverse text-right' : 'text-left')}>
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
+                <p className="text-xs text-blue-800">
+                  {t('follower_count_disclaimer')}
+                </p>
+              </div>
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">

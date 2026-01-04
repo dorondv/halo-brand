@@ -405,6 +405,7 @@
     "connected_accounts_for": "Connected Accounts for:",
     "connect_accounts_description": "Connect your social media accounts or enter account details manually.",
     "connect_demo_accounts": "Connect demo accounts for testing or enter account details manually.",
+    "follower_count_disclaimer": "Follower count may take up to 24 hours to update after connection",
     "followers": "followers",
     "not_connected": "Not connected",
     "disconnect": "Disconnect",
