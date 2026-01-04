@@ -1,4 +1,5 @@
 import type { NextRequest } from 'next/server';
+import type { GetlatePost } from '@/libs/Getlate';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createGetlateClient } from '@/libs/Getlate';
@@ -64,6 +65,7 @@ export async function GET(request: NextRequest) {
         created_at,
         status,
         getlate_post_id,
+        metadata,
         brands (
           id,
           name,
@@ -159,17 +161,19 @@ export async function GET(request: NextRequest) {
         }
       }
 
-      // Normalize platforms array - handle both string and object formats
-      const normalizedPlatforms = (postDetails.platforms || []).map((p: any) => {
+      // Preserve platform objects with URLs - don't normalize to strings
+      // This allows the frontend to extract platformPostUrl for each platform
+      const rawPlatforms = postDetails.platforms || [];
+      const preservedPlatforms = rawPlatforms.map((p: any) => {
         if (typeof p === 'string') {
           return p;
         }
         if (typeof p === 'object' && p !== null) {
-          // Handle object format: {platform: 'instagram', account_id: '...'}
-          return p.platform || p.name || String(p);
+          // Preserve the full object to keep platformPostUrl
+          return p;
         }
         return String(p);
-      }).filter((p: any) => p && typeof p === 'string');
+      });
 
       // Build the combined post object
       const combinedPost = {
@@ -184,9 +188,10 @@ export async function GET(request: NextRequest) {
           id: postId,
           content: postDetails.content,
           image_url: postDetails.image_url,
-          platforms: normalizedPlatforms,
+          platforms: preservedPlatforms, // Preserve full objects to keep URLs
           brand_id: postDetails.brand_id,
           getlate_post_id: postDetails.getlate_post_id || null,
+          metadata: postDetails.metadata || null,
           brands: postDetails.brands
             ? {
                 id: postDetails.brands.id,
@@ -292,6 +297,50 @@ export async function GET(request: NextRequest) {
                     const displayDate = publishedAt || post.scheduledFor || post.createdAt;
 
                     const uniqueId = `getlate-${brand.id}-${postId}-${index}`;
+
+                    // Extract platformPostUrl from post or platforms array
+                    // Note: API response may include additional properties not in GetlatePost type
+                    const postWithExtras = post as GetlatePost & {
+                      platformPostUrl?: string;
+                      metadata?: Record<string, unknown>;
+                      isExternal?: boolean;
+                    };
+
+                    let platformPostUrl: string | null = null;
+                    if (postWithExtras.platformPostUrl) {
+                      platformPostUrl = postWithExtras.platformPostUrl;
+                    } else if (post.platforms && Array.isArray(post.platforms)) {
+                      for (const platform of post.platforms) {
+                        const platformWithExtras = platform as typeof platform & {
+                          platformPostUrl?: string;
+                        };
+                        if (typeof platformWithExtras === 'object' && platformWithExtras?.platformPostUrl) {
+                          platformPostUrl = platformWithExtras.platformPostUrl;
+                          break;
+                        }
+                      }
+                    }
+
+                    // Build metadata object
+                    const metadata = {
+                      ...(postWithExtras.metadata || {}),
+                      platformPostUrl: platformPostUrl || (postWithExtras.metadata as any)?.platformPostUrl || null,
+                      isExternal: postWithExtras.isExternal || false,
+                      publishedAt,
+                    };
+
+                    // Preserve platform objects with URLs for Getlate posts
+                    const preservedGetlatePlatforms = post.platforms?.map((p: any) => {
+                      if (typeof p === 'string') {
+                        return p;
+                      }
+                      if (typeof p === 'object' && p !== null) {
+                        // Preserve the full object to keep platformPostUrl
+                        return p;
+                      }
+                      return 'unknown';
+                    }) || [];
+
                     getlatePosts.push({
                       id: uniqueId,
                       post_id: uniqueId,
@@ -304,10 +353,7 @@ export async function GET(request: NextRequest) {
                         id: uniqueId,
                         content: post.content,
                         image_url: post.mediaUrls?.[0] || null,
-                        platforms: post.platforms?.map((p: any) => {
-                          // Handle both string and object formats
-                          return typeof p === 'string' ? p : (p.platform || p.name || 'unknown');
-                        }) || [],
+                        platforms: preservedGetlatePlatforms, // Preserve full objects to keep URLs
                         brand_id: brand.id,
                         brands: brandInfo
                           ? {
@@ -317,6 +363,7 @@ export async function GET(request: NextRequest) {
                             }
                           : null,
                         getlate_post_id: postId,
+                        metadata,
                       },
                       is_getlate: true,
                     });

@@ -387,7 +387,9 @@
     "content": "תוכן",
     "edit_post": "ערוך פוסט",
     "close": "סגור",
-    "brand": "מותג"
+    "brand": "מותג",
+    "published_links": "קישורים לפרסומים",
+    "published_at": "פורסם"
   },
   "Integrations": {
     "title": "חיבורים",

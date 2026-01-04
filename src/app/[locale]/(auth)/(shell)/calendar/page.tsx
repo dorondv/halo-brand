@@ -219,6 +219,11 @@ type Post = {
   brand_id?: string;
   brand_name?: string;
   brand_logo_url?: string | null;
+  status?: string;
+  published_at?: string | null;
+  published_url?: string | null;
+  platform_urls?: Record<string, string>; // Map of platform -> URL
+  metadata?: any;
 };
 
 export default function CalendarPage() {
@@ -252,7 +257,7 @@ export default function CalendarPage() {
   const [timeError, setTimeError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showImportantDates, setShowImportantDates] = useState(true);
-  const [viewMode, setViewMode] = useState<'week' | 'month' | 'year'>('week');
+  const [viewMode, setViewMode] = useState<'week' | 'month' | 'year'>('month');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showPostDialog, setShowPostDialog] = useState(false);
 
@@ -307,6 +312,42 @@ export default function CalendarPage() {
             return String(p);
           }).filter((p: any) => p && typeof p === 'string');
 
+          // Extract platform-specific URLs from platforms array and metadata
+          const platformUrls: Record<string, string> = {};
+          const metadata = item.post?.metadata || item.metadata || {};
+
+          // Extract URLs from platforms array (each platform can have its own URL)
+          if (rawPlatforms.length > 0) {
+            for (const platform of rawPlatforms) {
+              if (typeof platform === 'object' && platform !== null) {
+                const platformName = platform.platform || platform.name || String(platform);
+                const platformUrl = platform.platformPostUrl;
+                if (platformName && platformUrl) {
+                  platformUrls[platformName] = platformUrl;
+                }
+              }
+            }
+          }
+
+          // Also check metadata.platforms array if it exists
+          if (metadata.platforms && Array.isArray(metadata.platforms)) {
+            for (const platform of metadata.platforms) {
+              if (typeof platform === 'object' && platform !== null) {
+                const platformName = platform.platform || platform.name;
+                const platformUrl = platform.platformPostUrl;
+                if (platformName && platformUrl) {
+                  platformUrls[platformName] = platformUrl;
+                }
+              }
+            }
+          }
+
+          // Fallback: if no platform-specific URLs found, try metadata.platformPostUrl
+          let publishedUrl: string | null = null;
+          if (Object.keys(platformUrls).length === 0 && metadata.platformPostUrl) {
+            publishedUrl = metadata.platformPostUrl;
+          }
+
           return {
             id: uniqueId,
             content: item.post?.content || item.content || '',
@@ -315,6 +356,11 @@ export default function CalendarPage() {
             brand_id: item.post?.brand_id || item.brand_id,
             brand_name: item.post?.brands?.name || item.brand_name,
             brand_logo_url: item.post?.brands?.logo_url || item.brand_logo_url,
+            status: item.status || item.post?.status || 'draft',
+            published_at: item.published_at || null,
+            published_url: publishedUrl,
+            platform_urls: Object.keys(platformUrls).length > 0 ? platformUrls : undefined,
+            metadata,
             is_getlate: item.is_getlate || false,
           };
         });
@@ -1151,8 +1197,8 @@ export default function CalendarPage() {
                       : t('select_date')}
                   </CardTitle>
                 </CardHeader>
-                <CardContent>
-                  <div className="space-y-4">
+                <CardContent className="flex max-h-[calc(100vh-300px)] flex-col overflow-hidden">
+                  <div className="flex min-h-0 flex-1 flex-col space-y-4">
                     {selectedDate
                       ? (
                           <>
@@ -1162,7 +1208,7 @@ export default function CalendarPage() {
                                 return null;
                               }
                               return (
-                                <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                                <div className="flex-shrink-0 rounded-lg border border-purple-200 bg-purple-50 p-3">
                                   <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                     <Badge className={categoryConfig.color}>
                                       {categoryConfig.name}
@@ -1181,60 +1227,93 @@ export default function CalendarPage() {
                             })()}
 
                             {selectedDatePosts.length > 0 && (
-                              <div className="space-y-3">
-                                <h4 className="font-semibold text-slate-900">{t('your_posts')}</h4>
-                                {selectedDatePosts.map((post, idx) => (
-                                  <div
-                                    key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
-                                    className="rounded-xl border border-white/30 p-4"
-                                  >
-                                    <p className="mb-2 line-clamp-2 font-medium text-slate-900">
-                                      {post.content}
-                                    </p>
-                                    <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                                      <Badge variant="secondary" className="text-xs">
-                                        {format(new Date(post.scheduled_time), 'h:mm a')}
-                                      </Badge>
-                                      <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                                        {/* Brand Info */}
-                                        {post.brand_name && (
-                                          <div className={cn('flex items-center gap-1.5', isRTL ? 'flex-row-reverse' : '')}>
-                                            {post.brand_logo_url
-                                              ? (
-                                                  <Image
-                                                    src={post.brand_logo_url}
-                                                    alt={post.brand_name}
-                                                    width={16}
-                                                    height={16}
-                                                    className="h-4 w-4 rounded-full object-cover"
-                                                  />
-                                                )
-                                              : (
-                                                  <Building2 className="h-4 w-4 text-slate-500" />
-                                                )}
-                                            <span className="text-xs text-slate-600">{post.brand_name}</span>
-                                          </div>
-                                        )}
-                                        {/* Platform Icons */}
-                                        {post.platforms && post.platforms.length > 0 && (
-                                          <div className={cn('flex items-center gap-1', isRTL ? 'flex-row-reverse' : '')}>
-                                            {post.platforms
-                                              .filter(platform => platform && typeof platform === 'string')
-                                              .map(platform => (
-                                                <div
-                                                  key={`${post.id}-platform-${String(platform)}`}
-                                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                                                  title={String(platform)}
-                                                >
-                                                  <PlatformIcon platform={String(platform)} className="h-3 w-3" />
-                                                </div>
-                                              ))}
-                                          </div>
-                                        )}
+                              <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
+                                <h4 className="flex-shrink-0 font-semibold text-slate-900">{t('your_posts')}</h4>
+                                <div className="space-y-3 pr-2">
+                                  {selectedDatePosts.map((post, idx) => (
+                                    <div
+                                      key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
+                                      className="rounded-xl border border-white/30 p-4"
+                                    >
+                                      <p className="mb-2 line-clamp-2 font-medium text-slate-900">
+                                        {post.content}
+                                      </p>
+                                      <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
+                                        <Badge variant="secondary" className="text-xs">
+                                          {format(new Date(post.scheduled_time), 'h:mm a')}
+                                        </Badge>
+                                        <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                                          {/* Brand Info */}
+                                          {post.brand_name && (
+                                            <div className={cn('flex items-center gap-1.5', isRTL ? 'flex-row-reverse' : '')}>
+                                              {post.brand_logo_url
+                                                ? (
+                                                    <Image
+                                                      src={post.brand_logo_url}
+                                                      alt={post.brand_name}
+                                                      width={16}
+                                                      height={16}
+                                                      className="h-4 w-4 rounded-full object-cover"
+                                                    />
+                                                  )
+                                                : (
+                                                    <Building2 className="h-4 w-4 text-slate-500" />
+                                                  )}
+                                              <span className="text-xs text-slate-600">{post.brand_name}</span>
+                                            </div>
+                                          )}
+                                          {/* Platform Icons */}
+                                          {post.platforms && post.platforms.length > 0 && (
+                                            <div className={cn('flex items-center gap-1', isRTL ? 'flex-row-reverse' : '')}>
+                                              {post.platforms
+                                                .filter(platform => platform && typeof platform === 'string')
+                                                .map((platform) => {
+                                                  const platformName = String(platform);
+                                                  // Check if post is published and has a URL for this platform
+                                                  const isPublished = post.status === 'published' || post.status === 'completed' || post.published_at;
+                                                  const platformUrl = post.platform_urls?.[platformName] || (isPublished && post.published_url ? post.published_url : null);
+
+                                                  const iconContent = (
+                                                    <div
+                                                      className={cn(
+                                                        'flex h-5 w-5 items-center justify-center rounded-full transition-colors',
+                                                        platformUrl
+                                                          ? 'bg-pink-100 text-pink-600 hover:bg-pink-200 cursor-pointer'
+                                                          : 'bg-slate-100 text-slate-600',
+                                                      )}
+                                                      title={platformUrl ? `${platformName} - Click to view post` : platformName}
+                                                    >
+                                                      <PlatformIcon platform={platformName} className="h-3 w-3" />
+                                                    </div>
+                                                  );
+
+                                                  if (platformUrl) {
+                                                    return (
+                                                      <Link
+                                                        key={`${post.id}-platform-${platformName}`}
+                                                        href={platformUrl}
+                                                        target="_blank"
+                                                        rel="noopener noreferrer"
+                                                        onClick={e => e.stopPropagation()}
+                                                      >
+                                                        {iconContent}
+                                                      </Link>
+                                                    );
+                                                  }
+
+                                                  return (
+                                                    <div key={`${post.id}-platform-${platformName}`}>
+                                                      {iconContent}
+                                                    </div>
+                                                  );
+                                                })}
+                                            </div>
+                                          )}
+                                        </div>
                                       </div>
                                     </div>
-                                  </div>
-                                ))}
+                                  ))}
+                                </div>
                               </div>
                             )}
                           </>
@@ -1247,7 +1326,7 @@ export default function CalendarPage() {
                         )}
 
                     {/* Time Picker Section - Always Visible */}
-                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                    <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
                       <div className={cn('mb-3 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                         <Clock className="h-4 w-4 text-pink-500" />
                         <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700">
@@ -1429,13 +1508,59 @@ export default function CalendarPage() {
                     {t('platforms') || 'Platforms'}
                   </Label>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {selectedPost.platforms.map(platform => (
-                      <Badge key={String(platform)} variant="secondary" className="flex items-center gap-1.5">
-                        <PlatformIcon platform={String(platform)} className="h-4 w-4" />
-                        <span className="capitalize">{String(platform)}</span>
-                      </Badge>
-                    ))}
+                    {selectedPost.platforms.map((platform) => {
+                      const platformName = String(platform);
+                      // Check if post is published and has a URL for this platform
+                      const isPublished = selectedPost.status === 'published' || selectedPost.status === 'completed' || selectedPost.published_at;
+                      const platformUrl = selectedPost.platform_urls?.[platformName] || (isPublished && selectedPost.published_url ? selectedPost.published_url : null);
+
+                      const badgeContent = (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'flex items-center gap-1.5',
+                            platformUrl
+                              ? 'cursor-pointer bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 transition-colors'
+                              : '',
+                          )}
+                        >
+                          <PlatformIcon platform={platformName} className={cn('h-4 w-4', platformUrl && 'text-pink-600')} />
+                          <span className="capitalize">{platformName}</span>
+                        </Badge>
+                      );
+
+                      if (platformUrl) {
+                        return (
+                          <Link
+                            key={platformName}
+                            href={platformUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="inline-block"
+                          >
+                            {badgeContent}
+                          </Link>
+                        );
+                      }
+
+                      return (
+                        <div key={platformName}>
+                          {badgeContent}
+                        </div>
+                      );
+                    })}
                   </div>
+                  {selectedPost.published_at && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      {(t as any)('published_at') || 'Published'}
+                      :
+                      {format(
+                        new Date(selectedPost.published_at),
+                        'PPp',
+                        { locale: locale === 'he' ? he : enUS },
+                      )}
+                    </p>
+                  )}
                 </div>
               )}
 

@@ -387,7 +387,9 @@
     "content": "Content",
     "edit_post": "Edit Post",
     "close": "Close",
-    "brand": "Brand"
+    "brand": "Brand",
+    "published_links": "Published Links",
+    "published_at": "Published"
   },
   "Integrations": {
     "title": "Connections",
