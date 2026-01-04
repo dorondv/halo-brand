@@ -1,18 +1,24 @@
 'use client';
 
 import {
+  addWeeks,
   eachDayOfInterval,
   eachMonthOfInterval,
   endOfMonth,
+  endOfWeek,
   endOfYear,
   format,
   getDay,
+  isPast,
   isSameDay,
   isSameMonth,
   isToday,
   startOfMonth,
+  startOfWeek,
   startOfYear,
+  subWeeks,
 } from 'date-fns';
+import { enUS, he } from 'date-fns/locale';
 import { motion } from 'framer-motion';
 import {
   Building2,
@@ -20,6 +26,7 @@ import {
   Calendar as CalendarIcon,
   ChevronLeft,
   ChevronRight,
+  Clock,
   Grid3x3,
   Plus,
   Sparkles,
@@ -27,10 +34,14 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useState } from 'react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogClose, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 
@@ -214,13 +225,36 @@ export default function CalendarPage() {
   const t = useTranslations('Calendar');
   const locale = useLocale();
   const isRTL = locale === 'he';
+  const router = useRouter();
   const { selectedBrandId } = useBrand();
-  const [currentDate, setCurrentDate] = useState(() => startOfMonth(new Date()));
+  // Initialize currentDate based on view mode - default to week view showing current week
+  const [currentDate, setCurrentDate] = useState(() => startOfWeek(new Date(), { weekStartsOn: isRTL ? 6 : 0 }));
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
+  // Get default time for scheduling - current time, or 5 minutes from now if current time is too close
+  const getDefaultTime = (selectedDate: Date | null = null) => {
+    const now = new Date();
+    const minDateTime = new Date(now.getTime() + 5 * 60000); // 5 minutes from now
+
+    // If a date is selected and it's today, ensure time is at least 5 minutes in the future
+    if (selectedDate && isToday(selectedDate)) {
+      const hours = String(minDateTime.getHours()).padStart(2, '0');
+      const minutes = String(minDateTime.getMinutes()).padStart(2, '0');
+      return `${hours}:${minutes}`;
+    }
+
+    // Otherwise, use current time
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    return `${hours}:${minutes}`;
+  };
+  const [selectedTime, setSelectedTime] = useState<string>(() => getDefaultTime());
+  const [timeError, setTimeError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showImportantDates, setShowImportantDates] = useState(true);
-  const [viewMode, setViewMode] = useState<'month' | 'year'>('month');
+  const [viewMode, setViewMode] = useState<'week' | 'month' | 'year'>('week');
+  const [selectedPost, setSelectedPost] = useState<Post | null>(null);
+  const [showPostDialog, setShowPostDialog] = useState(false);
 
   const allCategoryTypes = [...new Set(Object.values(importantDates).map(date => date.type))];
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => allCategoryTypes);
@@ -304,6 +338,49 @@ export default function CalendarPage() {
     };
   }, [currentDate, selectedBrandId]);
 
+  // Validate time when date or time changes
+  const validateTime = useCallback((date: Date | null, time: string) => {
+    if (!date || !time) {
+      setTimeError(null);
+      return true;
+    }
+
+    const selectedDateTime = new Date(`${format(date, 'yyyy-MM-dd')}T${time}`);
+    const now = new Date();
+    const minDateTime = new Date(now.getTime() + 5 * 60000); // 5 minutes from now
+
+    if (isSameDay(date, now) && selectedDateTime < minDateTime) {
+      setTimeError(t('time_in_past') || 'Selected time must be at least 5 minutes in the future');
+      return false;
+    }
+
+    setTimeError(null);
+    return true;
+  }, [t]);
+
+  useEffect(() => {
+    if (selectedDate && selectedTime) {
+      validateTime(selectedDate, selectedTime);
+    } else {
+      setTimeError(null);
+    }
+  }, [selectedDate, selectedTime, validateTime]);
+
+  // Ensure week view shows current week on mount and when viewMode changes to week
+  useEffect(() => {
+    if (viewMode === 'week') {
+      const now = new Date();
+      const currentWeekStart = startOfWeek(now, { weekStartsOn: isRTL ? 6 : 0 });
+      const displayedWeekStart = startOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 });
+      // Only update if we're not already showing the current week
+      // But only when viewMode changes, not when currentDate changes (to allow navigation)
+      if (!isSameDay(currentWeekStart, displayedWeekStart)) {
+        setCurrentDate(currentWeekStart);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, isRTL]); // Removed currentDate from dependencies to allow navigation
+
   const toggleCategory = (categoryType: string) => {
     setSelectedCategories(prev =>
       prev.includes(categoryType)
@@ -313,13 +390,21 @@ export default function CalendarPage() {
   };
 
   const navigateTime = (direction: number) => {
-    const newDate = new Date(currentDate);
-    if (viewMode === 'month') {
-      newDate.setMonth(currentDate.getMonth() + direction);
+    if (viewMode === 'week') {
+      setCurrentDate(direction > 0 ? addWeeks(currentDate, 1) : subWeeks(currentDate, 1));
     } else {
-      newDate.setFullYear(currentDate.getFullYear() + direction);
+      const newDate = new Date(currentDate);
+      if (viewMode === 'month') {
+        newDate.setMonth(currentDate.getMonth() + direction);
+      } else {
+        newDate.setFullYear(currentDate.getFullYear() + direction);
+      }
+      setCurrentDate(newDate);
     }
-    setCurrentDate(newDate);
+  };
+
+  const goToThisWeek = () => {
+    setCurrentDate(startOfWeek(new Date(), { weekStartsOn: isRTL ? 6 : 0 }));
   };
 
   const getPostsForDate = (date: Date) => {
@@ -378,6 +463,276 @@ export default function CalendarPage() {
     return categoryCounts;
   };
 
+  // Generate hourly time slots (e.g., 8:00am to 10:00pm)
+  const generateTimeSlots = () => {
+    const slots: string[] = [];
+    for (let hour = 8; hour <= 22; hour++) {
+      const time = new Date();
+      time.setHours(hour, 0, 0, 0);
+      slots.push(format(time, 'h:00 a'));
+    }
+    return slots;
+  };
+
+  const timeSlots = generateTimeSlots();
+
+  // Get current time indicator position
+  const getCurrentTimePosition = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    const hourIndex = currentHour - 8; // Starting from 8am
+    if (hourIndex < 0 || hourIndex >= timeSlots.length) {
+      return null;
+    }
+    const minuteOffset = (currentMinute / 60) * 60; // Height per hour slot
+    return { hourIndex, minuteOffset };
+  };
+
+  const renderWeekView = () => {
+    const weekStart = startOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 });
+    const weekEnd = endOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 });
+    const weekDays = eachDayOfInterval({ start: weekStart, end: weekEnd });
+
+    const dayNames = [
+      t('day_sunday'),
+      t('day_monday'),
+      t('day_tuesday'),
+      t('day_wednesday'),
+      t('day_thursday'),
+      t('day_friday'),
+      t('day_saturday'),
+    ];
+
+    const currentTimePos = getCurrentTimePosition();
+
+    return (
+      <div className="flex h-[calc(100vh-300px)] min-h-[600px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+        {/* Week Header */}
+        <div className="sticky top-0 z-10 grid grid-cols-[80px_repeat(7,1fr)] border-b border-slate-200 bg-white">
+          <div className="border-r border-slate-200 p-3"></div>
+          {weekDays.map((day) => {
+            const dayName = dayNames[getDay(day)];
+            const isSelected = selectedDate && isSameDay(day, selectedDate);
+            const isTodayDate = isToday(day);
+            const dayPosts = getPostsForDate(day);
+
+            return (
+              <div
+                key={day.toISOString()}
+                className={cn(
+                  'cursor-pointer border-r border-slate-200 p-3 text-center transition-colors last:border-r-0 hover:bg-slate-50',
+                  isSelected ? 'bg-pink-50' : isTodayDate ? 'bg-pink-50' : '',
+                )}
+                onClick={() => {
+                  setSelectedDate(day);
+                  // Set time to default (current time or 5 min from now if today)
+                  setSelectedTime(getDefaultTime(day));
+                }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedDate(day);
+                    setSelectedTime(getDefaultTime(day));
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="text-xs font-medium text-slate-500">{dayName}</div>
+                <div
+                  className={cn(
+                    'mt-1 inline-block text-lg font-semibold',
+                    isSelected
+                      ? 'rounded-full bg-pink-600 px-3 py-1 text-white'
+                      : isTodayDate
+                        ? 'rounded-full bg-pink-600 px-3 py-1 text-white'
+                        : 'text-slate-900',
+                  )}
+                >
+                  {format(day, 'd')}
+                </div>
+                {dayPosts.length > 0 && (
+                  <div className="mt-1 text-xs font-medium text-pink-600">{dayPosts.length}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Time Grid */}
+        <div className="flex flex-1 overflow-auto">
+          {/* Time Column */}
+          <div className="sticky left-0 z-10 w-[80px] border-r border-slate-200 bg-slate-50">
+            {timeSlots.map((time, idx) => {
+              const isCurrentHour = currentTimePos && currentTimePos.hourIndex === idx;
+              return (
+                <div
+                  key={time}
+                  className="relative border-b border-slate-100 p-2"
+                  style={{ minHeight: '60px' }}
+                >
+                  <div className="text-xs font-medium text-slate-600">{time}</div>
+                  {isCurrentHour && (
+                    <div
+                      className="absolute right-0 left-0 z-20 flex items-center"
+                      style={{ top: `${currentTimePos.minuteOffset}px` }}
+                    >
+                      <div className="h-0.5 w-full bg-pink-500"></div>
+                      <div className="absolute -left-2 h-2 w-2 rounded-full bg-pink-500"></div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Days Grid */}
+          <div className="grid flex-1 grid-cols-7">
+            {weekDays.map((day) => {
+              const dayPosts = getPostsForDate(day);
+              const isTodayDate = isToday(day);
+
+              return (
+                <div
+                  key={day.toISOString()}
+                  className="border-r border-slate-200 last:border-r-0"
+                >
+                  {timeSlots.map((time, timeIdx) => {
+                    const slotHour = 8 + timeIdx;
+                    // Normalize day to midnight to ensure correct date formatting
+                    const normalizedDay = new Date(day);
+                    normalizedDay.setHours(0, 0, 0, 0);
+                    const slotDate = new Date(normalizedDay);
+                    slotDate.setHours(slotHour, 0, 0, 0);
+
+                    // Find posts for this time slot
+                    const slotPosts = dayPosts.filter((post) => {
+                      const postDate = new Date(post.scheduled_time);
+                      return postDate.getHours() === slotHour;
+                    });
+
+                    const isEmptySlot = slotPosts.length === 0;
+                    // Format time as HH:mm (24-hour format)
+                    const timeString = `${String(slotHour).padStart(2, '0')}:00`;
+
+                    // Check if this time slot is in the past
+                    const now = new Date();
+                    const isPastSlot = isPast(slotDate) || (isTodayDate && slotDate < now);
+
+                    return (
+                      <div
+                        key={`${day.toISOString()}-${time}`}
+                        className={cn(
+                          'group relative min-h-[60px] border-b border-slate-100 p-1 transition-colors',
+                          isPastSlot
+                            ? 'cursor-not-allowed bg-slate-50 opacity-50'
+                            : isEmptySlot
+                              ? 'cursor-pointer hover:bg-pink-50'
+                              : 'hover:bg-slate-50',
+                        )}
+                        onClick={() => {
+                          // Don't allow clicking on past slots
+                          if (isPastSlot) {
+                            return;
+                          }
+
+                          if (isEmptySlot) {
+                            // Empty slot - redirect to create post with date/time
+                            // Ensure date is normalized to midnight in local timezone
+                            const dateForFormat = new Date(normalizedDay);
+                            dateForFormat.setHours(0, 0, 0, 0);
+                            // Format date as yyyy-MM-dd (date-fns format handles local timezone correctly)
+                            const dateStr = format(dateForFormat, 'yyyy-MM-dd');
+                            // Time is already in HH:mm format (e.g., "14:00")
+                            router.push(`/create-post?date=${dateStr}&time=${timeString}&schedule=later`);
+                          } else {
+                            // Has posts - select date and time
+                            setSelectedDate(normalizedDay);
+                            setSelectedTime(timeString);
+                          }
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' || e.key === ' ') {
+                            e.preventDefault();
+                            if (isPastSlot) {
+                              return;
+                            }
+                            if (isEmptySlot) {
+                              const dateForFormat = new Date(normalizedDay);
+                              dateForFormat.setHours(0, 0, 0, 0);
+                              const dateStr = format(dateForFormat, 'yyyy-MM-dd');
+                              router.push(`/create-post?date=${dateStr}&time=${timeString}&schedule=later`);
+                            } else {
+                              setSelectedDate(normalizedDay);
+                              setSelectedTime(timeString);
+                            }
+                          }
+                        }}
+                        role={isPastSlot ? undefined : 'button'}
+                        tabIndex={isPastSlot ? -1 : 0}
+                      >
+                        {isEmptySlot && !isPastSlot && (
+                          <div className="flex h-full items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
+                            <Plus className="h-5 w-5 text-pink-400" />
+                          </div>
+                        )}
+                        {isPastSlot && isEmptySlot && (
+                          <div className="flex h-full items-center justify-center">
+                            <span className="text-xs text-slate-400">Past</span>
+                          </div>
+                        )}
+                        {slotPosts.map(post => (
+                          <div
+                            key={post.id || `post-${post.scheduled_time}-${post.content?.substring(0, 10) || 'unknown'}`}
+                            className="mb-1 cursor-pointer rounded bg-gradient-to-r from-pink-500 to-pink-600 p-1.5 text-xs text-white shadow-sm transition-all hover:shadow-md"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // Always allow viewing post details, even if in the past
+                              setSelectedPost(post);
+                              setShowPostDialog(true);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' || e.key === ' ') {
+                                e.preventDefault();
+                                e.stopPropagation();
+                                setSelectedPost(post);
+                                setShowPostDialog(true);
+                              }
+                            }}
+                            role="button"
+                            tabIndex={0}
+                          >
+                            <div className="truncate font-medium">{post.content.substring(0, 30)}</div>
+                            <div className="mt-1 flex items-center gap-1">
+                              {post.platforms?.slice(0, 3).map(platform => (
+                                <PlatformIcon
+                                  key={`${post.id || 'post'}-platform-${String(platform)}`}
+                                  platform={String(platform)}
+                                  className="h-3 w-3"
+                                />
+                              ))}
+                              {post.platforms && post.platforms.length > 3 && (
+                                <span className="text-[10px]">
+                                  +
+                                  {post.platforms.length - 3}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const renderMonthView = () => {
     const monthStart = startOfMonth(currentDate);
     const monthEnd = endOfMonth(currentDate);
@@ -432,7 +787,11 @@ export default function CalendarPage() {
                           ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
                           : 'border-white/30 hover:border-slate-200 hover:bg-white/50'
                 }`}
-                onClick={() => setSelectedDate(date)}
+                onClick={() => {
+                  setSelectedDate(date);
+                  // Set time to default (current time or 5 min from now if today)
+                  setSelectedTime(getDefaultTime(date));
+                }}
               >
                 <div className="flex h-full flex-col">
                   <div
@@ -552,6 +911,21 @@ export default function CalendarPage() {
       : null;
   const periodImportantDates = getImportantDatesForPeriod(currentDate);
 
+  // Calculate min time for time picker (if selecting today, must be at least 5 minutes from now)
+  const getMinTime = () => {
+    if (!selectedDate) {
+      return '00:00';
+    }
+    const now = new Date();
+    if (isSameDay(selectedDate, now)) {
+      const minTime = new Date(now.getTime() + 5 * 60000); // 5 minutes from now
+      return format(minTime, 'HH:mm');
+    }
+    return '00:00';
+  };
+
+  const minTime = getMinTime();
+
   const yearCategorySummary
     = viewMode === 'year' ? getYearCategorySummary(currentDate.getFullYear()) : {};
   const totalYearEvents = Object.values(yearCategorySummary).reduce(
@@ -589,8 +963,28 @@ export default function CalendarPage() {
           <div className={cn('flex flex-wrap gap-4', isRTL ? 'flex-row-reverse' : '')}>
             <div className="flex overflow-hidden rounded-lg border border-pink-200 bg-white/50">
               <Button
+                variant={viewMode === 'week' ? 'default' : 'ghost'}
+                onClick={() => {
+                  setViewMode('week');
+                  // Reset to current week when switching to week view
+                  setCurrentDate(startOfWeek(new Date(), { weekStartsOn: isRTL ? 6 : 0 }));
+                }}
+                className={`rounded-none ${
+                  viewMode === 'week'
+                    ? 'bg-pink-500 text-white hover:bg-pink-600'
+                    : 'hover:bg-pink-50'
+                }`}
+              >
+                <CalendarIcon className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                {t('week_view') || 'Week'}
+              </Button>
+              <Button
                 variant={viewMode === 'month' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('month')}
+                onClick={() => {
+                  setViewMode('month');
+                  // Reset to current month when switching to month view
+                  setCurrentDate(startOfMonth(new Date()));
+                }}
                 className={`rounded-none ${
                   viewMode === 'month'
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
@@ -602,7 +996,11 @@ export default function CalendarPage() {
               </Button>
               <Button
                 variant={viewMode === 'year' ? 'default' : 'ghost'}
-                onClick={() => setViewMode('year')}
+                onClick={() => {
+                  setViewMode('year');
+                  // Reset to current year when switching to year view
+                  setCurrentDate(startOfYear(new Date()));
+                }}
                 className={`rounded-none ${
                   viewMode === 'year'
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
@@ -622,13 +1020,6 @@ export default function CalendarPage() {
               <Sparkles className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               {showImportantDates ? t('hide_events') : t('show_events')}
             </Button>
-
-            <Link href="/create-post">
-              <Button className="rounded-xl bg-gradient-to-r from-pink-500 to-pink-600 px-8 py-3 text-white shadow-lg transition-all duration-300 hover:from-pink-600 hover:to-pink-700 hover:shadow-xl">
-                <Plus className={cn('h-5 w-5', isRTL ? 'ml-2' : 'mr-2')} />
-                {t('schedule_post')}
-              </Button>
-            </Link>
           </div>
         </motion.div>
 
@@ -638,12 +1029,24 @@ export default function CalendarPage() {
               <CardHeader className="border-b border-white/10">
                 <div className="flex items-center justify-between">
                   <CardTitle className="flex items-center gap-2">
-                    <CalendarIcon className="h-6 w-6 text-blue-500" />
-                    {viewMode === 'month'
-                      ? format(currentDate, 'MMMM yyyy')
-                      : format(currentDate, 'yyyy')}
+                    <CalendarIcon className="h-6 w-6 text-pink-500" />
+                    {viewMode === 'week'
+                      ? `${format(startOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 }), 'MMM d')} - ${format(endOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 }), 'MMM d, yyyy')}`
+                      : viewMode === 'month'
+                        ? format(currentDate, 'MMMM yyyy')
+                        : format(currentDate, 'yyyy')}
                   </CardTitle>
                   <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                    {viewMode === 'week' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={goToThisWeek}
+                        className="hover:bg-blue-50"
+                      >
+                        {t('this_week') || 'This Week'}
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="icon"
@@ -663,18 +1066,22 @@ export default function CalendarPage() {
                   </div>
                 </div>
               </CardHeader>
-              <CardContent className="p-6">
+              <CardContent className={viewMode === 'week' ? 'p-0' : 'p-6'}>
                 {isLoading
                   ? (
                       <div className="py-8 text-center text-slate-500">{t('loading')}</div>
                     )
-                  : viewMode === 'month'
+                  : viewMode === 'week'
                     ? (
-                        renderMonthView()
+                        renderWeekView()
                       )
-                    : (
-                        renderYearView()
-                      )}
+                    : viewMode === 'month'
+                      ? (
+                          renderMonthView()
+                        )
+                      : (
+                          renderYearView()
+                        )}
               </CardContent>
             </Card>
 
@@ -745,111 +1152,161 @@ export default function CalendarPage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  {selectedDate
-                    ? (
-                        <div className="space-y-4">
-                          {selectedDateImportant && (() => {
-                            const categoryConfig = getCategoryConfig(selectedDateImportant.type, t as any);
-                            if (!categoryConfig) {
-                              return null;
-                            }
-                            return (
-                              <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
-                                <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                                  <Badge className={categoryConfig.color}>
-                                    {categoryConfig.name}
-                                  </Badge>
+                  <div className="space-y-4">
+                    {selectedDate
+                      ? (
+                          <>
+                            {selectedDateImportant && (() => {
+                              const categoryConfig = getCategoryConfig(selectedDateImportant.type, t as any);
+                              if (!categoryConfig) {
+                                return null;
+                              }
+                              return (
+                                <div className="rounded-lg border border-purple-200 bg-purple-50 p-3">
+                                  <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
+                                    <Badge className={categoryConfig.color}>
+                                      {categoryConfig.name}
+                                    </Badge>
+                                  </div>
+                                  <h4 className="font-semibold text-purple-900">
+                                    {selectedDateImportant.name}
+                                  </h4>
+                                  {selectedDateImportant.description && (
+                                    <p className="mt-2 text-sm text-purple-700">
+                                      {selectedDateImportant.description}
+                                    </p>
+                                  )}
                                 </div>
-                                <h4 className="font-semibold text-purple-900">
-                                  {selectedDateImportant.name}
-                                </h4>
-                                {selectedDateImportant.description && (
-                                  <p className="mt-2 text-sm text-purple-700">
-                                    {selectedDateImportant.description}
-                                  </p>
-                                )}
-                              </div>
-                            );
-                          })()}
+                              );
+                            })()}
 
-                          {selectedDatePosts.length > 0
-                            ? (
-                                <div className="space-y-3">
-                                  <h4 className="font-semibold text-slate-900">{t('your_posts')}</h4>
-                                  {selectedDatePosts.map((post, idx) => (
-                                    <div
-                                      key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
-                                      className="rounded-xl border border-white/30 p-4"
-                                    >
-                                      <p className="mb-2 line-clamp-2 font-medium text-slate-900">
-                                        {post.content}
-                                      </p>
-                                      <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                                        <Badge variant="secondary" className="text-xs">
-                                          {format(new Date(post.scheduled_time), 'h:mm a')}
-                                        </Badge>
-                                        <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                                          {/* Brand Info */}
-                                          {post.brand_name && (
-                                            <div className={cn('flex items-center gap-1.5', isRTL ? 'flex-row-reverse' : '')}>
-                                              {post.brand_logo_url
-                                                ? (
-                                                    <Image
-                                                      src={post.brand_logo_url}
-                                                      alt={post.brand_name}
-                                                      width={16}
-                                                      height={16}
-                                                      className="h-4 w-4 rounded-full object-cover"
-                                                    />
-                                                  )
-                                                : (
-                                                    <Building2 className="h-4 w-4 text-slate-500" />
-                                                  )}
-                                              <span className="text-xs text-slate-600">{post.brand_name}</span>
-                                            </div>
-                                          )}
-                                          {/* Platform Icons */}
-                                          {post.platforms && post.platforms.length > 0 && (
-                                            <div className={cn('flex items-center gap-1', isRTL ? 'flex-row-reverse' : '')}>
-                                              {post.platforms
-                                                .filter(platform => platform && typeof platform === 'string')
-                                                .map((platform, idx) => (
-                                                  <div
-                                                    key={`${post.id}-platform-${idx}`}
-                                                    className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-600"
-                                                    title={String(platform)}
-                                                  >
-                                                    <PlatformIcon platform={String(platform)} className="h-3 w-3" />
-                                                  </div>
-                                                ))}
-                                            </div>
-                                          )}
-                                        </div>
+                            {selectedDatePosts.length > 0 && (
+                              <div className="space-y-3">
+                                <h4 className="font-semibold text-slate-900">{t('your_posts')}</h4>
+                                {selectedDatePosts.map((post, idx) => (
+                                  <div
+                                    key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
+                                    className="rounded-xl border border-white/30 p-4"
+                                  >
+                                    <p className="mb-2 line-clamp-2 font-medium text-slate-900">
+                                      {post.content}
+                                    </p>
+                                    <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
+                                      <Badge variant="secondary" className="text-xs">
+                                        {format(new Date(post.scheduled_time), 'h:mm a')}
+                                      </Badge>
+                                      <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                                        {/* Brand Info */}
+                                        {post.brand_name && (
+                                          <div className={cn('flex items-center gap-1.5', isRTL ? 'flex-row-reverse' : '')}>
+                                            {post.brand_logo_url
+                                              ? (
+                                                  <Image
+                                                    src={post.brand_logo_url}
+                                                    alt={post.brand_name}
+                                                    width={16}
+                                                    height={16}
+                                                    className="h-4 w-4 rounded-full object-cover"
+                                                  />
+                                                )
+                                              : (
+                                                  <Building2 className="h-4 w-4 text-slate-500" />
+                                                )}
+                                            <span className="text-xs text-slate-600">{post.brand_name}</span>
+                                          </div>
+                                        )}
+                                        {/* Platform Icons */}
+                                        {post.platforms && post.platforms.length > 0 && (
+                                          <div className={cn('flex items-center gap-1', isRTL ? 'flex-row-reverse' : '')}>
+                                            {post.platforms
+                                              .filter(platform => platform && typeof platform === 'string')
+                                              .map(platform => (
+                                                <div
+                                                  key={`${post.id}-platform-${String(platform)}`}
+                                                  className="flex h-5 w-5 items-center justify-center rounded-full bg-slate-100 text-slate-600"
+                                                  title={String(platform)}
+                                                >
+                                                  <PlatformIcon platform={String(platform)} className="h-3 w-3" />
+                                                </div>
+                                              ))}
+                                          </div>
+                                        )}
                                       </div>
                                     </div>
-                                  ))}
-                                </div>
-                              )
-                            : (
-                                !selectedDateImportant && (
-                                  <div className="py-8 text-center text-slate-500">
-                                    <CalendarIcon className="mx-auto mb-4 h-12 w-12 opacity-50" />
-                                    <p>{t('no_scheduled_posts')}</p>
-                                    <Link href="/create-post">
-                                      <Button className="mt-4 bg-gradient-to-r from-blue-500 to-emerald-500 text-white">
-                                        {t('schedule_post')}
-                                      </Button>
-                                    </Link>
                                   </div>
-                                )
-                              )}
-                        </div>
-                      )
-                    : (
-                        <div className="py-8 text-center text-slate-500">
-                          <p>{t('click_date_events')}</p>
-                        </div>
-                      )}
+                                ))}
+                              </div>
+                            )}
+                          </>
+                        )
+                      : (
+                          <div className="py-4 text-center text-slate-500">
+                            <CalendarIcon className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                            <p className="text-sm">{t('click_date_events')}</p>
+                          </div>
+                        )}
+
+                    {/* Time Picker Section - Always Visible */}
+                    <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <div className={cn('mb-3 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                        <Clock className="h-4 w-4 text-pink-500" />
+                        <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700">
+                          {t('select_time')}
+                        </Label>
+                      </div>
+                      <div className="mb-3">
+                        <Input
+                          id="schedule-time"
+                          type="time"
+                          value={selectedTime}
+                          min={minTime}
+                          onChange={(e) => {
+                            const time = e.target.value;
+                            if (time) {
+                              setSelectedTime(time);
+                              validateTime(selectedDate, time);
+                            }
+                          }}
+                          className={cn(
+                            'w-full border-slate-300 bg-white focus:border-pink-400 focus:ring-pink-400',
+                            timeError ? 'border-red-300 focus:border-red-400 focus:ring-red-400' : '',
+                          )}
+                        />
+                      </div>
+                      <Link
+                        href={
+                          selectedDate && !timeError
+                            ? `/create-post?date=${format(selectedDate, 'yyyy-MM-dd')}&time=${selectedTime}&schedule=later`
+                            : '/create-post'
+                        }
+                        className="block w-full"
+                      >
+                        <Button
+                          size="default"
+                          disabled={!selectedDate || !!timeError}
+                          className="w-full bg-gradient-to-r from-pink-500 to-pink-600 py-2 text-white shadow-md hover:from-pink-600 hover:to-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                          {t('schedule_post')}
+                        </Button>
+                      </Link>
+                      {timeError
+                        ? (
+                            <p className="mt-2 text-xs text-red-600">{timeError}</p>
+                          )
+                        : (
+                            <p className="mt-2 text-xs text-slate-500">
+                              {selectedDate && selectedTime
+                                ? format(
+                                    new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}`),
+                                    'PPp',
+                                    { locale: locale === 'he' ? he : enUS },
+                                  )
+                                : t('select_time_hint')}
+                            </p>
+                          )}
+                    </div>
+                  </div>
                 </CardContent>
               </Card>
             )}
@@ -877,11 +1334,17 @@ export default function CalendarPage() {
                                 <div
                                   key={`${event.date.toISOString()}-${event.name}`}
                                   className={`rounded-lg border p-3 ${config.color} cursor-pointer transition-all duration-200 hover:shadow-md`}
-                                  onClick={() => setSelectedDate(event.date)}
+                                  onClick={() => {
+                                    setSelectedDate(event.date);
+                                    // Set time to default (current time or 5 min from now if today)
+                                    setSelectedTime(getDefaultTime(event.date));
+                                  }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault();
                                       setSelectedDate(event.date);
+                                      // Set time to default (current time or 5 min from now if today)
+                                      setSelectedTime(getDefaultTime(event.date));
                                     }
                                   }}
                                   role="button"
@@ -920,6 +1383,101 @@ export default function CalendarPage() {
           </div>
         </div>
       </div>
+
+      {/* Post Details Dialog */}
+      <Dialog open={showPostDialog} onOpenChange={setShowPostDialog}>
+        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col p-0">
+          <DialogClose />
+          <DialogHeader className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
+            <DialogTitle className="flex items-center gap-2">
+              <CalendarIcon className="h-5 w-5 text-pink-500" />
+              {t('post_details') || 'Post Details'}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPost && (
+            <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto px-6 py-4">
+              {/* Post Content */}
+              <div className="flex-shrink-0">
+                <Label className="text-sm font-semibold text-slate-700">
+                  {t('content') || 'Content'}
+                </Label>
+                <div className="mt-1 max-h-[40vh] min-h-[60px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-sm break-words whitespace-pre-wrap text-slate-900">
+                    {selectedPost.content}
+                  </p>
+                </div>
+              </div>
+
+              {/* Scheduled Time */}
+              <div>
+                <Label className="text-sm font-semibold text-slate-700">
+                  {t('scheduled_time') || 'Scheduled Time'}
+                </Label>
+                <p className="mt-1 text-sm text-slate-600">
+                  {format(
+                    new Date(selectedPost.scheduled_time),
+                    'PPp',
+                    { locale: locale === 'he' ? he : enUS },
+                  )}
+                </p>
+              </div>
+
+              {/* Platforms */}
+              {selectedPost.platforms && selectedPost.platforms.length > 0 && (
+                <div>
+                  <Label className="text-sm font-semibold text-slate-700">
+                    {t('platforms') || 'Platforms'}
+                  </Label>
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {selectedPost.platforms.map(platform => (
+                      <Badge key={String(platform)} variant="secondary" className="flex items-center gap-1.5">
+                        <PlatformIcon platform={String(platform)} className="h-4 w-4" />
+                        <span className="capitalize">{String(platform)}</span>
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Brand Info */}
+              {selectedPost.brand_name && (
+                <div>
+                  <Label className="text-sm font-semibold text-slate-700">
+                    {t('brand') || 'Brand'}
+                  </Label>
+                  <div className="mt-2 flex items-center gap-2">
+                    {selectedPost.brand_logo_url
+                      ? (
+                          <Image
+                            src={selectedPost.brand_logo_url}
+                            alt={selectedPost.brand_name}
+                            width={24}
+                            height={24}
+                            className="h-6 w-6 rounded-full object-cover"
+                          />
+                        )
+                      : (
+                          <Building2 className="h-6 w-6 text-slate-500" />
+                        )}
+                    <span className="text-sm text-slate-900">{selectedPost.brand_name}</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-shrink-0 gap-2 border-t border-slate-200 bg-white px-6 py-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowPostDialog(false)}
+                  className="w-full"
+                >
+                  {t('close') || 'Close'}
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

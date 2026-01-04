@@ -28,7 +28,7 @@ import {
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import React, {
   useCallback,
   useEffect,
@@ -978,6 +978,47 @@ export default function CreatePostPage() {
   const [aiMediaPrompt, setAiMediaPrompt] = useState<Record<Platform | 'base', string>>({} as Record<Platform | 'base', string>);
   const [isGeneratingMedia, setIsGeneratingMedia] = useState<Record<Platform | 'base', boolean>>({} as Record<Platform | 'base', boolean>);
   const [platformValidationErrors, setPlatformValidationErrors] = useState<Record<Platform, string[]>>({} as Record<Platform, string[]>);
+
+  const searchParams = useSearchParams();
+
+  // Auto-populate schedule from URL parameters (when coming from calendar page)
+  useEffect(() => {
+    const date = searchParams.get('date');
+    const time = searchParams.get('time');
+    const schedule = searchParams.get('schedule');
+
+    if (date && schedule === 'later') {
+      // Set schedule mode to 'later'
+      setScheduleMode('later');
+
+      // Combine date and time (default to 09:00 if time not provided)
+      const timeValue = time || '09:00';
+      // Create datetime string in format YYYY-MM-DDTHH:mm (local timezone)
+      // JavaScript Date constructor interprets this as local time, which is what we want
+      const dateTimeString = `${date}T${timeValue}`;
+
+      // Validate: must be at least 5 minutes from now
+      // Create Date object - JavaScript interprets YYYY-MM-DDTHH:mm as local time
+      const selectedDateTime = new Date(dateTimeString);
+      const minDateTime = new Date(Date.now() + 5 * 60000);
+
+      if (selectedDateTime >= minDateTime) {
+        // Use the datetime string directly (already in YYYY-MM-DDTHH:mm format)
+        setScheduledTime(dateTimeString);
+      } else {
+        // If selected time is in the past, set to minimum time (5 minutes from now)
+        // Format as YYYY-MM-DDTHH:mm for datetime-local input
+        const minDate = new Date(minDateTime);
+        const year = minDate.getFullYear();
+        const month = String(minDate.getMonth() + 1).padStart(2, '0');
+        const day = String(minDate.getDate()).padStart(2, '0');
+        const hours = String(minDate.getHours()).padStart(2, '0');
+        const minutes = String(minDate.getMinutes()).padStart(2, '0');
+        const minDateTimeString = `${year}-${month}-${day}T${hours}:${minutes}`;
+        setScheduledTime(minDateTimeString);
+      }
+    }
+  }, [searchParams]);
 
   // Auto-detect content type based on media
   // Check if a format is valid for the current media state
