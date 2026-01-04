@@ -2661,12 +2661,11 @@ export default function CreatePostPage() {
                                     return { platform, format };
                                   });
 
-                                  // Check if all platforms have the same format
+                                  // Get formats array
                                   const formats = platformFormatsList.map(p => p.format).filter(Boolean);
-                                  const allSameFormat = formats.length > 0 && formats.every(f => f === formats[0]);
 
-                                  // If all platforms have the same format, show it once; otherwise show per platform
-                                  if (allSameFormat && formats[0]) {
+                                  // If single platform and has format, show simplified view; otherwise show per platform
+                                  if (selectedPlatforms.length === 1 && formats[0]) {
                                     return (
                                       <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
                                         <label className="text-sm font-semibold text-slate-900">
@@ -2679,7 +2678,7 @@ export default function CreatePostPage() {
                                     );
                                   }
 
-                                  // Show formats per platform
+                                  // Show formats per platform (for multiple platforms or when formats differ)
                                   return (
                                     <div className={cn('space-y-2', isRTL && 'text-right')}>
                                       <label className="block text-sm font-semibold text-slate-900">
