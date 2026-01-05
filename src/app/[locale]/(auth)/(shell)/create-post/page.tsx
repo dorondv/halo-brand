@@ -370,7 +370,7 @@ function PreviewCard({
       // Instagram Story - Full screen, 9:16 aspect ratio
       return (
         <div className={cn(
-          'relative mx-auto overflow-hidden rounded-2xl bg-gradient-to-br from-purple-500 to-pink-500',
+          'relative mx-auto overflow-hidden rounded-2xl bg-gradient-to-br from-pink-500 to-pink-700',
           previewDevice === 'mobile' ? 'h-[600px] w-[337px]' : 'h-[500px] w-[281px]',
         )}
         >
@@ -380,33 +380,42 @@ function PreviewCard({
               <div className="border-2 border-white">
                 <AvatarComponent platform={platform} accounts={accounts} size={32} />
               </div>
-              <span className="text-sm font-semibold text-white">{accountName}</span>
+              <span className="text-sm font-semibold text-white drop-shadow-md">{accountName}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-white/80">{new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
-              <MoreHorizontal className="h-5 w-5 text-white" />
+              <span className="text-xs text-white drop-shadow-md">{new Date().toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}</span>
+              <MoreHorizontal className="h-5 w-5 text-white drop-shadow-md" />
             </div>
           </div>
 
           {/* Story Content */}
-          <div className="flex h-full flex-col items-center justify-center p-4 pt-16">
+          <div className="relative flex h-full flex-col items-center justify-center p-4 pt-16">
             {previewMediaUrls[0]
               ? (
-                  <div className="relative h-full w-full">
-                    <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
-                    {previewTitle && (
-                      <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-                        <p className="text-center text-lg font-bold text-white drop-shadow-lg">{previewTitle}</p>
+                  <>
+                    {/* Image */}
+                    <div className="absolute inset-0">
+                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
+                    </div>
+                    {/* Text overlay on image */}
+                    {(previewTitle || previewCaption) && (
+                      <div className="relative z-10 w-full rounded-lg bg-black/40 px-4 py-3 backdrop-blur-sm">
+                        {previewTitle && (
+                          <p className="mb-1 text-center text-xl font-bold text-white drop-shadow-2xl">{previewTitle}</p>
+                        )}
+                        {previewCaption && (
+                          <p className="text-center text-base font-medium whitespace-pre-wrap text-white drop-shadow-2xl">{previewCaption}</p>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )
               : (
-                  <div className="text-center">
+                  <div className="flex h-full items-center justify-center text-center">
                     {previewTitle && (
-                      <p className="mb-2 text-xl font-bold text-white">{previewTitle}</p>
+                      <p className="mb-2 text-xl font-bold text-white drop-shadow-lg">{previewTitle}</p>
                     )}
-                    <p className="text-lg font-medium text-white">{previewCaption || 'Your story'}</p>
+                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || 'Your story'}</p>
                   </div>
                 )}
           </div>
@@ -626,7 +635,7 @@ function PreviewCard({
       // Facebook Story
       return (
         <div className={cn(
-          'relative mx-auto overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-purple-500',
+          'relative mx-auto overflow-hidden rounded-2xl bg-gradient-to-br from-pink-500 to-pink-700',
           previewDevice === 'mobile' ? 'h-[600px] w-[337px]' : 'h-[500px] w-[281px]',
         )}
         >
@@ -635,28 +644,37 @@ function PreviewCard({
               <div className="border-2 border-white">
                 <AvatarComponent platform={platform} accounts={accounts} size={32} />
               </div>
-              <span className="text-sm font-semibold text-white">{accountName}</span>
+              <span className="text-sm font-semibold text-white drop-shadow-md">{accountName}</span>
             </div>
-            <MoreHorizontal className="h-5 w-5 text-white" />
+            <MoreHorizontal className="h-5 w-5 text-white drop-shadow-md" />
           </div>
-          <div className="flex h-full items-center justify-center p-4 pt-16">
+          <div className="relative flex h-full flex-col items-center justify-center p-4 pt-16">
             {previewMediaUrls[0]
               ? (
-                  <div className="relative h-full w-full">
-                    <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
-                    {previewTitle && (
-                      <div className="absolute top-1/2 left-1/2 z-10 -translate-x-1/2 -translate-y-1/2">
-                        <p className="text-center text-lg font-bold text-white drop-shadow-lg">{previewTitle}</p>
+                  <>
+                    {/* Image */}
+                    <div className="absolute inset-0">
+                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
+                    </div>
+                    {/* Text overlay on image */}
+                    {(previewTitle || previewCaption) && (
+                      <div className="relative z-10 w-full rounded-lg bg-black/40 px-4 py-3 backdrop-blur-sm">
+                        {previewTitle && (
+                          <p className="mb-1 text-center text-xl font-bold text-white drop-shadow-2xl">{previewTitle}</p>
+                        )}
+                        {previewCaption && (
+                          <p className="text-center text-base font-medium whitespace-pre-wrap text-white drop-shadow-2xl">{previewCaption}</p>
+                        )}
                       </div>
                     )}
-                  </div>
+                  </>
                 )
               : (
-                  <div className="text-center">
+                  <div className="flex h-full items-center justify-center text-center">
                     {previewTitle && (
-                      <p className="mb-2 text-xl font-bold text-white">{previewTitle}</p>
+                      <p className="mb-2 text-xl font-bold text-white drop-shadow-lg">{previewTitle}</p>
                     )}
-                    <p className="text-lg font-medium text-white">{previewCaption || 'Your story'}</p>
+                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || 'Your story'}</p>
                   </div>
                 )}
           </div>
