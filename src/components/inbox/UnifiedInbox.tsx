@@ -90,6 +90,11 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
         type: selectedConversation.type,
       });
 
+      // For comment conversations, include postId to fetch all comments on the post
+      if (selectedConversation.type === 'comment' && selectedConversation.postId) {
+        params.append('postId', selectedConversation.postId);
+      }
+
       const url = `/api/inbox/messages?${params.toString()}`;
       const response = await fetch(url);
 
@@ -135,12 +140,27 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
   };
 
   // Handle sending a message
-  const handleSendMessage = async (message: string) => {
+  const handleSendMessage = async (message: string, mentionUserId?: string, mentionName?: string, replyToCommentId?: string) => {
     if (!selectedConversation || !selectedAccount) {
       return;
     }
 
     try {
+      // Determine commentId for reply
+      // If replying to a specific comment (replyToCommentId provided), use that comment's ID
+      // Otherwise, if it's a comment conversation, reply to the post (create new top-level comment)
+      // For chat conversations, use conversationId
+      let replyCommentId: string | undefined;
+      if (selectedConversation.type === 'comment') {
+        if (replyToCommentId) {
+          // Replying to a specific comment (creates a reply/thread)
+          replyCommentId = replyToCommentId;
+        } else {
+          // Creating a new top-level comment (reply to the post)
+          replyCommentId = selectedConversation.postId;
+        }
+      }
+
       const response = await fetch('/api/inbox/reply', {
         method: 'POST',
         headers: {
@@ -151,7 +171,9 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
           message,
           accountId: selectedAccount.id,
           platform: selectedConversation.platform,
-          commentId: selectedConversation.commentId,
+          commentId: replyCommentId, // Use postId for new top-level comments, or specific commentId for replies
+          mentionUserId,
+          mentionName,
         }),
       });
 
@@ -192,6 +214,7 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                 onSendMessage={handleSendMessage}
                 locale={locale}
                 isLoading={isLoadingMessages}
+                accountId={selectedAccount?.id}
               />
 
               {/* Middle Section - Conversations */}
@@ -276,6 +299,7 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                 onSendMessage={handleSendMessage}
                 locale={locale}
                 isLoading={isLoadingMessages}
+                accountId={selectedAccount?.id}
               />
             </>
           )}

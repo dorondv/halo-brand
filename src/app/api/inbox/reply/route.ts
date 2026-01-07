@@ -13,6 +13,8 @@ const replySchema = z.object({
   accountId: z.string(),
   platform: z.enum(['facebook', 'instagram', 'threads']),
   commentId: z.string().optional(), // For comment replies
+  mentionUserId: z.string().optional(), // User ID to mention (Facebook user ID or Instagram username)
+  mentionName: z.string().optional(), // Name/username to mention
 });
 
 /**
@@ -38,7 +40,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { conversationId, message, accountId, platform, commentId } = validation.data;
+    const { conversationId, message, accountId, platform, commentId, mentionUserId, mentionName } = validation.data;
 
     // Fetch account details
     const [account] = await db
@@ -75,12 +77,17 @@ export async function POST(request: NextRequest) {
     // Send reply
     let result;
     if (commentId) {
-      // Reply to comment
+      // Reply to comment with mention support
+      // Meta API handles both cases:
+      // - If commentId is a postId, creates a new top-level comment
+      // - If commentId is a commentId, creates a reply to that comment
       result = await metaClient.replyToComment(
         commentId,
         message,
         platform,
         pageAccessToken,
+        mentionUserId,
+        mentionName,
       );
     } else {
       // Reply to chat conversation

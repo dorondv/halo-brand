@@ -12,6 +12,259 @@ import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 import { formatDateForDisplay, getIntlLocale } from '@/libs/timezone';
 
+// CommentThread component for rendering nested comments
+type CommentThreadProps = {
+  message: Message;
+  conversation: Conversation | null;
+  messageLikes: Record<string, { liked: boolean; count: number }>;
+  likingMessageId: string | null;
+  replyingToMessage: Message | null;
+  onLike: (messageId: string) => void;
+  onReply: (message: Message) => void;
+  locale: string;
+  isRTL: boolean;
+  intlLocale: string;
+  accountId?: string;
+  depth?: number; // Nesting depth for indentation
+};
+
+function CommentThread({
+  message,
+  conversation,
+  messageLikes,
+  likingMessageId,
+  replyingToMessage,
+  onLike,
+  onReply,
+  locale,
+  isRTL,
+  intlLocale,
+  accountId,
+  depth = 0,
+}: CommentThreadProps) {
+  const isOutgoing = message.isOutgoing;
+  const messageDate = new Date(message.timestamp);
+  const timeString = messageDate.toLocaleTimeString(intlLocale, {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  const isReply = depth > 0;
+
+  return (
+    <div className={cn(
+      'space-y-2',
+      isReply && (isRTL ? 'pr-6 pl-0 border-r-2 border-gray-300' : 'pl-6 border-l-2 border-gray-300'),
+    )}
+    >
+      <motion.div
+        key={message.id}
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        exit={{ opacity: 0, y: -10 }}
+        className={cn(
+          'flex items-end gap-2',
+          isRTL
+            ? isOutgoing
+              ? 'justify-start'
+              : 'justify-end'
+            : isOutgoing
+              ? 'justify-end'
+              : 'justify-start',
+        )}
+      >
+        {(!isOutgoing && !isRTL) || (isOutgoing && isRTL)
+          ? (
+              <div className="flex-shrink-0">
+                {message.senderAvatar
+                  ? (
+                      <>
+                        <Image
+                          src={message.senderAvatar}
+                          alt={message.senderName}
+                          width={isReply ? 24 : 32}
+                          height={isReply ? 24 : 32}
+                          className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
+                          unoptimized={message.senderAvatar.includes('cdninstagram.com') || message.senderAvatar.includes('fbsbx.com') || message.senderAvatar.includes('fbcdn.net')}
+                          onError={(e) => {
+                            const target = e.target as HTMLImageElement;
+                            target.style.display = 'none';
+                            const fallback = target.nextElementSibling as HTMLElement;
+                            if (fallback) {
+                              fallback.style.display = 'flex';
+                            }
+                          }}
+                        />
+                        <div className={cn('hidden items-center justify-center rounded-full bg-gray-200', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
+                          <span className={cn('font-semibold text-gray-600', isReply ? 'text-xs' : 'text-xs')}>
+                            {message.senderName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      </>
+                    )
+                  : (
+                      <div className={cn('flex items-center justify-center rounded-full bg-gray-200', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
+                        <span className={cn('font-semibold text-gray-600', isReply ? 'text-xs' : 'text-xs')}>
+                          {message.senderName.charAt(0).toUpperCase()}
+                        </span>
+                      </div>
+                    )}
+              </div>
+            )
+          : null}
+        <div
+          className={cn(
+            'max-w-md rounded-2xl px-4 py-2',
+            isReply && 'max-w-sm',
+            isOutgoing
+              ? isRTL
+                ? 'rounded-bl-sm bg-pink-500 text-white'
+                : 'rounded-br-sm bg-pink-500 text-white'
+              : isRTL
+                ? 'rounded-br-sm bg-gray-100 text-gray-900'
+                : 'rounded-bl-sm bg-gray-100 text-gray-900',
+          )}
+        >
+          <p className={cn('break-words whitespace-pre-wrap', isReply ? 'text-xs' : 'text-sm')}>{message.content}</p>
+          <div className={cn('mt-1 flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+            <p
+              className={cn(
+                isReply ? 'text-xs' : 'text-xs',
+                isOutgoing ? 'text-blue-100' : 'text-gray-500',
+              )}
+            >
+              {timeString}
+            </p>
+            {/* Like and Reply buttons - only show for incoming messages in comment conversations */}
+            {!isOutgoing && conversation?.type === 'comment' && (
+              <div className={cn('flex items-center gap-1', isRTL && 'flex-row-reverse')}>
+                {/* Like button */}
+                <button
+                  type="button"
+                  onClick={() => onLike(message.id)}
+                  disabled={likingMessageId === message.id}
+                  className={cn(
+                    'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
+                    messageLikes[message.id]?.liked
+                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
+                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                    isRTL && 'flex-row-reverse',
+                  )}
+                  title={messageLikes[message.id]?.liked ? 'Unlike' : 'Like'}
+                >
+                  <Heart
+                    className={cn(
+                      'h-3.5 w-3.5',
+                      messageLikes[message.id]?.liked && 'fill-current',
+                    )}
+                  />
+                  {messageLikes[message.id]?.count && messageLikes[message.id]!.count > 0 && (
+                    <span className="text-xs font-medium">
+                      {messageLikes[message.id]!.count}
+                    </span>
+                  )}
+                </button>
+                {/* Reply button */}
+                <button
+                  type="button"
+                  onClick={() => onReply(message)}
+                  className={cn(
+                    'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
+                    replyingToMessage?.id === message.id
+                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
+                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                    isRTL && 'flex-row-reverse',
+                  )}
+                  title="Reply"
+                >
+                  <MessageCircle className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+          </div>
+          {/* Attachments */}
+          {message.attachments && message.attachments.length > 0 && (
+            <div className="mt-2 space-y-2">
+              {message.attachments.map(att => (
+                <div key={`${att.type}-${att.url}`} className="overflow-hidden rounded-lg">
+                  {att.type === 'image' && (
+                    <Image
+                      src={att.url}
+                      alt="Attachment"
+                      width={200}
+                      height={200}
+                      className="h-auto max-w-full rounded-lg"
+                    />
+                  )}
+                  {att.type === 'video' && (
+                    <video src={att.url} controls className="max-w-full rounded-lg">
+                      <track kind="captions" />
+                    </video>
+                  )}
+                  {att.type === 'file' && (
+                    <a
+                      href={att.url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-2 text-sm text-pink-500 hover:underline"
+                    >
+                      <Paperclip className="h-4 w-4" />
+                      View file
+                    </a>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+        {(isOutgoing && !isRTL) || (!isOutgoing && isRTL)
+          ? (
+              <div className="flex-shrink-0">
+                {isOutgoing && conversation?.contactAvatar
+                  ? (
+                      <Image
+                        src={conversation.contactAvatar}
+                        alt="You"
+                        width={isReply ? 24 : 32}
+                        height={isReply ? 24 : 32}
+                        className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
+                        unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                      />
+                    )
+                  : (
+                      <div className={cn('flex items-center justify-center rounded-full bg-pink-500', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
+                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>You</span>
+                      </div>
+                    )}
+              </div>
+            )
+          : null}
+      </motion.div>
+      {/* Render nested replies */}
+      {message.replies && message.replies.length > 0 && (
+        <div className={cn('space-y-2 mt-2', isRTL ? 'mr-0' : 'ml-0')}>
+          {message.replies.map(reply => (
+            <CommentThread
+              key={reply.id}
+              message={reply}
+              conversation={conversation}
+              messageLikes={messageLikes}
+              likingMessageId={likingMessageId}
+              replyingToMessage={replyingToMessage}
+              onLike={onLike}
+              onReply={onReply}
+              locale={locale}
+              isRTL={isRTL}
+              intlLocale={intlLocale}
+              accountId={accountId}
+              depth={depth + 1}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Emoji categories for emoji picker
 const EMOJI_CATEGORIES = {
   'Smileys & People': ['😀', '😃', '😄', '😁', '😆', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😗', '😙', '😚', '😋', '😛', '😝', '😜', '🤪', '🤨', '🧐', '🤓', '😎', '🤩', '🥳', '😏', '😒', '😞', '😔', '😟', '😕', '🙁', '😣', '😖', '😫', '😩', '🥺', '😢', '😭', '😤', '😠', '😡', '🤬', '🤯', '😳', '🥵', '🥶', '😱', '😨', '😰', '😥', '😓'],
@@ -35,9 +288,10 @@ const QUICK_REPLIES = [
 type ChatWindowProps = {
   conversation: Conversation | null;
   messages: Message[];
-  onSendMessage: (message: string) => Promise<void>;
+  onSendMessage: (message: string, mentionUserId?: string, mentionName?: string, replyToCommentId?: string) => Promise<void>;
   locale: string;
   isLoading?: boolean;
+  accountId?: string; // Database account ID (UUID) for API calls
 };
 
 export function ChatWindow({
@@ -46,6 +300,7 @@ export function ChatWindow({
   onSendMessage,
   locale,
   isLoading = false,
+  accountId,
 }: ChatWindowProps) {
   const [newMessage, setNewMessage] = useState('');
   const [isSending, setIsSending] = useState(false);
@@ -53,6 +308,9 @@ export function ChatWindow({
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ type: 'image' | 'file'; url: string; file: File }>>([]);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [messageLikes, setMessageLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const [likingMessageId, setLikingMessageId] = useState<string | null>(null);
+  const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -66,6 +324,49 @@ export function ChatWindow({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
+
+  // Fetch like counts for all messages when they change
+  useEffect(() => {
+    if (!conversation || messages.length === 0) {
+      return;
+    }
+
+    const fetchLikes = async () => {
+      // Only fetch likes for comment conversations
+      if (conversation?.type !== 'comment' || !accountId || !conversation?.platform) {
+        return;
+      }
+
+      const likesPromises = messages
+        .filter(msg => !msg.isOutgoing) // Only fetch likes for incoming messages
+        .map(async (msg) => {
+          try {
+            const params = new URLSearchParams({
+              commentId: msg.id,
+              accountId,
+              platform: conversation.platform,
+            });
+            const response = await fetch(`/api/inbox/comments/like?${params.toString()}`);
+            if (response.ok) {
+              const data = await response.json();
+              return { messageId: msg.id, ...data };
+            }
+          } catch (error) {
+            console.error(`Error fetching likes for message ${msg.id}:`, error);
+          }
+          return { messageId: msg.id, liked: false, count: 0 };
+        });
+
+      const likesResults = await Promise.all(likesPromises);
+      const likesMap: Record<string, { liked: boolean; count: number }> = {};
+      likesResults.forEach((result) => {
+        likesMap[result.messageId] = { liked: result.liked, count: result.count };
+      });
+      setMessageLikes(likesMap);
+    };
+
+    fetchLikes();
+  }, [messages, conversation, accountId]);
 
   // Close emoji picker and plus menu when clicking outside
   useEffect(() => {
@@ -231,14 +532,43 @@ export function ChatWindow({
 
     setIsSending(true);
     try {
+      // For comment conversations, automatically add mention
+      const messageToSend = messageText;
+      let mentionUserId: string | undefined;
+      let mentionName: string | undefined;
+
+      if (conversation.type === 'comment' && messages.length > 0) {
+        // If replying to a specific message, use that message's sender
+        if (replyingToMessage && replyingToMessage.senderId && replyingToMessage.senderName) {
+          mentionUserId = replyingToMessage.senderId;
+          mentionName = replyingToMessage.senderName;
+        } else {
+          // Otherwise, find the original comment (first incoming message)
+          const originalComment = messages.find(msg => !msg.isOutgoing);
+          if (originalComment && originalComment.senderId && originalComment.senderName) {
+            mentionUserId = originalComment.senderId;
+            mentionName = originalComment.senderName;
+          } else if (conversation.contactName) {
+            // Fallback to conversation contact name if we don't have sender info
+            mentionName = conversation.contactName;
+          }
+        }
+      }
+
+      // Determine which comment to reply to
+      // If replying to a specific message, use that message's ID
+      // Otherwise, reply to the post (create new top-level comment)
+      const replyToCommentId = replyingToMessage?.id;
+
       // For now, send text only. Attachments can be added later via API
-      if (messageText) {
-        await onSendMessage(messageText);
+      if (messageToSend) {
+        await onSendMessage(messageToSend, mentionUserId, mentionName, replyToCommentId);
       }
       setNewMessage('');
       setAttachments([]);
       setShowEmojiPicker(false);
       setShowPlusMenu(false);
+      setReplyingToMessage(null); // Clear reply target after sending
     } catch (error) {
       console.error('Error sending message:', error);
     } finally {
@@ -251,6 +581,57 @@ export function ChatWindow({
       e.preventDefault();
       handleSend();
     }
+  };
+
+  // Handle like/unlike a comment
+  const handleLike = async (messageId: string) => {
+    if (!conversation || !accountId || likingMessageId) {
+      return;
+    }
+
+    setLikingMessageId(messageId);
+    try {
+      const response = await fetch('/api/inbox/comments/like', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          commentId: messageId,
+          accountId,
+          platform: conversation.platform,
+          conversationId: conversation.id,
+        }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setMessageLikes(prev => ({
+          ...prev,
+          [messageId]: {
+            liked: data.liked,
+            count: data.count || 0,
+          },
+        }));
+      }
+    } catch (error) {
+      console.error('Error toggling like:', error);
+    } finally {
+      setLikingMessageId(null);
+    }
+  };
+
+  // Handle reply to a specific comment
+  const handleReplyToComment = (message: Message) => {
+    if (!message.senderName || !conversation) {
+      return;
+    }
+
+    // Set the message being replied to
+    setReplyingToMessage(message);
+
+    // Focus the textarea
+    setTimeout(() => {
+      textareaRef.current?.focus();
+    }, 0);
   };
 
   if (!conversation) {
@@ -374,135 +755,22 @@ export function ChatWindow({
                 <div className="space-y-4">
                   <AnimatePresence>
                     {messages.map((message) => {
-                      const isOutgoing = message.isOutgoing;
-                      const messageDate = new Date(message.timestamp);
-                      const timeString = messageDate.toLocaleTimeString(intlLocale, {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                      });
-
+                      // Render message and its nested replies recursively
                       return (
-                        <motion.div
+                        <CommentThread
                           key={message.id}
-                          initial={{ opacity: 0, y: 10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          exit={{ opacity: 0, y: -10 }}
-                          className={cn(
-                            'flex items-end gap-2',
-                            isRTL
-                              ? isOutgoing
-                                ? 'justify-start'
-                                : 'justify-end'
-                              : isOutgoing
-                                ? 'justify-end'
-                                : 'justify-start',
-                          )}
-                        >
-                          {(!isOutgoing && !isRTL) || (isOutgoing && isRTL)
-                            ? (
-                                <div className="flex-shrink-0">
-                                  {message.senderAvatar
-                                    ? (
-                                        <>
-                                          <Image
-                                            src={message.senderAvatar}
-                                            alt={message.senderName}
-                                            width={32}
-                                            height={32}
-                                            className="h-8 w-8 rounded-full object-cover"
-                                            unoptimized={message.senderAvatar.includes('cdninstagram.com') || message.senderAvatar.includes('fbsbx.com') || message.senderAvatar.includes('fbcdn.net')}
-                                            onError={(e) => {
-                                              // Fallback to initials if image fails to load
-                                              const target = e.target as HTMLImageElement;
-                                              target.style.display = 'none';
-                                              const fallback = target.nextElementSibling as HTMLElement;
-                                              if (fallback) {
-                                                fallback.style.display = 'flex';
-                                              }
-                                            }}
-                                          />
-                                          <div className="hidden h-8 w-8 items-center justify-center rounded-full bg-gray-200">
-                                            <span className="text-xs font-semibold text-gray-600">
-                                              {message.senderName.charAt(0).toUpperCase()}
-                                            </span>
-                                          </div>
-                                        </>
-                                      )
-                                    : (
-                                        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-gray-200">
-                                          <span className="text-xs font-semibold text-gray-600">
-                                            {message.senderName.charAt(0).toUpperCase()}
-                                          </span>
-                                        </div>
-                                      )}
-                                </div>
-                              )
-                            : null}
-                          <div
-                            className={cn(
-                              'max-w-md rounded-2xl px-4 py-2',
-                              isOutgoing
-                                ? isRTL
-                                  ? 'rounded-bl-sm bg-pink-500 text-white'
-                                  : 'rounded-br-sm bg-pink-500 text-white'
-                                : isRTL
-                                  ? 'rounded-br-sm bg-gray-100 text-gray-900'
-                                  : 'rounded-bl-sm bg-gray-100 text-gray-900',
-                            )}
-                          >
-                            <p className="text-sm break-words whitespace-pre-wrap">{message.content}</p>
-                            <p
-                              className={`mt-1 text-xs ${
-                                isOutgoing ? 'text-blue-100' : 'text-gray-500'
-                              }`}
-                            >
-                              {timeString}
-                            </p>
-                            {/* Attachments */}
-                            {message.attachments && message.attachments.length > 0 && (
-                              <div className="mt-2 space-y-2">
-                                {message.attachments.map(att => (
-                                  <div key={`${att.type}-${att.url}`} className="overflow-hidden rounded-lg">
-                                    {att.type === 'image' && (
-                                      <Image
-                                        src={att.url}
-                                        alt="Attachment"
-                                        width={200}
-                                        height={200}
-                                        className="h-auto max-w-full rounded-lg"
-                                      />
-                                    )}
-                                    {att.type === 'video' && (
-                                      <video src={att.url} controls className="max-w-full rounded-lg">
-                                        <track kind="captions" />
-                                      </video>
-                                    )}
-                                    {att.type === 'file' && (
-                                      <a
-                                        href={att.url}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex items-center gap-2 text-sm text-pink-500 hover:underline"
-                                      >
-                                        <Paperclip className="h-4 w-4" />
-                                        View file
-                                      </a>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                          {(isOutgoing && !isRTL) || (!isOutgoing && isRTL)
-                            ? (
-                                <div className="flex-shrink-0">
-                                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-500">
-                                    <span className="text-xs font-semibold text-white">You</span>
-                                  </div>
-                                </div>
-                              )
-                            : null}
-                        </motion.div>
+                          message={message}
+                          conversation={conversation}
+                          messageLikes={messageLikes}
+                          likingMessageId={likingMessageId}
+                          replyingToMessage={replyingToMessage}
+                          onLike={handleLike}
+                          onReply={handleReplyToComment}
+                          locale={locale}
+                          isRTL={isRTL}
+                          intlLocale={intlLocale}
+                          accountId={accountId}
+                        />
                       );
                     })}
                   </AnimatePresence>
@@ -513,6 +781,30 @@ export function ChatWindow({
 
       {/* Message Input */}
       <div className="border-t border-gray-200 bg-white px-6 py-4">
+        {/* Reply indicator */}
+        {replyingToMessage && conversation?.type === 'comment' && (
+          <div className={cn('mb-2 flex items-center justify-between rounded-lg bg-pink-50 border border-pink-200 px-3 py-2', isRTL && 'flex-row-reverse')}>
+            <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+              <MessageCircle className="h-4 w-4 text-pink-600" />
+              <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
+                Replying to
+                {' '}
+                <span className="font-semibold">{replyingToMessage.senderName}</span>
+              </span>
+            </div>
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-pink-600 hover:bg-pink-100"
+              onClick={() => setReplyingToMessage(null)}
+              title="Cancel reply"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
         {/* Attachments Preview */}
         {attachments.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-2">

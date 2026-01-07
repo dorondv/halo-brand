@@ -106,18 +106,56 @@ export function ConversationList({
         {selectedConversation
           ? (
               <div className={cn('mb-4', isRTL && 'text-right')}>
-                <h1 className="mb-1 text-xl font-semibold text-gray-900">
-                  {selectedConversation.contactName}
-                </h1>
-                <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                  <span className="text-sm text-gray-600">
-                    {selectedConversation.type === 'chat' ? t('private_message') : t('comment')}
-                  </span>
-                  {(() => {
-                    const platform = selectedConversation.platform as MetaPlatform;
-                    const { icon: Icon, color } = platformIcons[platform] || platformIcons.facebook;
-                    return <Icon className={`h-4 w-4 ${color}`} />;
-                  })()}
+                <div className={cn('flex items-center gap-3 mb-2', isRTL && 'flex-row-reverse')}>
+                  {/* Avatar */}
+                  {selectedConversation.contactAvatar
+                    ? (
+                        <>
+                          <Image
+                            src={selectedConversation.contactAvatar}
+                            alt={selectedConversation.contactName}
+                            width={40}
+                            height={40}
+                            className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
+                            unoptimized={selectedConversation.contactAvatar.includes('cdninstagram.com') || selectedConversation.contactAvatar.includes('fbsbx.com') || selectedConversation.contactAvatar.includes('fbcdn.net')}
+                            onError={(e) => {
+                              const target = e.target as HTMLImageElement;
+                              target.style.display = 'none';
+                              const fallback = target.nextElementSibling as HTMLElement;
+                              if (fallback) {
+                                fallback.style.display = 'flex';
+                              }
+                            }}
+                          />
+                          <div className="hidden h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200">
+                            <span className="text-sm font-semibold text-gray-600">
+                              {selectedConversation.contactName.charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                        </>
+                      )
+                    : (
+                        <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-gray-200">
+                          <span className="text-sm font-semibold text-gray-600">
+                            {selectedConversation.contactName.charAt(0).toUpperCase()}
+                          </span>
+                        </div>
+                      )}
+                  <div className="min-w-0 flex-1">
+                    <h1 className="truncate text-xl font-semibold text-gray-900">
+                      {selectedConversation.contactName}
+                    </h1>
+                    <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+                      <span className="text-sm text-gray-600">
+                        {selectedConversation.type === 'chat' ? t('private_message') : t('comment')}
+                      </span>
+                      {(() => {
+                        const platform = selectedConversation.platform as MetaPlatform;
+                        const { icon: Icon, color } = platformIcons[platform] || platformIcons.facebook;
+                        return <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />;
+                      })()}
+                    </div>
+                  </div>
                 </div>
               </div>
             )

@@ -459,11 +459,15 @@ export async function GET(request: NextRequest) {
         || undefined;
 
     // Add account avatar to conversations if not already present in contactAvatar
-    // This ensures the UI can display the account's avatar
+    // For comment conversations, always use the commenter's avatar (contactAvatar)
+    // For chat conversations, use contactAvatar if available, otherwise fallback to account avatar
     const conversationsWithAvatar = filteredConversations.map(conv => ({
       ...conv,
-      // Keep contactAvatar if it exists, otherwise use account avatar as fallback
-      contactAvatar: conv.contactAvatar || accountAvatar,
+      // For comment conversations, prioritize contactAvatar (commenter's avatar)
+      // For chat conversations, use contactAvatar if available, otherwise account avatar
+      contactAvatar: conv.type === 'comment'
+        ? (conv.contactAvatar || undefined) // Don't fallback to account avatar for comments
+        : (conv.contactAvatar || accountAvatar), // Fallback for chat conversations
     }));
 
     return NextResponse.json({

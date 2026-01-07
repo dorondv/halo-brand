@@ -45,6 +45,7 @@ export type Message = {
   id: string;
   conversationId: string;
   senderName: string;
+  senderId?: string; // User ID for mentions (Facebook user ID or Instagram username)
   senderAvatar?: string;
   content: string;
   timestamp: string;
@@ -53,6 +54,10 @@ export type Message = {
     type: 'image' | 'video' | 'file';
     url: string;
   }>;
+  likeCount?: number;
+  isLiked?: boolean;
+  parentId?: string; // ID of parent comment if this is a reply
+  replies?: Message[]; // Nested replies
 };
 
 export type MetaApiError = {
@@ -350,7 +355,7 @@ export class MetaInboxClient {
             paging?: {
               next?: string;
             };
-          }>(`/${post.id}/comments?fields=id,message,from,created_time,can_reply,parent&limit=50&order=reverse_chronological`);
+          }>(`/${post.id}/comments?fields=id,message,from{id,name,picture},created_time,can_reply,parent&limit=50&order=reverse_chronological`);
 
           (commentsData.data || []).forEach((comment) => {
             // Get post image if available
@@ -469,10 +474,11 @@ export class MetaInboxClient {
                 from: {
                   username: string;
                   id: string;
+                  profile_picture_url?: string;
                 };
                 timestamp: string;
               }>;
-            }>(`/${media.id}/comments?fields=id,text,from,timestamp&limit=50`);
+            }>(`/${media.id}/comments?fields=id,text,from{username,id,profile_picture_url},timestamp&limit=50`);
 
             (commentsData.data || []).forEach((comment) => {
               conversations.push({
@@ -481,6 +487,7 @@ export class MetaInboxClient {
                 platform: 'instagram' as MetaPlatform,
                 type: 'comment' as ConversationType,
                 contactName: comment.from?.username || 'Unknown',
+                contactAvatar: comment.from?.profile_picture_url,
                 lastMessage: comment.text || '',
                 lastMessageTime: comment.timestamp,
                 unreadCount: 1,
@@ -563,6 +570,7 @@ export class MetaInboxClient {
         id: msg.id,
         conversationId,
         senderName: msg.from.name || msg.from.username || 'Unknown',
+        senderId: msg.from.id,
         senderAvatar: msg.from.picture?.data?.url,
         content: msg.message || '',
         timestamp: msg.created_time || msg.timestamp || new Date().toISOString(),
@@ -579,7 +587,244 @@ export class MetaInboxClient {
   }
 
   /**
+   * Get all comments on a post (for comment conversations)
+   * When viewing a comment conversation, show all comments on the post, not just one thread
+   */
+  async getPostComments(postId: string, platform: MetaPlatform, pageAccessToken?: string): Promise<Message[]> {
+    try {
+      const messages: Message[] = [];
+
+      if (platform === 'facebook') {
+        const clientToUse = pageAccessToken
+          ? new MetaInboxClient(pageAccessToken, undefined, undefined)
+          : this;
+
+        // Get all comments on the post - include picture field for avatars and filter to get all comments including replies
+        // Use filter=stream to get all comments including replies
+        const commentsData = await clientToUse.request<{
+          data?: Array<{
+            id: string;
+            message?: string;
+            from?: {
+              name?: string;
+              id?: string;
+              picture?: {
+                data?: {
+                  url?: string;
+                };
+              };
+            };
+            created_time?: string;
+            parent?: {
+              id: string;
+            };
+          }>;
+          paging?: {
+            next?: string;
+            cursors?: {
+              before?: string;
+              after?: string;
+            };
+          };
+        }>(`/${postId}/comments?fields=id,message,from{id,name,picture},created_time,parent&filter=stream&limit=100&order=reverse_chronological`);
+
+        // Fetch all pages of comments (including replies)
+        const allCommentsData: Array<{
+          id: string;
+          message?: string;
+          from?: {
+            name?: string;
+            id?: string;
+            picture?: {
+              data?: {
+                url?: string;
+              };
+            };
+          };
+          created_time?: string;
+          parent?: {
+            id: string;
+          };
+        }> = [];
+
+        // Collect first page
+        if (commentsData.data) {
+          allCommentsData.push(...commentsData.data);
+        }
+
+        // Fetch additional pages if available
+        let nextPageUrl = commentsData.paging?.next;
+        let pageCount = 0;
+        const maxPages = 10; // Limit to prevent infinite loops
+
+        while (nextPageUrl && pageCount < maxPages) {
+          try {
+            pageCount++;
+            // Facebook Graph API returns absolute URLs for pagination
+            // We need to fetch directly from the absolute URL
+            const url = new URL(nextPageUrl);
+
+            // Extract pathname (remove leading /vXX.X/ if present)
+            let path = url.pathname;
+            const versionMatch = path.match(/^\/v\d+\.\d+\/(.+)$/);
+            if (versionMatch) {
+              path = `/${versionMatch[1]}`;
+            }
+
+            // Extract query parameters (excluding access_token as it will be added by request method)
+            const queryParams = new URLSearchParams();
+            url.searchParams.forEach((value, key) => {
+              if (key !== 'access_token') {
+                queryParams.append(key, value);
+              }
+            });
+
+            // Make request to next page
+            const requestPath = queryParams.toString() ? `${path}?${queryParams.toString()}` : path;
+            const nextPageData = await clientToUse.request<{
+              data?: Array<{
+                id: string;
+                message?: string;
+                from?: {
+                  name?: string;
+                  id?: string;
+                  picture?: {
+                    data?: {
+                      url?: string;
+                    };
+                  };
+                };
+                created_time?: string;
+                parent?: {
+                  id: string;
+                };
+              }>;
+              paging?: {
+                next?: string;
+              };
+            }>(requestPath);
+
+            if (nextPageData.data && nextPageData.data.length > 0) {
+              allCommentsData.push(...nextPageData.data);
+            }
+            nextPageUrl = nextPageData.paging?.next;
+          } catch (error) {
+            console.error('Error fetching next page of comments:', error);
+            break;
+          }
+        }
+
+        // First, collect all comments with parent information
+        const allComments: Message[] = [];
+        allCommentsData.forEach((comment) => {
+          allComments.push({
+            id: comment.id,
+            conversationId: postId,
+            senderName: comment.from?.name || 'Unknown',
+            senderId: comment.from?.id,
+            senderAvatar: comment.from?.picture?.data?.url,
+            content: comment.message || '',
+            timestamp: comment.created_time || new Date().toISOString(),
+            isOutgoing: false,
+            parentId: comment.parent?.id,
+            replies: [],
+          } as Message);
+        });
+
+        // Organize comments into a tree structure (parent comments with nested replies)
+        const commentMap = new Map<string, Message>();
+        const topLevelComments: Message[] = [];
+
+        // First pass: create map of all comments
+        allComments.forEach((comment) => {
+          commentMap.set(comment.id, comment);
+        });
+
+        // Second pass: build tree structure
+        // Note: parentId can be either a comment ID (for replies) or the post ID (for top-level comments)
+        // We need to check if parentId matches the postId to determine if it's top-level
+        allComments.forEach((comment) => {
+          if (comment.parentId && comment.parentId !== postId) {
+            // This is a reply to another comment (parentId is a comment ID, not the post ID)
+            const parent = commentMap.get(comment.parentId);
+            if (parent) {
+              if (!parent.replies) {
+                parent.replies = [];
+              }
+              parent.replies.push(comment);
+            } else {
+              // Parent comment not found in current batch - might be in a different page
+              // For now, treat as top-level (this can happen with pagination)
+              // In a production app, you might want to fetch the parent comment
+              topLevelComments.push(comment);
+            }
+          } else {
+            // This is a top-level comment (no parentId or parentId is the postId)
+            topLevelComments.push(comment);
+          }
+        });
+
+        // Sort top-level comments and their replies by timestamp (oldest first)
+        const sortComments = (comments: Message[]): Message[] => {
+          return comments
+            .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+            .map(comment => ({
+              ...comment,
+              replies: comment.replies ? sortComments(comment.replies) : [],
+            }));
+        };
+
+        messages.push(...sortComments(topLevelComments));
+      } else if (platform === 'instagram') {
+        const clientToUse = pageAccessToken
+          ? new MetaInboxClient(pageAccessToken, undefined, undefined)
+          : this;
+
+        try {
+          // Get all comments on the Instagram post - include profile picture if available
+          const commentsData = await clientToUse.request<{
+            data?: Array<{
+              id: string;
+              text?: string;
+              from?: {
+                username?: string;
+                id?: string;
+                profile_picture_url?: string;
+              };
+              timestamp?: string;
+            }>;
+          }>(`/${postId}/comments?fields=id,text,from{username,id,profile_picture_url},timestamp&limit=100`);
+
+          (commentsData.data || []).forEach((comment) => {
+            messages.push({
+              id: comment.id,
+              conversationId: postId,
+              senderName: comment.from?.username || 'Unknown',
+              senderId: comment.from?.username, // Instagram uses username as ID
+              senderAvatar: comment.from?.profile_picture_url, // Instagram profile picture
+              content: comment.text || '',
+              timestamp: comment.timestamp || new Date().toISOString(),
+              isOutgoing: false,
+            } as Message);
+          });
+
+          // Sort by timestamp (oldest first)
+          messages.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+        } catch {
+          // Fallback if comments endpoint fails
+        }
+      }
+
+      return messages;
+    } catch (error) {
+      console.error('Error fetching post comments:', error);
+      return [];
+    }
+  }
+
+  /**
    * Get comment and its replies (for comment conversations)
+   * @deprecated Use getPostComments instead to show all comments on the post
    */
   async getCommentMessages(commentId: string, platform: MetaPlatform, pageAccessToken?: string): Promise<Message[]> {
     try {
@@ -613,6 +858,7 @@ export class MetaInboxClient {
           id: commentData.id,
           conversationId: commentId,
           senderName: commentData.from?.name || 'Unknown',
+          senderId: commentData.from?.id,
           senderAvatar: commentData.from?.picture?.data?.url,
           content: commentData.message || '',
           timestamp: commentData.created_time,
@@ -647,6 +893,7 @@ export class MetaInboxClient {
             id: reply.id,
             conversationId: commentId,
             senderName,
+            senderId: reply.from?.id,
             senderAvatar,
             content: reply.message || '',
             timestamp: reply.created_time,
@@ -677,6 +924,7 @@ export class MetaInboxClient {
             id: commentData.id,
             conversationId: commentId,
             senderName: commentData.from?.username || 'Unknown',
+            senderId: commentData.from?.username, // Instagram uses username as ID for mentions
             content: commentData.text || '',
             timestamp: commentData.timestamp || new Date().toISOString(),
             isOutgoing: false,
@@ -702,6 +950,7 @@ export class MetaInboxClient {
                 id: reply.id,
                 conversationId: commentId,
                 senderName: reply.from?.username || 'Unknown',
+                senderId: reply.from?.username, // Instagram uses username as ID for mentions
                 content: reply.text || '',
                 timestamp: reply.timestamp || new Date().toISOString(),
                 isOutgoing: false,
@@ -766,26 +1015,48 @@ export class MetaInboxClient {
   }
 
   /**
-   * Reply to a comment
+   * Reply to a comment or create a new comment on a post
+   * @param commentId - The comment ID to reply to, or post ID to create a new top-level comment
+   * @param message - The reply message
+   * @param platform - The platform (facebook, instagram, threads)
+   * @param pageAccessToken - Optional page access token for Facebook Pages
+   * @param mentionUserId - Optional user ID to mention (Facebook user ID or Instagram username)
+   * @param mentionName - Optional name/username to mention
    */
   async replyToComment(
     commentId: string,
     message: string,
     platform: MetaPlatform,
     pageAccessToken?: string,
+    mentionUserId?: string,
+    mentionName?: string,
   ): Promise<{ success: boolean; commentId?: string }> {
     try {
       const token = pageAccessToken || this.accessToken;
       const client = new MetaInboxClient(token);
 
+      // Format message with mention if provided
+      let formattedMessage = message;
+      if (mentionUserId && mentionName) {
+        if (platform === 'facebook') {
+          // Facebook uses @[user-id:name] format for mentions
+          formattedMessage = `@[${mentionUserId}:${mentionName}] ${message}`;
+        } else if (platform === 'instagram') {
+          // Instagram uses @username format
+          formattedMessage = `@${mentionName} ${message}`;
+        }
+      }
+
       if (platform === 'facebook') {
-        // Reply to Facebook comment
+        // Meta API uses the same endpoint for both:
+        // - POST /{post-id}/comments creates a new top-level comment
+        // - POST /{comment-id}/comments creates a reply to that comment
         const data = await client.request<{
           id: string;
         }>(`/${commentId}/comments`, {
           method: 'POST',
           body: JSON.stringify({
-            message,
+            message: formattedMessage,
           }),
         });
 
@@ -806,6 +1077,137 @@ export class MetaInboxClient {
       console.error('Error replying to comment:', error);
       return {
         success: false,
+      };
+    }
+  }
+
+  /**
+   * Like a comment using Meta Graph API
+   */
+  async likeComment(
+    commentId: string,
+    platform: MetaPlatform,
+    pageAccessToken?: string,
+  ): Promise<{ success: boolean }> {
+    try {
+      const token = pageAccessToken || this.accessToken;
+      const client = new MetaInboxClient(token);
+
+      if (platform === 'facebook') {
+        // Like Facebook comment
+        await client.request<{
+          success: boolean;
+        }>(`/${commentId}/likes`, {
+          method: 'POST',
+        });
+
+        return {
+          success: true,
+        };
+      } else if (platform === 'instagram') {
+        // Instagram doesn't have a direct like endpoint for comments via Graph API
+        // Instagram comments can't be liked via API - only posts can be liked
+        return {
+          success: false,
+        };
+      }
+
+      return {
+        success: false,
+      };
+    } catch (error) {
+      console.error('Error liking comment:', error);
+      return {
+        success: false,
+      };
+    }
+  }
+
+  /**
+   * Unlike a comment using Meta Graph API
+   */
+  async unlikeComment(
+    commentId: string,
+    platform: MetaPlatform,
+    pageAccessToken?: string,
+  ): Promise<{ success: boolean }> {
+    try {
+      const token = pageAccessToken || this.accessToken;
+      const client = new MetaInboxClient(token);
+
+      if (platform === 'facebook') {
+        // Unlike Facebook comment
+        await client.request<{
+          success: boolean;
+        }>(`/${commentId}/likes`, {
+          method: 'DELETE',
+        });
+
+        return {
+          success: true,
+        };
+      } else if (platform === 'instagram') {
+        // Instagram doesn't support unliking comments via API
+        return {
+          success: false,
+        };
+      }
+
+      return {
+        success: false,
+      };
+    } catch (error) {
+      console.error('Error unliking comment:', error);
+      return {
+        success: false,
+      };
+    }
+  }
+
+  /**
+   * Get like status and count for a comment
+   */
+  async getCommentLikes(
+    commentId: string,
+    platform: MetaPlatform,
+    pageAccessToken?: string,
+  ): Promise<{ liked: boolean; count: number }> {
+    try {
+      const token = pageAccessToken || this.accessToken;
+      const client = new MetaInboxClient(token);
+
+      if (platform === 'facebook') {
+        // Get likes for Facebook comment
+        // First, get the summary to check if current user liked it
+        const summaryData = await client.request<{
+          summary: {
+            total_count: number;
+            can_like: boolean;
+            has_liked: boolean;
+          };
+        }>(`/${commentId}/likes?summary=true&limit=0`);
+
+        return {
+          liked: summaryData.summary?.has_liked || false,
+          count: summaryData.summary?.total_count || 0,
+        };
+      } else if (platform === 'instagram') {
+        // Instagram doesn't support getting comment likes via Graph API
+        return {
+          liked: false,
+          count: 0,
+        };
+      }
+
+      return {
+        liked: false,
+        count: 0,
+      };
+    } catch (error) {
+      console.error('Error fetching comment likes:', error);
+      return {
+        liked: false,
+        count: 0,
       };
     }
   }

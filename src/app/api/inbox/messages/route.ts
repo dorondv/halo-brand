@@ -30,6 +30,7 @@ export async function GET(request: NextRequest) {
     const accountId = searchParams.get('accountId');
     const platform = searchParams.get('platform') as MetaPlatform | null;
     const conversationType = searchParams.get('type') as 'chat' | 'comment' | null;
+    const postId = searchParams.get('postId'); // For comment conversations, get postId to fetch all comments
 
     if (!conversationId || !accountId || !platform) {
       return NextResponse.json(
@@ -93,7 +94,15 @@ export async function GET(request: NextRequest) {
     );
 
     // Fetch messages
-    const messages = await metaClient.getMessages(conversationId, platform, conversationType || undefined, pageAccessToken);
+    // For comment conversations, fetch all comments on the post instead of just one comment thread
+    let messages;
+    if (conversationType === 'comment' && postId) {
+      // Fetch all comments on the post
+      messages = await metaClient.getPostComments(postId, platform, pageAccessToken);
+    } else {
+      // For chat conversations or if postId is not available, use the original method
+      messages = await metaClient.getMessages(conversationId, platform, conversationType || undefined, pageAccessToken);
+    }
 
     return NextResponse.json({ messages });
   } catch (error) {
