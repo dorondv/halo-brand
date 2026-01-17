@@ -18,6 +18,8 @@ const baseConfig: NextConfig = {
   experimental: {
     turbopackFileSystemCacheForDev: true,
   },
+  // Externalize server packages to avoid version conflicts
+  serverExternalPackages: ['require-in-the-middle', 'chartjs-node-canvas', 'canvas'],
   // Optimize middleware bundle size by excluding unnecessary dependencies
   webpack: (config, { isServer }) => {
     // Ensure tailwindcss resolves correctly from the project directory
@@ -47,6 +49,60 @@ const baseConfig: NextConfig = {
 
     if (!isServer) {
       return config;
+    }
+
+    // Explicitly externalize native modules to prevent webpack from bundling them
+    // These modules use native bindings that cannot be bundled
+    const nativeModules = ['chartjs-node-canvas', 'canvas'];
+
+    if (Array.isArray(config.externals)) {
+      // Preserve existing externals and add new ones
+      config.externals.push(...nativeModules);
+    } else if (typeof config.externals === 'function') {
+      // Wrap function-based externals to also handle native modules
+      // Webpack externals functions can have different signatures:
+      // - Webpack 4: (context, request, callback) => void
+      // - Webpack 5: (context, request) => string | undefined
+      // - Webpack 5: ({ context, request, ... }) => string | undefined
+      const originalExternals = config.externals;
+      config.externals = (arg1: any, arg2?: any, arg3?: any) => {
+        // Determine if this is webpack 5 object style: ({ context, request })
+        const isObjectStyle = arg1 && typeof arg1 === 'object' && 'request' in arg1;
+        const request = isObjectStyle ? arg1.request : arg2;
+
+        // First check if it's one of our native modules
+        if (request && nativeModules.includes(request)) {
+          const externalValue = `commonjs ${request}`;
+
+          if (isObjectStyle) {
+            // Webpack 5 object style - return the external value
+            return externalValue;
+          } else if (typeof arg3 === 'function') {
+            // Webpack 4 callback style
+            arg3(null, externalValue);
+            return;
+          } else {
+            // Webpack 5 function style - return the external value
+            return externalValue;
+          }
+        }
+
+        // Otherwise, delegate to the original function
+        if (isObjectStyle) {
+          return originalExternals(arg1);
+        } else if (typeof arg3 === 'function') {
+          return originalExternals(arg1, arg2, arg3);
+        } else {
+          return originalExternals(arg1, arg2);
+        }
+      };
+    } else if (typeof config.externals === 'object' && config.externals !== null) {
+      // Handle object-based externals
+      config.externals['chartjs-node-canvas'] = 'commonjs chartjs-node-canvas';
+      config.externals.canvas = 'commonjs canvas';
+    } else {
+      // Initialize as array only if externals is undefined/null
+      config.externals = nativeModules;
     }
 
     // For Edge Runtime (middleware), optimize bundle size
