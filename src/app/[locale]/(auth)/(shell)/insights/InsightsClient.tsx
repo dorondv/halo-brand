@@ -1,8 +1,11 @@
 'use client';
 
+import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { motion } from 'framer-motion';
 import {
+  CalendarIcon,
   Clock,
+  ExternalLink,
   Heart,
   Lightbulb,
   MessageSquare,
@@ -14,19 +17,14 @@ import {
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
-import {
-  CartesianGrid,
-  Legend,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-  YAxis,
-} from 'recharts';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBrand } from '@/contexts/BrandContext';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
@@ -35,6 +33,9 @@ type Post = {
   id: string;
   content: string;
   created_at: string;
+  metadata?: any;
+  platforms?: string[];
+  platformPostUrl?: string | null;
   engagement?: {
     likes: number;
     comments: number;
@@ -42,20 +43,11 @@ type Post = {
   };
 };
 
-type TrendData = {
-  date: string;
-  engagement: number;
-  likes: number;
-  comments: number;
-  shares: number;
-};
-
 type InsightsData = {
   timing: string[];
   content: string[];
   keywords: string[];
   strategy: string[];
-  trends?: TrendData[];
 };
 
 export function InsightsClient() {
@@ -66,9 +58,21 @@ export function InsightsClient() {
   const [activeTab, setActiveTab] = useState('insights');
   const [posts, setPosts] = useState<Post[]>([]);
   const [insights, setInsights] = useState<InsightsData | null>(null);
-  const [trends, setTrends] = useState<TrendData[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isGeneratingInsights, setIsGeneratingInsights] = useState(false);
+
+  // Date range state - default to last month
+  const getLastMonthRange = () => {
+    const today = new Date();
+    const lastMonth = subMonths(today, 1);
+    return {
+      startDate: startOfMonth(lastMonth),
+      endDate: endOfMonth(lastMonth),
+    };
+  };
+
+  const [dateRange, setDateRange] = useState(getLastMonthRange);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -89,14 +93,18 @@ export function InsightsClient() {
 
       const userId = userRecord?.id || session.user.id;
 
-      // Fetch posts
+      // Fetch posts with date range filter (default to last month)
+      const startDateStr = format(dateRange.startDate, 'yyyy-MM-dd');
+      const endDateStr = format(dateRange.endDate, 'yyyy-MM-dd');
+
       let postsQuery = supabase
         .from('posts')
-        .select('id,content,created_at')
+        .select('id,content,created_at,metadata')
         .eq('user_id', userId)
         .in('status', ['published', 'scheduled', 'draft'])
-        .order('created_at', { ascending: false })
-        .limit(50);
+        .gte('created_at', startDateStr)
+        .lte('created_at', `${endDateStr}T23:59:59`)
+        .order('created_at', { ascending: false });
 
       if (selectedBrandId) {
         postsQuery = postsQuery.eq('brand_id', selectedBrandId);
@@ -117,15 +125,62 @@ export function InsightsClient() {
         analyticsData = analytics || [];
       }
 
-      // Combine posts with analytics
+      // Combine posts with analytics and extract platform info
       // Get the maximum values per post per platform, then sum across platforms
       // This ensures we get the latest/cumulative engagement values
       const postsWithEngagement = (postsData || []).map((post) => {
         const postAnalytics = analyticsData.filter(a => a.post_id === post.id);
 
+        // Extract platforms and platformPostUrl from post metadata
+        let platforms: string[] = [];
+        let platformPostUrl: string | null = null;
+
+        // Extract from metadata.platforms array (Priority 1)
+        if (post.metadata) {
+          const metadata = post.metadata as any;
+
+          // Check metadata.platformPostUrl directly
+          if (metadata.platformPostUrl) {
+            platformPostUrl = metadata.platformPostUrl;
+          }
+
+          // Check metadata.platforms array
+          if (metadata.platforms && Array.isArray(metadata.platforms)) {
+            const platformWithUrl = metadata.platforms.find((p: any) => p.platformPostUrl);
+            if (platformWithUrl?.platformPostUrl) {
+              platformPostUrl = platformWithUrl.platformPostUrl;
+            }
+
+            // Extract platform names
+            platforms = metadata.platforms.map((p: any) => {
+              if (typeof p === 'string') {
+                return p.toLowerCase() === 'twitter' ? 'x' : p.toLowerCase();
+              } else if (p && typeof p === 'object' && p.platform) {
+                const platformName = p.platform.toLowerCase();
+                return platformName === 'twitter' ? 'x' : platformName;
+              }
+              return null;
+            }).filter((p: string | null): p is string => p !== null);
+          }
+        }
+
+        // Extract from post_analytics if platforms not found
+        if (platforms.length === 0 && postAnalytics.length > 0) {
+          const uniquePlatforms = new Set<string>();
+          postAnalytics.forEach((a) => {
+            if (a.platform) {
+              const platformName = a.platform.toLowerCase();
+              uniquePlatforms.add(platformName === 'twitter' ? 'x' : platformName);
+            }
+          });
+          platforms = Array.from(uniquePlatforms);
+        }
+
         if (postAnalytics.length === 0) {
           return {
             ...post,
+            platforms: platforms.length > 0 ? platforms : [],
+            platformPostUrl,
             engagement: {
               likes: 0,
               comments: 0,
@@ -162,6 +217,8 @@ export function InsightsClient() {
 
         return {
           ...post,
+          platforms: platforms.length > 0 ? platforms : [],
+          platformPostUrl,
           engagement: {
             likes: totalLikes,
             comments: totalComments,
@@ -185,43 +242,11 @@ export function InsightsClient() {
 
       // Accounts data fetched but not currently used in UI
       await accountsQuery;
-
-      // Generate trends data from analytics
-      const trendsMap = new Map<string, { likes: number; comments: number; shares: number }>();
-      for (const analytics of analyticsData) {
-        if (!analytics.date) {
-          continue;
-        }
-        const date = new Date(analytics.date).toISOString().split('T')[0];
-        if (!date) {
-          continue;
-        }
-        const current = trendsMap.get(date) || { likes: 0, comments: 0, shares: 0 };
-        trendsMap.set(date, {
-          likes: current.likes + (analytics.likes || 0),
-          comments: current.comments + (analytics.comments || 0),
-          shares: current.shares + (analytics.shares || 0),
-        });
-      }
-
-      const trendsArray: TrendData[] = [];
-      for (const [date, values] of trendsMap.entries()) {
-        trendsArray.push({
-          date,
-          engagement: values.likes + values.comments + values.shares,
-          likes: values.likes,
-          comments: values.comments,
-          shares: values.shares,
-        });
-      }
-
-      trendsArray.sort((a, b) => a.date.localeCompare(b.date));
-      setTrends(trendsArray);
     } catch (error) {
       console.error('Error loading data:', error);
     }
     setIsLoading(false);
-  }, [selectedBrandId]);
+  }, [selectedBrandId, dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
     if (selectedBrandId) {
@@ -247,9 +272,6 @@ export function InsightsClient() {
       if (response.ok) {
         const data = await response.json();
         setInsights(data);
-        if (data.trends) {
-          setTrends(data.trends);
-        }
       } else {
         console.error('Error generating insights');
       }
@@ -336,16 +358,6 @@ export function InsightsClient() {
               }`}
             >
               {t('tab_performance')}
-            </TabsTrigger>
-            <TabsTrigger
-              value="trends"
-              className={`rounded-none px-3 py-1.5 text-sm font-medium transition-all ${
-                activeTab === 'trends'
-                  ? 'border-b-2 border-pink-600 bg-white text-black'
-                  : 'bg-transparent text-zinc-500 hover:text-zinc-700'
-              }`}
-            >
-              {t('tab_trends')}
             </TabsTrigger>
           </TabsList>
 
@@ -465,40 +477,123 @@ export function InsightsClient() {
           <TabsContent value="performance" className="mt-6 space-y-6">
             <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
               <CardHeader>
-                <CardTitle>{t('best_posts_title')}</CardTitle>
-                <CardDescription>
-                  {t('best_posts_description')}
-                </CardDescription>
+                <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <CardTitle>{t('best_posts_title')}</CardTitle>
+                    <CardDescription>
+                      {t('best_posts_description')}
+                    </CardDescription>
+                  </div>
+                  <Popover open={showDatePicker} onOpenChange={setShowDatePicker}>
+                    <PopoverTrigger asChild>
+                      <Button
+                        variant="outline"
+                        className={`w-full justify-start text-left font-normal md:w-auto ${isRTL ? 'flex-row-reverse' : ''}`}
+                      >
+                        <CalendarIcon className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        {format(dateRange.startDate, 'MMM dd, yyyy')}
+                        {' - '}
+                        {format(dateRange.endDate, 'MMM dd, yyyy')}
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align={isRTL ? 'end' : 'start'}>
+                      <div className="space-y-4 p-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">
+                            {isRTL ? 'תאריך התחלה' : 'Start Date'}
+                          </label>
+                          <input
+                            type="date"
+                            value={format(dateRange.startDate, 'yyyy-MM-dd')}
+                            onChange={(e) => {
+                              const newDate = e.target.value ? new Date(e.target.value) : dateRange.startDate;
+                              setDateRange(prev => ({ ...prev, startDate: newDate }));
+                            }}
+                            className="w-full rounded-md border px-3 py-2"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">
+                            {isRTL ? 'תאריך סיום' : 'End Date'}
+                          </label>
+                          <input
+                            type="date"
+                            value={format(dateRange.endDate, 'yyyy-MM-dd')}
+                            onChange={(e) => {
+                              const newDate = e.target.value ? new Date(e.target.value) : dateRange.endDate;
+                              setDateRange(prev => ({ ...prev, endDate: newDate }));
+                            }}
+                            className="w-full rounded-md border px-3 py-2"
+                          />
+                        </div>
+                        <Button
+                          onClick={() => setShowDatePicker(false)}
+                          className="w-full"
+                        >
+                          {isRTL ? 'סגור' : 'Close'}
+                        </Button>
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
                   {bestPerformingPosts.length > 0
                     ? (
-                        bestPerformingPosts.map((post, index) => (
-                          <div key={post.id} className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white/50 p-4">
-                            <Badge className="bg-pink-100 text-pink-700">
-                              #
-                              {index + 1}
-                            </Badge>
-                            <div className="flex-1">
-                              <p className="line-clamp-2 font-medium text-slate-900">{post.content}</p>
-                              <div className={`mt-2 flex items-center gap-4 text-sm text-slate-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                <div className="flex items-center gap-1">
-                                  <Heart className="h-4 w-4" />
-                                  <span>{post.engagement?.likes || 0}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <MessageSquare className="h-4 w-4" />
-                                  <span>{post.engagement?.comments || 0}</span>
-                                </div>
-                                <div className="flex items-center gap-1">
-                                  <Share2 className="h-4 w-4" />
-                                  <span>{post.engagement?.shares || 0}</span>
+                        bestPerformingPosts.map((post, index) => {
+                          const primaryPlatform = post.platforms && post.platforms.length > 0
+                            ? post.platforms[0]
+                            : null;
+                          const platformDisplayName = primaryPlatform
+                            ? primaryPlatform.charAt(0).toUpperCase() + primaryPlatform.slice(1)
+                            : null;
+
+                          return (
+                            <div key={post.id} className="flex items-center gap-4 rounded-xl border border-gray-200 bg-white/50 p-4">
+                              <Badge className="bg-pink-100 text-pink-700">
+                                #
+                                {index + 1}
+                              </Badge>
+                              <div className="flex-1">
+                                <p className="line-clamp-2 font-medium text-slate-900">{post.content}</p>
+                                <div className={`mt-2 flex items-center gap-4 text-sm text-slate-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                  {platformDisplayName && (
+                                    <div className="flex items-center gap-1">
+                                      {post.platformPostUrl
+                                        ? (
+                                            <a
+                                              href={post.platformPostUrl}
+                                              target="_blank"
+                                              rel="noopener noreferrer"
+                                              className="flex items-center gap-1 text-pink-600 hover:text-pink-700 hover:underline"
+                                            >
+                                              <span>{platformDisplayName}</span>
+                                              <ExternalLink className="h-3 w-3" />
+                                            </a>
+                                          )
+                                        : (
+                                            <span>{platformDisplayName}</span>
+                                          )}
+                                    </div>
+                                  )}
+                                  <div className="flex items-center gap-1">
+                                    <Heart className="h-4 w-4" />
+                                    <span>{post.engagement?.likes || 0}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <MessageSquare className="h-4 w-4" />
+                                    <span>{post.engagement?.comments || 0}</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <Share2 className="h-4 w-4" />
+                                    <span>{post.engagement?.shares || 0}</span>
+                                  </div>
                                 </div>
                               </div>
                             </div>
-                          </div>
-                        ))
+                          );
+                        })
                       )
                     : (
                         <div className="py-8 text-center text-slate-500">
@@ -507,149 +602,6 @@ export function InsightsClient() {
                         </div>
                       )}
                 </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="trends" className="mt-6 space-y-6">
-            <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
-              <CardHeader>
-                <CardTitle>{t('current_trends_title')}</CardTitle>
-                <CardDescription>
-                  {t('current_trends_description')}
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                {trends.length > 0
-                  ? (
-                      <div className="space-y-6">
-                        <ResponsiveContainer width="100%" height={400}>
-                          <LineChart
-                            data={trends.map(t => ({
-                              date: new Date(t.date).toLocaleDateString(locale, {
-                                month: 'short',
-                                day: 'numeric',
-                              }),
-                              engagement: t.engagement,
-                              likes: t.likes,
-                              comments: t.comments,
-                              shares: t.shares,
-                            }))}
-                            margin={{ top: 5, right: 30, left: 20, bottom: 5 }}
-                          >
-                            <CartesianGrid strokeDasharray="3 3" />
-                            <XAxis
-                              dataKey="date"
-                              style={{ fontSize: '12px' }}
-                              angle={-45}
-                              textAnchor="end"
-                              height={80}
-                            />
-                            <YAxis style={{ fontSize: '12px' }} />
-                            <Tooltip
-                              contentStyle={{
-                                backgroundColor: 'white',
-                                border: '1px solid #e2e8f0',
-                                borderRadius: '8px',
-                              }}
-                            />
-                            <Legend />
-                            <Line
-                              type="monotone"
-                              dataKey="engagement"
-                              stroke="#ec4899"
-                              strokeWidth={2}
-                              name={t('total_engagement') || 'Total Engagement'}
-                              dot={{ r: 4 }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="likes"
-                              stroke="#3b82f6"
-                              strokeWidth={2}
-                              name={t('likes') || 'Likes'}
-                              dot={{ r: 4 }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="comments"
-                              stroke="#10b981"
-                              strokeWidth={2}
-                              name={t('comments') || 'Comments'}
-                              dot={{ r: 4 }}
-                            />
-                            <Line
-                              type="monotone"
-                              dataKey="shares"
-                              stroke="#f59e0b"
-                              strokeWidth={2}
-                              name={t('shares') || 'Shares'}
-                              dot={{ r: 4 }}
-                            />
-                          </LineChart>
-                        </ResponsiveContainer>
-
-                        <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
-                          <div className="rounded-lg border border-gray-200 bg-pink-50 p-4">
-                            <div className="text-sm font-medium text-pink-600">
-                              {t('total_engagement') || 'Total Engagement'}
-                            </div>
-                            <div className="mt-1 text-2xl font-bold text-pink-700">
-                              {trends.reduce((sum, t) => sum + t.engagement, 0).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 bg-blue-50 p-4">
-                            <div className="text-sm font-medium text-blue-600">
-                              {t('total_likes') || 'Total Likes'}
-                            </div>
-                            <div className="mt-1 text-2xl font-bold text-blue-700">
-                              {trends.reduce((sum, t) => sum + t.likes, 0).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 bg-green-50 p-4">
-                            <div className="text-sm font-medium text-green-600">
-                              {t('total_comments') || 'Total Comments'}
-                            </div>
-                            <div className="mt-1 text-2xl font-bold text-green-700">
-                              {trends.reduce((sum, t) => sum + t.comments, 0).toLocaleString()}
-                            </div>
-                          </div>
-                          <div className="rounded-lg border border-gray-200 bg-amber-50 p-4">
-                            <div className="text-sm font-medium text-amber-600">
-                              {t('total_shares') || 'Total Shares'}
-                            </div>
-                            <div className="mt-1 text-2xl font-bold text-amber-700">
-                              {trends.reduce((sum, t) => sum + t.shares, 0).toLocaleString()}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    )
-                  : (
-                      <div className="py-12 text-center text-slate-500">
-                        <TrendingUp className="mx-auto mb-4 h-16 w-16 opacity-50" />
-                        <p className="mb-4">{t('no_trends_data') || 'No trends data available'}</p>
-                        <Button
-                          onClick={generateInsights}
-                          disabled={isGeneratingInsights}
-                          className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
-                        >
-                          {isGeneratingInsights
-                            ? (
-                                <div className="flex items-center gap-2">
-                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                  {t('generating_insights')}
-                                </div>
-                              )
-                            : (
-                                <>
-                                  <Zap className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
-                                  {t('generate_trends') || 'Generate Trends'}
-                                </>
-                              )}
-                        </Button>
-                      </div>
-                    )}
               </CardContent>
             </Card>
           </TabsContent>
