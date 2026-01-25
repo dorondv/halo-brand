@@ -10,7 +10,9 @@ import {
   Menu,
   MessageSquareText,
   PenTool,
+  Plug,
   Settings,
+  Shield,
   Tags,
   TestTube,
   TrendingUp,
@@ -42,7 +44,7 @@ const baseNav = [
   { href: '/brand-sentiment', key: 'brand_sentiment', icon: TrendingUp },
   { href: '/post-sentiment', key: 'post_sentiment', icon: MessageSquareText },
   { href: '/reports', key: 'reports', icon: FileText },
-  { href: '/connections', key: 'integrations', icon: Settings },
+  { href: '/connections', key: 'integrations', icon: Plug },
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
@@ -56,6 +58,7 @@ export function DashboardShell({ children }: Props) {
   const [userName, setUserName] = React.useState<string | null>(null);
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
   const [avatarError, setAvatarError] = React.useState(false);
+  const [isAdmin, setIsAdmin] = React.useState(false);
   const t = useTranslations('Nav');
   const locale = useLocale();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
@@ -87,6 +90,20 @@ export function DashboardShell({ children }: Props) {
           } else if (userRecord?.name) {
             // Use name from database if available
             setUserName(userRecord.name);
+          }
+
+          // Check admin status via API (server-side check, doesn't expose email)
+          try {
+            const adminCheckResponse = await fetch('/api/admin/check');
+            if (adminCheckResponse.ok) {
+              const adminData = await adminCheckResponse.json();
+              setIsAdmin(adminData.isAdmin || false);
+            } else {
+              setIsAdmin(false);
+            }
+          } catch (error) {
+            console.error('Error checking admin status:', error);
+            setIsAdmin(false);
           }
         }
       } catch (error) {
@@ -129,6 +146,16 @@ export function DashboardShell({ children }: Props) {
               </Link>
             );
           })}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${pathname?.startsWith('/admin') ? 'bg-white font-semibold text-pink-600' : 'text-gray-700 hover:bg-gray-100'}`}
+            >
+              <Shield className="h-5 w-5 shrink-0" />
+              <span>Admin</span>
+            </Link>
+          )}
           <div className="pt-4">
             <SignOutButton />
           </div>
