@@ -5,17 +5,12 @@ import { motion } from 'framer-motion';
 import {
   AlertCircle,
   Briefcase,
-  Facebook,
-  Instagram,
-  Linkedin,
+  ExternalLink,
   Loader2,
-  Mail,
-  MessageCircle,
   Search,
   ThumbsDown,
   ThumbsUp,
   TrendingUp,
-  Twitter,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import React, { useEffect, useMemo, useState } from 'react';
@@ -32,7 +27,6 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,16 +34,6 @@ import { useBrand } from '@/contexts/BrandContext';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 const COLORS = { positive: '#22c55e', neutral: '#64748b', negative: '#ef4444' };
-const SOURCE_ICONS: Record<string, React.ReactElement> = {
-  twitter: <Twitter className="h-4 w-4 text-sky-500" />,
-  x: <Twitter className="h-4 w-4 text-sky-500" />,
-  facebook: <Facebook className="h-4 w-4 text-blue-600" />,
-  instagram: <Instagram className="h-4 w-4 text-pink-500" />,
-  linkedin: <Linkedin className="h-4 w-4 text-sky-700" />,
-  blog: <MessageCircle className="h-4 w-4 text-orange-500" />,
-  news: <MessageCircle className="h-4 w-4 text-gray-700" />,
-};
-const DEFAULT_ICON = <Mail className="h-4 w-4 text-gray-500" />;
 
 type AnalysisResult = {
   overall_score: number;
@@ -58,11 +42,41 @@ type AnalysisResult = {
   neutral_percentage: number;
   positive_themes: string[];
   negative_themes: string[];
-  sample_mentions: Array<{
+  sample_mentions?: Array<{
     content: string;
     source: 'twitter' | 'facebook' | 'instagram' | 'linkedin' | 'blog' | 'news' | 'x';
     sentiment: 'positive' | 'negative' | 'neutral';
   }>;
+  report?: {
+    overall_sentiment_section?: string;
+    positive_feedback?: {
+      title?: string;
+      items?: Array<{
+        title?: string;
+        description?: string;
+        url?: string;
+      }>;
+    };
+    critical_feedback?: {
+      title?: string;
+      items?: Array<{
+        title?: string;
+        description?: string;
+        url?: string;
+      }>;
+    };
+    summary?: {
+      positive?: string;
+      negative?: string;
+    };
+    positioning?: string;
+    sentiment_snapshot?: Array<{
+      source?: string;
+      sentiment_summary?: string;
+      url?: string;
+    }>;
+    key_takeaways?: string[];
+  };
   search_trends_daily?: Array<{ date: string; volume: number }>;
   search_trends_monthly?: Array<{ month: string; volume: number }>;
 };
@@ -80,7 +94,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
   const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
-  const [connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(() => new Set());
+  const [_connectedPlatforms, setConnectedPlatforms] = useState<Set<string>>(() => new Set());
 
   // Sync keywords with initialBrandName when it changes
   const prevInitialBrandNameRef = React.useRef(initialBrandName);
@@ -220,25 +234,6 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
   // Use calculated score from distribution, fallback to API score if available
   const overallScore = calculatedOverallScore || analysisResult?.overall_score || 0;
-
-  // Filter sample mentions to only show those from connected platforms
-  const filteredMentions = useMemo(() => {
-    if (!analysisResult?.sample_mentions) {
-      return [];
-    }
-    if (connectedPlatforms.size === 0) {
-      return analysisResult.sample_mentions;
-    } // Show all if no platforms connected
-
-    return analysisResult.sample_mentions.filter((mention) => {
-      if (!mention.source) {
-        return false;
-      }
-      const mentionSource = mention.source.toLowerCase();
-      // Check if the mention source matches any connected platform
-      return connectedPlatforms.has(mentionSource);
-    });
-  }, [analysisResult?.sample_mentions, connectedPlatforms]);
 
   if (!selectedBrandId) {
     return (
@@ -560,60 +555,233 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
               </Card>
             </div>
 
-            <Card className="glass-effect border-white/20 shadow-xl">
-              <CardHeader>
-                <CardTitle>{t('example_mentions_title')}</CardTitle>
-                <CardDescription>
-                  {isRTL
-                    ? `סה"כ ${filteredMentions?.length || 0} אזכורים: ${filteredMentions?.filter(m => m.sentiment === 'positive').length || 0} חיוביים, ${filteredMentions?.filter(m => m.sentiment === 'negative').length || 0} שליליים, ${filteredMentions?.filter(m => m.sentiment === 'neutral').length || 0} ניטרליים`
-                    : `Total ${filteredMentions?.length || 0} mentions: ${filteredMentions?.filter(m => m.sentiment === 'positive').length || 0} positive, ${filteredMentions?.filter(m => m.sentiment === 'negative').length || 0} negative, ${filteredMentions?.filter(m => m.sentiment === 'neutral').length || 0} neutral`}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {filteredMentions && filteredMentions.length > 0
-                  ? (
-                      filteredMentions.map((mention) => {
-                        const SourceIconElement = SOURCE_ICONS[mention.source] || DEFAULT_ICON;
-                        const mentionKey = `${mention.source}-${mention.content.slice(0, 30)}-${mention.sentiment}`;
-                        return (
-                          <div key={mentionKey} className="relative rounded-lg border bg-white/50 p-4">
-                            <div className={`absolute top-2 ${isRTL ? 'right-2' : 'left-2'} flex items-center gap-2`}>
-                              <div className="h-4 w-4">
-                                {SourceIconElement}
+            {/* Brand Sentiment Report */}
+            {analysisResult.report && (
+              <Card className="glass-effect border-white/20 shadow-xl">
+                <CardHeader>
+                  <CardTitle>{isRTL ? 'דוח סנטימנט מותג' : 'Brand Sentiment Report'}</CardTitle>
+                  <CardDescription>
+                    {isRTL
+                      ? 'סקירה מפורטת של התפיסה והסנטימנט של המותג באינטרנט'
+                      : 'Comprehensive overview of brand perception and sentiment online'}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  {/* Overall Sentiment Section */}
+                  {analysisResult.report.overall_sentiment_section && (
+                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-slate-800">
+                        {isRTL ? '📊 סנטימנט כללי באינטרנט וביקורות' : '📊 Overall Web Sentiment & Reviews'}
+                      </h3>
+                      <div className="prose prose-sm max-w-none whitespace-pre-wrap text-slate-700">
+                        {analysisResult.report.overall_sentiment_section}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Positive Feedback */}
+                  {analysisResult.report.positive_feedback && (
+                    <div className="rounded-lg border border-green-200 bg-green-50/50 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-green-800">
+                        {analysisResult.report.positive_feedback.title || (isRTL ? '👍 משוב חיובי' : '👍 Positive Feedback')}
+                      </h3>
+                      {analysisResult.report.positive_feedback.items && analysisResult.report.positive_feedback.items.length > 0 && (
+                        <div className="space-y-4">
+                          {analysisResult.report.positive_feedback.items.map((item, index) => (
+                            <div key={`positive-${index}`} className="rounded-lg border border-green-200 bg-white p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  {item.title && (
+                                    <h4 className="mb-2 font-semibold text-green-800">{item.title}</h4>
+                                  )}
+                                  {item.description && (
+                                    <p className="text-sm whitespace-pre-wrap text-slate-700">{item.description}</p>
+                                  )}
+                                </div>
+                                {item.url && (
+                                  <a
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 text-green-600 transition-colors hover:text-green-800"
+                                    title={isRTL ? 'פתח בקישור' : 'Open link'}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                )}
                               </div>
-                              <Badge
-                                variant="outline"
-                                className={`border-2 ${
-                                  mention.sentiment === 'positive'
-                                    ? 'border-green-200 bg-green-50 text-green-700'
-                                    : mention.sentiment === 'negative'
-                                      ? 'border-red-200 bg-red-50 text-red-700'
-                                      : 'border-slate-200 bg-slate-50 text-slate-700'
-                                }`}
-                              >
-                                {mention.sentiment === 'positive'
-                                  ? t('positive')
-                                  : mention.sentiment === 'negative'
-                                    ? t('negative')
-                                    : t('neutral')}
-                              </Badge>
                             </div>
-                            <p className={`text-slate-800 ${isRTL ? 'pr-24' : 'pl-24'}`}>
-                              "
-                              {mention.content}
-                              "
-                            </p>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Critical Feedback */}
+                  {analysisResult.report.critical_feedback && (
+                    <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-orange-800">
+                        {analysisResult.report.critical_feedback.title || (isRTL ? '👎 משוב ביקורתי או ניטרלי' : '👎 Critical or Neutral Feedback')}
+                      </h3>
+                      {analysisResult.report.critical_feedback.items && analysisResult.report.critical_feedback.items.length > 0 && (
+                        <div className="space-y-4">
+                          {analysisResult.report.critical_feedback.items.map((item, index) => (
+                            <div key={`critical-${index}`} className="rounded-lg border border-orange-200 bg-white p-4">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1">
+                                  {item.title && (
+                                    <h4 className="mb-2 font-semibold text-orange-800">{item.title}</h4>
+                                  )}
+                                  {item.description && (
+                                    <p className="text-sm whitespace-pre-wrap text-slate-700">{item.description}</p>
+                                  )}
+                                </div>
+                                {item.url && (
+                                  <a
+                                    href={item.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 text-orange-600 transition-colors hover:text-orange-800"
+                                    title={isRTL ? 'פתח בקישור' : 'Open link'}
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </a>
+                                )}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Summary */}
+                  {analysisResult.report.summary && (
+                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-blue-800">
+                        {isRTL ? '⭐ סיכום סנטימנט המותג' : '⭐ Summary of Brand Sentiment'}
+                      </h3>
+                      <div className="space-y-3">
+                        {analysisResult.report.summary.positive && (
+                          <div className="rounded-lg border border-green-200 bg-white p-4">
+                            <h4 className="mb-2 font-semibold text-green-800">{isRTL ? 'חיובי' : 'Positive'}</h4>
+                            <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.positive}</p>
                           </div>
-                        );
-                      })
-                    )
-                  : (
-                      <p className="py-4 text-center text-gray-500">
-                        {isRTL ? 'אין אזכורים זמינים' : 'No mentions available'}
-                      </p>
-                    )}
-              </CardContent>
-            </Card>
+                        )}
+                        {analysisResult.report.summary.negative && (
+                          <div className="rounded-lg border border-red-200 bg-white p-4">
+                            <h4 className="mb-2 font-semibold text-red-800">{isRTL ? 'שלילי / מעורב' : 'Negative / Mixed'}</h4>
+                            <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.negative}</p>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Positioning */}
+                  {analysisResult.report.positioning && (
+                    <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-purple-800">
+                        {isRTL ? '📌 מיצוב כללי בתעשייה' : '📌 General Positioning in Industry'}
+                      </h3>
+                      <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.positioning}</p>
+                    </div>
+                  )}
+
+                  {/* Sentiment Snapshot */}
+                  {analysisResult.report.sentiment_snapshot && analysisResult.report.sentiment_snapshot.length > 0 && (
+                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-slate-800">
+                        {isRTL ? '📊 תמונת סנטימנט ברמה גבוהה' : '📊 High-Level Sentiment Snapshot'}
+                      </h3>
+                      <div className="overflow-x-auto">
+                        <table className="w-full border-collapse">
+                          <thead>
+                            <tr className="border-b border-gray-300">
+                              <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                {isRTL ? 'מקור' : 'Source'}
+                              </th>
+                              <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                {isRTL ? 'סיכום סנטימנט' : 'Sentiment Summary'}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {analysisResult.report.sentiment_snapshot.map((snapshot, index) => (
+                              <tr key={`snapshot-${index}`} className="border-b border-gray-200">
+                                <td className={`p-3 font-medium text-slate-800 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                  {snapshot.url
+                                    ? (
+                                        <a
+                                          href={snapshot.url}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="flex items-center gap-2 text-blue-600 transition-colors hover:text-blue-800 hover:underline"
+                                        >
+                                          <span>{snapshot.source || '-'}</span>
+                                          <ExternalLink className="h-3 w-3" />
+                                        </a>
+                                      )
+                                    : (
+                                        snapshot.source || '-'
+                                      )}
+                                </td>
+                                <td className={`p-3 text-sm text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                  {snapshot.sentiment_summary || '-'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Key Takeaways */}
+                  {analysisResult.report.key_takeaways && analysisResult.report.key_takeaways.length > 0 && (
+                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-6">
+                      <h3 className="mb-4 text-xl font-semibold text-indigo-800">
+                        {isRTL ? '📌 נקודות מפתח' : '📌 Key Takeaways'}
+                      </h3>
+                      <ul className="space-y-2">
+                        {analysisResult.report.key_takeaways.map((takeaway, index) => {
+                          // Extract emoji/icon from the beginning of the string (handle multiple emojis)
+                          const emojiMatch = takeaway.match(/^(\S+\s*)+/);
+                          let emoji = '•';
+                          let textWithoutEmoji = takeaway;
+
+                          if (emojiMatch) {
+                            // Extract all emojis/special chars at the start
+                            const emojiPart = emojiMatch[0].trim();
+                            // Check if it's actually an emoji/special char (not regular text)
+                            const isEmoji = /^[\p{Emoji}\p{Symbol}]+$/u.test(emojiPart) || emojiPart.length <= 2;
+
+                            if (isEmoji) {
+                              emoji = emojiPart;
+                              textWithoutEmoji = takeaway.substring(emojiMatch[0].length).trim();
+                            } else {
+                              // If it's not an emoji, use default bullet
+                              emoji = '•';
+                              textWithoutEmoji = takeaway.trim();
+                            }
+                          }
+
+                          // Clean up any remaining formatting or duplicate emojis in the text
+                          textWithoutEmoji = textWithoutEmoji.replace(/^[\p{Emoji}\p{Symbol}]+\s*/u, '').trim();
+
+                          return (
+                            <li key={`takeaway-${index}`} className="flex items-start gap-2">
+                              <span className="mt-0.5 flex-shrink-0 text-lg leading-none">{emoji}</span>
+                              <span className="flex-1 text-sm leading-relaxed font-normal text-slate-700 normal-case">{textWithoutEmoji}</span>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
           </motion.div>
         )}
       </div>

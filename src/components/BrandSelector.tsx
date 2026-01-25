@@ -195,6 +195,28 @@ export function BrandSelector() {
       return;
     }
 
+    // Check brand limit before creating
+    try {
+      const limitsResponse = await fetch('/api/subscriptions/limits');
+      if (limitsResponse.ok) {
+        const limitsData = await limitsResponse.json();
+        if (limitsData.limits && limitsData.usage) {
+          if (!limitsData.canCreateBrand) {
+            // eslint-disable-next-line no-alert
+            alert(
+              limitsData.limits.maxBrands === 1
+                ? 'You\'ve reached your brand limit. Upgrade your plan to create more brands.'
+                : `You've reached your brand limit (${limitsData.limits.maxBrands}). Upgrade your plan to create more brands.`,
+            );
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking limits:', error);
+      // Continue with brand creation attempt even if limit check fails
+    }
+
     setIsCreating(true);
     try {
       const supabase = createSupabaseBrowserClient();

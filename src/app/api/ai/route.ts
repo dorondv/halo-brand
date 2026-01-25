@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-export const runtime = 'edge';
+// Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
+// requires cookies() from next/headers which is not available in Edge runtime
 
 export async function POST(request: Request) {
   const supabase = await createSupabaseServerClient();

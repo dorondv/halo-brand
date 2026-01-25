@@ -1,5 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
+import { getUserSubscription } from '@/libs/subscriptionService';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { BrandSentimentClient } from './BrandSentimentClient';
 
@@ -16,6 +17,26 @@ export default async function BrandSentimentPage() {
   const { data: { user }, error: authError } = await supabase.auth.getUser();
   if (authError || !user) {
     redirect('/sign-in');
+  }
+
+  const subscription = await getUserSubscription(user.id);
+
+  if (!subscription) {
+    redirect('/pricing?feature=brand_sentiment');
+  }
+
+  const now = new Date();
+  const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+  const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
+
+  if (!isSubscriptionActive || !isNotExpired) {
+    redirect('/pricing?feature=brand_sentiment');
+  }
+
+  const planType = subscription.planType || 'free';
+
+  if (planType !== 'pro' && planType !== 'business') {
+    redirect('/pricing?feature=brand_sentiment');
   }
 
   // Get selected brand from cookie

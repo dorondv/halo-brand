@@ -190,19 +190,64 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
 
-    const body = await request.json().catch(() => ({}));
+    let body: unknown;
+    try {
+      body = await request.json();
+    } catch {
+      return NextResponse.json({ error: 'Invalid JSON in request body' }, { status: 400 });
+    }
+
     const Schema = z.object({
-      name: z.string().min(1),
-      description: z.string().optional().nullable(),
-      logo_url: z.string().url().optional().nullable(),
+      name: z.string().min(1).max(255).trim(),
+      description: z.string().max(1000).optional().nullable().transform(val => val?.trim() || null),
+      logo_url: z.string().url().max(2048).optional().nullable(),
     });
 
     const parse = Schema.safeParse(body);
     if (!parse.success) {
-      return NextResponse.json({ error: parse.error.message }, { status: 422 });
+      return NextResponse.json({ error: 'Invalid request data' }, { status: 422 });
     }
 
     const { name, description, logo_url } = parse.data;
+
+    const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
+    const { brands: brandsTable } = await import('@/models/Schema');
+    const { eq } = await import('drizzle-orm');
+    const { db } = await import('@/libs/DB');
+
+    const subscription = await getUserSubscription(user.id);
+    let maxBrands = 1;
+
+    if (subscription && subscription.planType !== 'free') {
+      const now = new Date();
+      const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+      const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
+
+      if (isSubscriptionActive && isNotExpired) {
+        const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+        if (plan) {
+          maxBrands = plan.maxBrands || 999999;
+        } else {
+          maxBrands = subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50;
+        }
+      }
+    }
+
+    const existingBrandsCount = await db
+      .select({ count: brandsTable.id })
+      .from(brandsTable)
+      .where(eq(brandsTable.userId, user.id));
+
+    const currentBrandCount = existingBrandsCount.length;
+
+    if (currentBrandCount >= maxBrands) {
+      return NextResponse.json(
+        {
+          error: `You've reached your brand limit (${maxBrands}). ${maxBrands === 1 ? 'Upgrade your plan to create more brands.' : 'Please upgrade your plan to create more brands.'}`,
+        },
+        { status: 403 },
+      );
+    }
 
     // Get user record to fetch API key
     const { data: userRecord, error: userError } = await supabase
@@ -337,14 +382,13 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create brand with Getlate profile ID
     const { data: brand, error: brandError } = await supabase
       .from('brands')
       .insert([
         {
           user_id: user.id,
-          name,
-          description: description || null,
+          name: name.trim(),
+          description: description ? description.trim() : null,
           logo_url: logo_url || null,
           getlate_profile_id: getlateProfileId,
           is_active: true,

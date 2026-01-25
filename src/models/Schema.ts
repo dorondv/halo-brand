@@ -1,5 +1,7 @@
+import { relations } from 'drizzle-orm';
 import {
   boolean,
+  doublePrecision,
   integer,
   jsonb,
   pgTable,
@@ -129,3 +131,130 @@ export const postAnalytics = pgTable('post_analytics', {
     .notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
+
+// Coupon table (defined before subscriptions to avoid forward reference)
+export const coupons = pgTable('coupons', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  code: text('code').unique().notNull(), // e.g., "tryout30", "tryout7", "tryout14"
+  trialDays: integer('trial_days').notNull(), // Number of free trial days
+  description: text('description'), // Description of the trial offer
+  validFrom: timestamp('valid_from', { mode: 'date' }).defaultNow().notNull(),
+  validUntil: timestamp('valid_until', { mode: 'date' }), // Optional expiration date for coupon validity
+  maxUses: integer('max_uses'), // Maximum number of times coupon can be used
+  currentUses: integer('current_uses').default(0).notNull(),
+  isActive: boolean('is_active').default(true).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Subscription Plans table
+export const subscriptionPlans = pgTable('subscription_plans', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  planKey: varchar('plan_key', { length: 50 }).unique().notNull(), // 'basic', 'pro', 'business'
+  nameHe: text('name_he').notNull(),
+  nameEn: text('name_en').notNull(),
+  descriptionHe: text('description_he'),
+  descriptionEn: text('description_en'),
+  priceMonthly: doublePrecision('price_monthly').notNull(), // Price in USD
+  priceAnnual: doublePrecision('price_annual'), // Annual price in USD (total for year)
+  currency: varchar('currency', { length: 10 }).default('USD').notNull(),
+  maxBrands: integer('max_brands'), // NULL = unlimited
+  maxSocialAccounts: integer('max_social_accounts'), // NULL = unlimited
+  maxPostsPerMonth: integer('max_posts_per_month'), // NULL = unlimited
+  features: jsonb('features'), // Array of feature keys
+  paypalPlanId: text('paypal_plan_id'), // PayPal plan ID for this plan
+  isActive: boolean('is_active').default(true).notNull(),
+  displayOrder: integer('display_order').default(0).notNull(),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Subscription table
+export const subscriptions = pgTable('subscriptions', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'cascade' }).notNull().unique(),
+  planType: varchar('plan_type', { length: 20 }).notNull(), // 'basic' | 'pro' | 'business' | 'free' | 'trial'
+  billingCycle: varchar('billing_cycle', { length: 20 }).default('monthly').notNull(), // 'monthly' | 'annual'
+  status: varchar('status', { length: 20 }).notNull(), // 'trialing' | 'active' | 'cancelled' | 'expired' | 'suspended' | 'free'
+  paypalSubscriptionId: text('paypal_subscription_id').unique(),
+  paypalPlanId: text('paypal_plan_id'), // PayPal plan ID
+  startDate: timestamp('start_date', { mode: 'date' }).notNull(),
+  endDate: timestamp('end_date', { mode: 'date' }), // Expiration date for free/trial subscriptions
+  trialEndDate: timestamp('trial_end_date', { mode: 'date' }), // For trial period
+  price: doublePrecision('price').notNull(), // Store actual price paid
+  currency: varchar('currency', { length: 10 }).default('USD').notNull(),
+  couponCode: text('coupon_code'), // Coupon code used (e.g., "tryout30")
+  couponId: uuid('coupon_id').references(() => coupons.id, { onDelete: 'set null' }),
+  isFreeAccess: boolean('is_free_access').default(false).notNull(),
+  isTrialCoupon: boolean('is_trial_coupon').default(false).notNull(),
+  grantedByAdminId: uuid('granted_by_admin_id'), // Admin user ID who granted free access
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+  updatedAt: timestamp('updated_at', { mode: 'date' })
+    .defaultNow()
+    .$onUpdate(() => new Date())
+    .notNull(),
+});
+
+// Billing history table
+export const billingHistory = pgTable('billing_history', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  subscriptionId: uuid('subscription_id').references(() => subscriptions.id, { onDelete: 'cascade' }).notNull(),
+  invoiceNumber: text('invoice_number').notNull(),
+  paypalTransactionId: text('paypal_transaction_id').unique(),
+  paypalSaleId: text('paypal_sale_id'), // PayPal sale ID (for refund API)
+  amount: doublePrecision('amount').notNull(),
+  currency: varchar('currency', { length: 10 }).default('USD').notNull(),
+  status: varchar('status', { length: 30 }).notNull(), // 'paid' | 'pending' | 'failed' | 'refunded' | 'partially_refunded'
+  paymentDate: timestamp('payment_date', { mode: 'date' }).notNull(),
+  refundedAmount: doublePrecision('refunded_amount'),
+  refundedDate: timestamp('refunded_date', { mode: 'date' }),
+  refundReason: text('refund_reason'),
+  invoiceUrl: text('invoice_url'), // Link to invoice PDF
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
+// Payment webhook table
+export const paymentWebhooks = pgTable('payment_webhooks', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  paypalEventId: text('paypal_event_id').unique().notNull(),
+  eventType: text('event_type').notNull(), // 'BILLING.SUBSCRIPTION.CREATED' | 'BILLING.SUBSCRIPTION.CANCELLED' | etc.
+  payload: jsonb('payload').notNull(), // Full webhook payload
+  processed: boolean('processed').default(false).notNull(),
+  processedAt: timestamp('processed_at', { mode: 'date' }),
+  error: text('error'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
+// Relations
+export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
+  user: one(users, {
+    fields: [subscriptions.userId],
+    references: [users.id],
+  }),
+  coupon: one(coupons, {
+    fields: [subscriptions.couponId],
+    references: [coupons.id],
+  }),
+  billingHistory: many(billingHistory),
+}));
+
+export const billingHistoryRelations = relations(billingHistory, ({ one }) => ({
+  subscription: one(subscriptions, {
+    fields: [billingHistory.subscriptionId],
+    references: [subscriptions.id],
+  }),
+}));
+
+export const couponsRelations = relations(coupons, ({ many }) => ({
+  subscriptions: many(subscriptions),
+}));
+
+export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
+  subscriptions: many(subscriptions),
+}));

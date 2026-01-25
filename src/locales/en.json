@@ -612,7 +612,8 @@
     "comments": "comments",
     "selected_post": "Selected Post",
     "view_on_platform": "View on Platform",
-    "view_post": "View Post"
+    "view_post": "View Post",
+    "platform_disclaimer": "Comment analysis is currently available for Instagram, Facebook, and TikTok posts only. Posts from other platforms will not appear in this view."
   },
   "Inbox": {
     "title": "Comments Center",

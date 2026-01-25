@@ -954,6 +954,40 @@ export default function CreatePostPage() {
   const [mainLink, setMainLink] = useState('');
   const [mediaUrls, setMediaUrls] = useState<string[]>([]);
   const [hashtagInput, setHashtagInput] = useState<Record<Platform | 'base', string>>({} as Record<Platform | 'base', string>);
+
+  // Subscription limits and usage
+  const [limits, setLimits] = useState<{
+    maxPostsPerMonth: number;
+    maxAIGenerationsPerMonth: number;
+    maxImagesPerPost: number;
+    maxBrands: number;
+    maxSocialAccounts: number;
+    planType: 'basic' | 'pro' | 'business' | 'free';
+  } | null>(null);
+  const [usage, setUsage] = useState<{
+    postsThisMonth: number;
+    aiGenerationsThisMonth: number;
+    imagesInCurrentPost: number;
+    brandsCount: number;
+    socialAccountsCount: number;
+  }>({
+    postsThisMonth: 0,
+    aiGenerationsThisMonth: 0,
+    imagesInCurrentPost: 0,
+    brandsCount: 0,
+    socialAccountsCount: 0,
+  });
+  const [_features, _setFeatures] = useState<{
+    pdfPptReports: boolean;
+    semanticAnalysis: boolean;
+    brandSentiment: boolean;
+    preferredSupport: boolean;
+  }>({
+    pdfPptReports: false,
+    semanticAnalysis: false,
+    brandSentiment: false,
+    preferredSupport: false,
+  });
   // Platform-specific content (includes hashtags)
   const [platformContent, setPlatformContent] = useState<Record<Platform, { caption: string; title: string; link: string; mediaUrls: string[]; hashtags: string[] }>>({} as Record<Platform, { caption: string; title: string; link: string; mediaUrls: string[]; hashtags: string[] }>);
   const [scheduleMode, setScheduleMode] = useState<'now' | 'later'>('now');
@@ -1169,6 +1203,21 @@ export default function CreatePostPage() {
   }, [mediaUrls]);
 
   const processMediaFiles = async (files: File[], platform?: Platform) => {
+    // Check image limit
+    if (limits) {
+      const currentImageCount = mediaUrls.length + Object.values(platformContent).reduce((sum, pc) => sum + (pc.mediaUrls?.length || 0), 0);
+      const newImageCount = currentImageCount + files.length;
+
+      if (newImageCount > limits.maxImagesPerPost) {
+        setError(
+          isRTL
+            ? `הגעת למגבלת התמונות לפוסט (${limits.maxImagesPerPost}). שדרג את התוכנית שלך כדי להוסיף עוד תמונות.`
+            : `You've reached your image limit per post (${limits.maxImagesPerPost}). Upgrade your plan to add more images.`,
+        );
+        return;
+      }
+    }
+
     if (files.length === 0) {
       return;
     }
@@ -1323,6 +1372,16 @@ export default function CreatePostPage() {
       return;
     }
 
+    // Check AI generation limit
+    if (limits && usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth) {
+      setError(
+        isRTL
+          ? `הגעת למגבלת יצירת תוכן AI החודשית (${limits.maxAIGenerationsPerMonth}). שדרג את התוכנית שלך כדי ליצור עוד תוכן.`
+          : `You've reached your monthly AI generation limit (${limits.maxAIGenerationsPerMonth}). Upgrade your plan to generate more content.`,
+      );
+      return;
+    }
+
     setIsGeneratingMedia(prev => ({ ...prev, [platform]: true }));
     setError(null);
 
@@ -1356,8 +1415,14 @@ export default function CreatePostPage() {
 
       setMediaFiles(prev => [...prev, { url: data.url, type: 'image' }]);
 
+      // Update usage after successful AI media generation
+      setUsage(prev => ({ ...prev, aiGenerationsThisMonth: prev.aiGenerationsThisMonth + 1 }));
+
       // Clear prompt after successful generation
       setAiMediaPrompt(prev => ({ ...prev, [platform]: '' }));
+
+      // Update usage after generating AI content
+      setUsage(prev => ({ ...prev, aiGenerationsThisMonth: prev.aiGenerationsThisMonth + 1 }));
     } catch (err) {
       console.error('[AI Media] Error:', err);
       setError(err instanceof Error ? err.message : (isRTL ? 'שגיאה ביצירת תמונה' : 'Failed to generate image'));
@@ -1365,6 +1430,35 @@ export default function CreatePostPage() {
       setIsGeneratingMedia(prev => ({ ...prev, [platform]: false }));
     }
   };
+
+  // Load subscription limits and usage
+  const loadLimits = useCallback(async () => {
+    try {
+      const response = await fetch('/api/subscriptions/limits');
+      if (!response.ok) {
+        console.error('Failed to load subscription limits');
+        return;
+      }
+      const data = await response.json();
+      if (data.limits) {
+        setLimits(data.limits);
+      }
+      if (data.usage) {
+        setUsage(data.usage);
+      }
+      if (data.features) {
+        _setFeatures(data.features);
+      }
+    } catch (error) {
+      console.error('Error loading subscription limits:', error);
+    }
+  }, []);
+
+  // Update images count when mediaUrls change
+  useEffect(() => {
+    const totalImages = mediaUrls.length + Object.values(platformContent).reduce((sum, pc) => sum + (pc.mediaUrls?.length || 0), 0);
+    setUsage(prev => ({ ...prev, imagesInCurrentPost: totalImages }));
+  }, [mediaUrls, platformContent]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -1432,6 +1526,10 @@ export default function CreatePostPage() {
   useEffect(() => {
     void loadAccounts();
   }, [loadAccounts]);
+
+  useEffect(() => {
+    void loadLimits();
+  }, [loadLimits]);
 
   // Clear platform selection when brand changes
   useEffect(() => {
@@ -1926,6 +2024,16 @@ export default function CreatePostPage() {
       return;
     }
 
+    // Check AI generation limit
+    if (limits && usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth) {
+      setError(
+        isRTL
+          ? `הגעת למגבלת יצירת תוכן AI החודשית (${limits.maxAIGenerationsPerMonth}). שדרג את התוכנית שלך כדי ליצור עוד תוכן.`
+          : `You've reached your monthly AI generation limit (${limits.maxAIGenerationsPerMonth}). Upgrade your plan to generate more content.`,
+      );
+      return;
+    }
+
     const platformContentData = platformContent[targetPlatform] || { caption: '', title: '', link: '', mediaUrls: [] };
     let briefToUse = briefText?.trim() || aiBrief.trim() || platformContentData.caption.trim();
 
@@ -2000,6 +2108,9 @@ export default function CreatePostPage() {
       }
 
       const data = await response.json();
+
+      // Update usage after successful AI generation
+      setUsage(prev => ({ ...prev, aiGenerationsThisMonth: prev.aiGenerationsThisMonth + 1 }));
 
       // Check if we're in unified mode (base) or per-platform mode
       // If platform is undefined or editMode is unified, treat as unified mode
@@ -2101,7 +2212,7 @@ export default function CreatePostPage() {
     } finally {
       setIsGeneratingAll(false);
     }
-  }, [aiBrief, aiTone, aiStyle, aiLanguage, platformContent, activePlatformTab, selectedPlatforms, mediaUrls, mediaFiles, editMode, postTitle, t]);
+  }, [aiBrief, aiTone, aiStyle, aiLanguage, platformContent, activePlatformTab, selectedPlatforms, mediaUrls, mediaFiles, editMode, postTitle, t, limits, usage, isRTL]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2109,6 +2220,16 @@ export default function CreatePostPage() {
     // Require brand selection
     if (!selectedBrandId) {
       setError(isRTL ? 'אנא בחר מותג לפני יצירת פוסט' : 'Please select a brand before creating a post');
+      return;
+    }
+
+    // Check post limit
+    if (limits && usage.postsThisMonth >= limits.maxPostsPerMonth) {
+      setError(
+        isRTL
+          ? `הגעת למגבלת הפוסטים החודשית (${limits.maxPostsPerMonth}). שדרג את התוכנית שלך כדי ליצור עוד פוסטים.`
+          : `You've reached your monthly post limit (${limits.maxPostsPerMonth}). Upgrade your plan to create more posts.`,
+      );
       return;
     }
 
@@ -2369,6 +2490,9 @@ export default function CreatePostPage() {
 
       // Navigate to dashboard and refresh to show the new post
       router.push('/dashboard');
+      // Refresh limits after creating post
+      await loadLimits();
+
       // Refresh after a short delay to ensure navigation completes
       setTimeout(() => {
         router.refresh();
@@ -2410,6 +2534,86 @@ export default function CreatePostPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
         </div>
+
+        {/* Subscription Limits Counters */}
+        {limits && (
+          <div className={`mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 ${isRTL ? 'text-right' : ''}`}>
+            {/* Posts Counter */}
+            <Card className={`border ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+              <CardContent className="p-4">
+                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'פוסטים החודש' : 'Posts This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                      {usage.postsThisMonth}
+                      {' '}
+                      /
+                      {limits.maxPostsPerMonth === 999999 ? '∞' : limits.maxPostsPerMonth}
+                    </p>
+                    {usage.postsThisMonth >= limits.maxPostsPerMonth && (
+                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
+                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                      </Link>
+                    )}
+                  </div>
+                  <div className={`rounded-full p-2 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'bg-red-100' : 'bg-green-100'}`}>
+                    <MessageCircle className={`h-5 w-5 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600' : 'text-green-600'}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* AI Generations Counter */}
+            <Card className={`border ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+              <CardContent className="p-4">
+                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תוכן AI החודש' : 'AI Content This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                      {usage.aiGenerationsThisMonth}
+                      {' '}
+                      /
+                      {limits.maxAIGenerationsPerMonth === 999999 ? '∞' : limits.maxAIGenerationsPerMonth}
+                    </p>
+                    {usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth && (
+                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
+                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                      </Link>
+                    )}
+                  </div>
+                  <div className={`rounded-full p-2 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'bg-red-100' : 'bg-blue-100'}`}>
+                    <Wand2 className={`h-5 w-5 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600' : 'text-blue-600'}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Images Counter */}
+            <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+              <CardContent className="p-4">
+                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
+                    <p className={`text-2xl font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
+                      {usage.imagesInCurrentPost}
+                      {' '}
+                      /
+                      {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
+                    </p>
+                    {usage.imagesInCurrentPost >= limits.maxImagesPerPost && (
+                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
+                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                      </Link>
+                    )}
+                  </div>
+                  <div className={`rounded-full p-2 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
+                    <ImageIcon className={`h-5 w-5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
 
         {/* Check if brand is selected */}
         {!selectedBrandId

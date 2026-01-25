@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-export const runtime = 'edge';
+// Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
+// requires cookies() from next/headers which is not available in Edge runtime
 
 const InsightsSchema = z.object({
   brandId: z.string().uuid().optional(),
@@ -170,55 +171,16 @@ export async function POST(request: Request) {
   const totalEngagement = analyticsData.reduce((sum, a) => sum + (a.likes || 0) + (a.comments || 0) + (a.shares || 0), 0);
   const avgEngagement = totalPosts > 0 ? Math.round(totalEngagement / totalPosts) : 0;
 
-  // Generate trends data from analytics
-  const trendsData: { date: string; engagement: number; likes: number; comments: number; shares: number }[] = [];
-  const dateMap = new Map<string, { likes: number; comments: number; shares: number }>();
-
-  // Group analytics by date
-  for (const analytics of analyticsData) {
-    if (!analytics.date) {
-      continue;
-    }
-    const date = new Date(analytics.date).toISOString().split('T')[0];
-    if (!date) {
-      continue;
-    }
-    const current = dateMap.get(date) || { likes: 0, comments: 0, shares: 0 };
-    dateMap.set(date, {
-      likes: current.likes + (analytics.likes || 0),
-      comments: current.comments + (analytics.comments || 0),
-      shares: current.shares + (analytics.shares || 0),
-    });
-  }
-
-  // Convert to array and sort by date
-  for (const [date, values] of dateMap.entries()) {
-    trendsData.push({
-      date,
-      engagement: values.likes + values.comments + values.shares,
-      likes: values.likes,
-      comments: values.comments,
-      shares: values.shares,
-    });
-  }
-
-  trendsData.sort((a, b) => a.date.localeCompare(b.date));
-
   // Use ChatGPT if API key is available
   const openaiApiKey = process.env.OPENAI_API_KEY;
   if (openaiApiKey && postsContent) {
     try {
-      const trendsSummary = trendsData.length > 0
-        ? trendsData.slice(-7).map(t => `${t.date}: ${t.engagement}`).join(', ')
-        : 'No data';
-
       const prompt = `${isHebrew ? 'נתח את הנתונים הבאים וספק המלצות קצרות:' : 'Analyze the following data and provide brief recommendations:'}
 
 ${isHebrew ? 'פוסטים' : 'Posts'}: ${totalPosts}
 ${isHebrew ? 'חשבונות' : 'Accounts'}: ${totalAccounts}
 ${isHebrew ? 'פלטפורמות' : 'Platforms'}: ${platforms.join(', ')}
 ${isHebrew ? 'ממוצע מעורבות' : 'Avg Engagement'}: ${avgEngagement}
-${isHebrew ? 'טרנדים (7 ימים אחרונים)' : 'Trends (last 7 days)'}: ${trendsSummary}
 ${timingAnalysis ? `${timingAnalysis}\n` : ''}${dayAnalysis ? `${dayAnalysis}\n` : ''}
 ${isHebrew ? 'דוגמאות תוכן' : 'Sample Content'}:
 ${postsContent.slice(0, 500)}
@@ -242,12 +204,29 @@ ${isHebrew
         temperature: 0.7,
       });
 
-      const content = JSON.parse(result.text || '{}');
+      // Strip markdown code blocks if present and extract JSON
+      let jsonText = result.text || '{}';
+      // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+      jsonText = jsonText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+      // Find JSON object boundaries
+      const jsonStart = jsonText.indexOf('{');
+      const jsonEnd = jsonText.lastIndexOf('}');
+      if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+        jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+      }
+
+      let content;
+      try {
+        content = JSON.parse(jsonText);
+      } catch (parseError) {
+        console.error('JSON parsing error:', parseError);
+        console.error('Response text:', result.text);
+        console.error('Cleaned text:', jsonText);
+        throw new Error(`Invalid JSON response from AI: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
+      }
+
       if (content.timing && content.content && content.keywords && content.strategy) {
-        return NextResponse.json({
-          ...content,
-          trends: trendsData,
-        });
+        return NextResponse.json(content);
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
@@ -311,7 +290,6 @@ ${isHebrew
           'בנה שיתופי פעולה עם אינפלואנסרים',
           'התמקד בבניית קהילה פעילה',
         ],
-        trends: trendsData.length > 0 ? trendsData : [],
       }
     : {
         timing: fallbackTiming,
@@ -330,7 +308,6 @@ ${isHebrew
           'Build influencer collaborations',
           'Focus on active community building',
         ],
-        trends: trendsData.length > 0 ? trendsData : [],
       };
 
   return NextResponse.json(insights);

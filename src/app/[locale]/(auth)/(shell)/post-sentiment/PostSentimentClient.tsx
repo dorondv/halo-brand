@@ -46,6 +46,9 @@ const TikTokIcon = () => (
   </svg>
 );
 
+// Platforms that support comment fetching (Instagram, Facebook, TikTok)
+const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'tiktok'] as const;
+
 const platformDetails: Record<string, { icon: React.ComponentType<{ className?: string }>; name: string; color: string }> = {
   facebook: { icon: Facebook, name: 'Facebook', color: 'text-blue-600' },
   instagram: { icon: Instagram, name: 'Instagram', color: 'text-pink-500' },
@@ -168,7 +171,28 @@ export function PostSentimentClient() {
       const postsWithEngagement = (postsData || []).map((post) => {
         const postAnalytics = analyticsData.filter(a => a.post_id === post.id);
         const totalLikes = postAnalytics.reduce((sum, a) => sum + (a.likes || 0), 0);
-        const totalComments = postAnalytics.reduce((sum, a) => sum + (a.comments || 0), 0);
+
+        // Calculate comments count - prioritize sentiment analysis data if available
+        let totalComments = postAnalytics.reduce((sum, a) => sum + (a.comments || 0), 0);
+
+        // Check if sentiment analysis exists and use comments_analyzed or comments array length
+        for (const analytics of postAnalytics) {
+          if (analytics.metadata) {
+            const metadata = analytics.metadata as any;
+            // Check for sentiment analysis data
+            if (metadata.sentimentAnalysis) {
+              // Use comments_analyzed if available, otherwise use comments array length
+              if (metadata.sentimentAnalysis.comments_analyzed !== undefined) {
+                totalComments = metadata.sentimentAnalysis.comments_analyzed;
+                break; // Use the first sentiment analysis found
+              } else if (Array.isArray(metadata.comments) && metadata.comments.length > 0) {
+                totalComments = metadata.comments.length;
+                break; // Use the first sentiment analysis found
+              }
+            }
+          }
+        }
+
         const totalShares = postAnalytics.reduce((sum, a) => sum + (a.shares || 0), 0);
 
         // Extract platformPostUrl from analytics metadata (Priority 1)
@@ -267,7 +291,22 @@ export function PostSentimentClient() {
         };
       });
 
-      setPosts(postsWithEngagement);
+      // Remove duplicate posts by platformPostUrl (keep the first occurrence)
+      // Posts with the same platformPostUrl are considered duplicates
+      // Posts without platformPostUrl fall back to using post ID for uniqueness
+      const uniquePosts = postsWithEngagement.filter((post, index, self) => {
+        if (post.platformPostUrl) {
+          // For posts with URL, check if this is the first occurrence of this URL
+          const firstIndex = self.findIndex(p => p.platformPostUrl === post.platformPostUrl);
+          return index === firstIndex;
+        } else {
+          // For posts without URL, use post ID as fallback to ensure uniqueness
+          const firstIndex = self.findIndex(p => p.id === post.id && !p.platformPostUrl);
+          return index === firstIndex;
+        }
+      });
+
+      setPosts(uniquePosts);
     } catch (error) {
       console.error('Error loading data:', error);
       setPosts([]);
@@ -322,16 +361,22 @@ export function PostSentimentClient() {
     }
   };
 
-  // Get all unique platforms from posts
+  // Get all unique platforms from posts (only supported platforms)
   const availablePlatforms = useMemo(() => {
     const platformSet = new Set<string>();
     posts.forEach((post) => {
       if (Array.isArray(post.platforms)) {
-        post.platforms.forEach(p => platformSet.add(p.toLowerCase()));
+        post.platforms.forEach((p) => {
+          const normalizedPlatform = p.toLowerCase() === 'twitter' ? 'x' : p.toLowerCase();
+          // Only include supported platforms
+          if (SUPPORTED_PLATFORMS.includes(normalizedPlatform as typeof SUPPORTED_PLATFORMS[number])) {
+            platformSet.add(normalizedPlatform);
+          }
+        });
       }
     });
     // Sort platforms in a consistent order
-    const platformOrder = ['instagram', 'facebook', 'x', 'twitter', 'linkedin', 'youtube', 'tiktok'];
+    const platformOrder = ['instagram', 'facebook', 'tiktok'];
     return Array.from(platformSet).sort((a, b) => {
       const aIndex = platformOrder.indexOf(a);
       const bIndex = platformOrder.indexOf(b);
@@ -348,15 +393,35 @@ export function PostSentimentClient() {
     });
   }, [posts]);
 
-  const filteredPosts
-    = selectedPlatform === 'all'
-      ? posts
-      : posts.filter((post) => {
-          const postPlatforms = Array.isArray(post.platforms)
-            ? post.platforms.map(p => p.toLowerCase())
-            : [];
-          return postPlatforms.includes(selectedPlatform.toLowerCase());
-        });
+  // Filter posts: only show posts that have at least one supported platform
+  const filteredPosts = useMemo(() => {
+    const allFiltered = posts.filter((post) => {
+      if (!Array.isArray(post.platforms) || post.platforms.length === 0) {
+        return false;
+      }
+      // Check if post has at least one supported platform
+      const hasSupportedPlatform = post.platforms.some((p) => {
+        const normalizedPlatform = p.toLowerCase() === 'twitter' ? 'x' : p.toLowerCase();
+        return SUPPORTED_PLATFORMS.includes(normalizedPlatform as typeof SUPPORTED_PLATFORMS[number]);
+      });
+      return hasSupportedPlatform;
+    });
+
+    // Apply platform filter if not 'all'
+    if (selectedPlatform === 'all') {
+      return allFiltered;
+    }
+
+    return allFiltered.filter((post) => {
+      const postPlatforms = Array.isArray(post.platforms)
+        ? post.platforms.map((p) => {
+            const normalized = p.toLowerCase();
+            return normalized === 'twitter' ? 'x' : normalized;
+          })
+        : [];
+      return postPlatforms.includes(selectedPlatform.toLowerCase());
+    });
+  }, [posts, selectedPlatform]);
 
   const pieData = analysis && analysis.sentiment_distribution
     ? [
@@ -397,6 +462,11 @@ export function PostSentimentClient() {
             {t('title')}
           </h1>
           <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+          {/* Disclaimer about platform support */}
+          <div className={`mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm text-amber-800 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+            <AlertCircle className={`h-5 w-5 flex-shrink-0 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+            <p>{t('platform_disclaimer')}</p>
+          </div>
         </motion.div>
 
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
@@ -692,44 +762,82 @@ export function PostSentimentClient() {
                           {/* Sample Comments */}
                           <Card className="glass-effect border-white/20 shadow-xl">
                             <CardHeader>
-                              <CardTitle>{t('sample_comments')}</CardTitle>
+                              <CardTitle className="flex items-center gap-2">
+                                <MessageSquare className="h-5 w-5" />
+                                {t('sample_comments')}
+                                {(analysis.sample_comments || []).length > 0 && (
+                                  <Badge variant="secondary" className="ml-2">
+                                    {(analysis.sample_comments || []).length}
+                                  </Badge>
+                                )}
+                              </CardTitle>
+                              <CardDescription>
+                                {isRTL ? 'תגובות מובילות מהפלטפורמה' : 'Top comments from the platform'}
+                              </CardDescription>
                             </CardHeader>
                             <CardContent>
-                              <div className="space-y-3">
-                                {(analysis.sample_comments || []).map(comment => (
-                                  <div key={`comment-${comment.text.slice(0, 20)}-${comment.author}`} className="rounded-lg border bg-white/50 p-3">
-                                    <div className="flex items-start justify-between">
-                                      <div className="flex-1">
-                                        <p className="mb-1 text-gray-800">
-                                          "
-                                          {comment.text}
-                                          "
-                                        </p>
-                                        <p className="text-sm text-gray-500">
-                                          -
-                                          {comment.author}
-                                        </p>
-                                      </div>
-                                      <Badge
-                                        variant="outline"
-                                        className={`${
-                                          comment.sentiment === 'positive'
-                                            ? 'border-green-200 bg-green-50 text-green-700'
-                                            : comment.sentiment === 'negative'
-                                              ? 'border-red-200 bg-red-50 text-red-700'
-                                              : 'border-gray-200 bg-gray-50 text-gray-700'
-                                        }`}
-                                      >
-                                        {comment.sentiment === 'positive'
-                                          ? t('positive')
-                                          : comment.sentiment === 'negative'
-                                            ? t('negative')
-                                            : t('neutral')}
-                                      </Badge>
+                              {(analysis.sample_comments || []).length === 0
+                                ? (
+                                    <div className="py-8 text-center text-gray-500">
+                                      <MessageSquare className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+                                      <p>{isRTL ? 'אין תגובות זמינות' : 'No comments available'}</p>
                                     </div>
-                                  </div>
-                                ))}
-                              </div>
+                                  )
+                                : (
+                                    <div className="space-y-3">
+                                      {(analysis.sample_comments || []).map((comment, index) => (
+                                        <div
+                                          key={`comment-${index}-${comment.text.slice(0, 20)}-${comment.author}`}
+                                          className="rounded-lg border bg-white/50 p-4 transition-all hover:bg-white/70"
+                                        >
+                                          <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                            <div className="flex-1">
+                                              <div className="mb-2 flex items-center gap-2">
+                                                <span className="font-semibold text-gray-900">
+                                                  @
+                                                  {comment.author}
+                                                </span>
+                                                <Badge
+                                                  variant="outline"
+                                                  className={`ml-auto ${
+                                                    comment.sentiment === 'positive'
+                                                      ? 'border-green-200 bg-green-50 text-green-700'
+                                                      : comment.sentiment === 'negative'
+                                                        ? 'border-red-200 bg-red-50 text-red-700'
+                                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                                  }`}
+                                                >
+                                                  {comment.sentiment === 'positive'
+                                                    ? (
+                                                        <>
+                                                          <Smile className="mr-1 h-3 w-3" />
+                                                          {t('positive')}
+                                                        </>
+                                                      )
+                                                    : comment.sentiment === 'negative'
+                                                      ? (
+                                                          <>
+                                                            <Frown className="mr-1 h-3 w-3" />
+                                                            {t('negative')}
+                                                          </>
+                                                        )
+                                                      : (
+                                                          <>
+                                                            <Meh className="mr-1 h-3 w-3" />
+                                                            {t('neutral')}
+                                                          </>
+                                                        )}
+                                                </Badge>
+                                              </div>
+                                              <p className="text-gray-800">
+                                                {comment.text}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                             </CardContent>
                           </Card>
 

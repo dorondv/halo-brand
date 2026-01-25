@@ -15,6 +15,9 @@ type Toast = {
 
 type ToastContextValue = {
   showToast: (message: string, type?: ToastType) => void;
+  success: (message: string) => void;
+  error: (message: string) => void;
+  info: (message: string) => void;
 };
 
 const ToastContext = createContext<ToastContextValue | undefined>(undefined);
@@ -40,12 +43,24 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     }, 5000);
   }, []);
 
+  const success = useCallback((message: string) => {
+    showToast(message, 'success');
+  }, [showToast]);
+
+  const error = useCallback((message: string) => {
+    showToast(message, 'error');
+  }, [showToast]);
+
+  const info = useCallback((message: string) => {
+    showToast(message, 'info');
+  }, [showToast]);
+
   const removeToast = useCallback((id: string) => {
     setToasts(prev => prev.filter(toast => toast.id !== id));
   }, []);
 
   return (
-    <ToastContext value={{ showToast }}>
+    <ToastContext value={{ showToast, success, error, info }}>
       {children}
       <div className="pointer-events-none fixed right-0 bottom-0 left-0 z-50 flex flex-col items-center gap-2 p-4 md:right-4 md:bottom-4 md:left-auto md:items-end">
         <AnimatePresence mode="popLayout">

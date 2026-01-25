@@ -612,7 +612,8 @@
     "comments": "תגובות",
     "selected_post": "פוסט נבחר",
     "view_on_platform": "צפה בפלטפורמה",
-    "view_post": "צפה בפוסט"
+    "view_post": "צפה בפוסט",
+    "platform_disclaimer": "ניתוח תגובות זמין כרגע רק עבור פוסטים ב-Instagram, Facebook ו-TikTok. פוסטים מפלטפורמות אחרות לא יופיעו בתצוגה זו."
   },
   "Inbox": {
     "title": "מרכז תגובות",

@@ -4,7 +4,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
-export const runtime = 'edge';
+// Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
+// requires cookies() from next/headers which is not available in Edge runtime
 
 const CACHE_TTL_MS = 1000 * 60 * 60;
 
@@ -43,7 +44,17 @@ const typeInstructions: Record<z.infer<typeof suggestionSchema>['type'], string>
 
 const safeJson = (text: string) => {
   try {
-    return JSON.parse(text);
+    // Strip markdown code blocks if present and extract JSON
+    let jsonText = text.trim();
+    // Remove markdown code blocks (```json ... ``` or ``` ... ```)
+    jsonText = jsonText.replace(/```json\s*/gi, '').replace(/```\s*/g, '').trim();
+    // Find JSON object boundaries
+    const jsonStart = jsonText.indexOf('{');
+    const jsonEnd = jsonText.lastIndexOf('}');
+    if (jsonStart !== -1 && jsonEnd !== -1 && jsonEnd > jsonStart) {
+      jsonText = jsonText.substring(jsonStart, jsonEnd + 1);
+    }
+    return JSON.parse(jsonText);
   } catch {
     return null;
   }

@@ -774,6 +774,28 @@ export default function ConnectionsPage() {
       return;
     }
 
+    // Check brand limit before creating
+    try {
+      const limitsResponse = await fetch('/api/subscriptions/limits');
+      if (limitsResponse.ok) {
+        const limitsData = await limitsResponse.json();
+        if (limitsData.limits && limitsData.usage) {
+          if (!limitsData.canCreateBrand) {
+            showToast(
+              isRTL
+                ? `הגעת למגבלת המותגים (${limitsData.limits.maxBrands}). שדרג את התוכנית שלך כדי ליצור עוד מותגים.`
+                : `You've reached your brand limit (${limitsData.limits.maxBrands}). Upgrade your plan to create more brands.`,
+              'error',
+            );
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking limits:', error);
+      // Continue with brand creation attempt even if limit check fails
+    }
+
     try {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
@@ -885,6 +907,28 @@ export default function ConnectionsPage() {
   const handleOAuthConnect = async (platform: Platform) => {
     if (!selectedBrandId || !selectedBrand) {
       return;
+    }
+
+    // Check social account limit before connecting
+    try {
+      const limitsResponse = await fetch('/api/subscriptions/limits');
+      if (limitsResponse.ok) {
+        const limitsData = await limitsResponse.json();
+        if (limitsData.limits && limitsData.usage) {
+          if (!limitsData.canConnectAccount) {
+            showToast(
+              isRTL
+                ? `הגעת למגבלת חשבונות חברתיים (${limitsData.limits.maxSocialAccounts}). שדרג את התוכנית שלך כדי לחבר עוד חשבונות.`
+                : `You've reached your social account limit (${limitsData.limits.maxSocialAccounts}). Upgrade your plan to connect more accounts.`,
+              'error',
+            );
+            return;
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error checking limits:', error);
+      // Continue with connection attempt even if limit check fails
     }
 
     setIsConnectingOAuth(platform);

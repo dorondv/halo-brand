@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get brand to fetch Getlate profile ID
     const { data: brandRecord, error: brandError } = await supabase
       .from('brands')
       .select('id, getlate_profile_id')
@@ -195,6 +194,41 @@ export async function GET(request: NextRequest) {
           syncedAccounts.push(updatedAccount);
         }
       } else {
+        const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
+        const { socialAccounts: socialAccountsTable } = await import('@/models/Schema');
+        const { eq } = await import('drizzle-orm');
+        const { db } = await import('@/libs/DB');
+
+        const subscription = await getUserSubscription(user.id);
+        let maxSocialAccounts = 3;
+
+        if (subscription && subscription.planType !== 'free') {
+          const now = new Date();
+          const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+          const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
+
+          if (isSubscriptionActive && isNotExpired) {
+            const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+            if (plan) {
+              maxSocialAccounts = plan.maxSocialAccounts || 999999;
+            } else {
+              maxSocialAccounts = subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350;
+            }
+          }
+        }
+
+        const existingAccountsCount = await db
+          .select({ count: socialAccountsTable.id })
+          .from(socialAccountsTable)
+          .where(eq(socialAccountsTable.userId, user.id));
+
+        const currentAccountCount = existingAccountsCount.length;
+
+        if (currentAccountCount >= maxSocialAccounts && !oauthReconnect) {
+          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}). Skipping account creation for ${accountName}.`);
+          continue;
+        }
+
         // Create new account
         const platformSpecificDataForInsert = {
           display_name: displayName,
@@ -203,6 +237,18 @@ export async function GET(request: NextRequest) {
           last_sync: lastSync,
           ...metadata,
         };
+
+        const { data: brandCheck } = await supabase
+          .from('brands')
+          .select('id, user_id')
+          .eq('id', brandId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (!brandCheck) {
+          console.warn(`[Getlate Accounts Sync] User ${user.id} attempted to add account to brand ${brandId} they don't own. Skipping.`);
+          continue;
+        }
 
         const { data: newAccount, error: insertError } = await supabase
           .from('social_accounts')
@@ -213,7 +259,7 @@ export async function GET(request: NextRequest) {
             account_name: accountName,
             account_id: accountIdValue,
             getlate_account_id: accountId,
-            access_token: 'getlate-managed', // Getlate manages tokens
+            access_token: 'getlate-managed',
             platform_specific_data: platformSpecificDataForInsert,
             is_active: isConnected,
           })
