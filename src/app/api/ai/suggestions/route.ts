@@ -235,6 +235,22 @@ export async function POST(request: Request) {
         { onConflict: 'user_id,prompt_key' },
       );
 
+      // Increment AI content generation counter (only for new generations, not cached)
+      // Use the increment_user_usage function from migration 0009
+      try {
+        const { error: rpcError } = await supabase.rpc('increment_user_usage', {
+          p_user_id: user.id,
+          p_counter_type: 'ai_content',
+          p_amount: 1,
+        });
+        if (rpcError) {
+          console.warn('[AI Suggestions] Failed to increment usage counter:', rpcError);
+        }
+      } catch (error) {
+        // Log error but don't fail the request
+        console.warn('[AI Suggestions] Error calling increment_user_usage:', error);
+      }
+
       return NextResponse.json(responsePayload);
     }
 
@@ -266,6 +282,22 @@ export async function POST(request: Request) {
       },
       { onConflict: 'user_id,prompt_key' },
     );
+
+    // Increment AI content generation counter (only for new generations, not cached)
+    // Use the increment_user_usage function from migration 0009
+    try {
+      const { error: rpcError } = await supabase.rpc('increment_user_usage', {
+        p_user_id: user.id,
+        p_counter_type: 'ai_content',
+        p_amount: 1,
+      });
+      if (rpcError) {
+        console.warn('[AI Suggestions] Failed to increment usage counter:', rpcError);
+      }
+    } catch (error) {
+      // Log error but don't fail the request
+      console.warn('[AI Suggestions] Error calling increment_user_usage:', error);
+    }
 
     return NextResponse.json(responsePayload);
   } catch (err) {

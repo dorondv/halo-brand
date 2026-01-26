@@ -2,8 +2,25 @@
 -- Add Subscriptions and Subscription Plans Tables
 -- ============================================================================
 -- This migration creates the subscriptions, billing_history, payment_webhooks,
--- coupons, and subscription_plans tables for PayPal integration.
+-- coupons, subscription_plans, and settings tables for PayPal integration.
+-- Also includes users table modifications and constraint updates.
 -- ============================================================================
+
+-- Drop existing constraints that will be recreated
+ALTER TABLE "post_analytics" DROP CONSTRAINT IF EXISTS "post_analytics_post_id_posts_id_fk";
+ALTER TABLE "scheduled_posts" DROP CONSTRAINT IF EXISTS "scheduled_posts_post_id_posts_id_fk";
+ALTER TABLE "scheduled_posts" DROP CONSTRAINT IF EXISTS "scheduled_posts_social_account_id_social_accounts_id_fk";
+
+-- Modify users table: add avatar_url and remove old columns
+-- Note: These columns may have already been removed in migration 0003, but kept here for idempotency
+ALTER TABLE "users" ADD COLUMN IF NOT EXISTS "avatar_url" text;
+ALTER TABLE "users" DROP COLUMN IF EXISTS "country";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "language";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "timezone";
+ALTER TABLE "users" DROP COLUMN IF EXISTS "light_mode";
+
+-- Note: Settings table is already created in migration 0003_optimize_settings_and_remove_duplicates.sql
+-- No need to recreate it here
 
 -- Subscription Plans table (Basic, Pro, Business)
 CREATE TABLE IF NOT EXISTS "subscription_plans" (
@@ -14,6 +31,7 @@ CREATE TABLE IF NOT EXISTS "subscription_plans" (
 	"description_he" text,
 	"description_en" text,
 	"price_monthly" numeric(10,2) NOT NULL, -- Price in USD
+	"price_annual" numeric(10,2), -- Annual price in USD
 	"currency" varchar(10) DEFAULT 'USD' NOT NULL,
 	"max_brands" integer, -- NULL = unlimited
 	"max_social_accounts" integer, -- NULL = unlimited
@@ -31,6 +49,7 @@ CREATE TABLE IF NOT EXISTS "subscriptions" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"user_id" uuid NOT NULL,
 	"plan_type" varchar(20) NOT NULL, -- 'basic' | 'pro' | 'business' | 'free' | 'trial'
+	"billing_cycle" varchar(20) DEFAULT 'monthly' NOT NULL, -- 'monthly' | 'annual'
 	"status" varchar(20) NOT NULL, -- 'trialing' | 'active' | 'cancelled' | 'expired' | 'suspended' | 'free'
 	"paypal_subscription_id" text UNIQUE,
 	"paypal_plan_id" text, -- PayPal plan ID
@@ -46,7 +65,8 @@ CREATE TABLE IF NOT EXISTS "subscriptions" (
 	"granted_by_admin_id" uuid, -- Admin user ID who granted free access
 	"created_at" timestamp DEFAULT now() NOT NULL,
 	"updated_at" timestamp DEFAULT now() NOT NULL,
-	CONSTRAINT "subscriptions_user_id_unique" UNIQUE("user_id")
+	CONSTRAINT "subscriptions_user_id_unique" UNIQUE("user_id"),
+	CONSTRAINT "subscriptions_paypal_subscription_id_unique" UNIQUE("paypal_subscription_id")
 );
 
 -- Billing history table
@@ -97,6 +117,9 @@ CREATE TABLE IF NOT EXISTS "coupons" (
 -- Foreign key constraints
 DO $$
 BEGIN
+	-- Note: Settings -> Users foreign key is already created in migration 0003
+	-- The constraint is created inline with the table definition, so no need to add it here
+
 	-- Subscriptions -> Users
 	IF NOT EXISTS (
 		SELECT 1 FROM pg_constraint WHERE conname = 'subscriptions_user_id_users_id_fk'
@@ -135,6 +158,42 @@ BEGIN
 			ON DELETE CASCADE 
 			ON UPDATE NO ACTION;
 	END IF;
+
+	-- Post Analytics -> Posts (recreate dropped constraint)
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname = 'post_analytics_post_id_posts_id_fk'
+	) THEN
+		ALTER TABLE "post_analytics" 
+			ADD CONSTRAINT "post_analytics_post_id_posts_id_fk" 
+			FOREIGN KEY ("post_id") 
+			REFERENCES "public"."posts"("id") 
+			ON DELETE CASCADE 
+			ON UPDATE NO ACTION;
+	END IF;
+
+	-- Scheduled Posts -> Posts (recreate dropped constraint)
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname = 'scheduled_posts_post_id_posts_id_fk'
+	) THEN
+		ALTER TABLE "scheduled_posts" 
+			ADD CONSTRAINT "scheduled_posts_post_id_posts_id_fk" 
+			FOREIGN KEY ("post_id") 
+			REFERENCES "public"."posts"("id") 
+			ON DELETE CASCADE 
+			ON UPDATE NO ACTION;
+	END IF;
+
+	-- Scheduled Posts -> Social Accounts (recreate dropped constraint)
+	IF NOT EXISTS (
+		SELECT 1 FROM pg_constraint WHERE conname = 'scheduled_posts_social_account_id_social_accounts_id_fk'
+	) THEN
+		ALTER TABLE "scheduled_posts" 
+			ADD CONSTRAINT "scheduled_posts_social_account_id_social_accounts_id_fk" 
+			FOREIGN KEY ("social_account_id") 
+			REFERENCES "public"."social_accounts"("id") 
+			ON DELETE CASCADE 
+			ON UPDATE NO ACTION;
+	END IF;
 END $$;
 
 -- Insert default subscription plans
@@ -145,6 +204,7 @@ INSERT INTO "subscription_plans" (
 	"description_he", 
 	"description_en", 
 	"price_monthly", 
+	"price_annual",
 	"currency",
 	"max_brands",
 	"max_social_accounts",
@@ -159,6 +219,7 @@ INSERT INTO "subscription_plans" (
 	'לפרילנסרים ויוצרים שרק מתחילים.',
 	'For freelancers and creators just starting out.',
 	15.00,
+	276.00,
 	'USD',
 	1,
 	5,
@@ -173,6 +234,7 @@ INSERT INTO "subscription_plans" (
 	'לעסקים קטנים וצוותי שיווק.',
 	'For small businesses and marketing teams.',
 	35.00,
+	564.00,
 	'USD',
 	5,
 	25,
@@ -187,6 +249,7 @@ INSERT INTO "subscription_plans" (
 	'לסוכנויות ועסקים גדולים.',
 	'For agencies and large businesses.',
 	80.00,
+	948.00,
 	'USD',
 	NULL, -- unlimited
 	NULL, -- unlimited
@@ -194,7 +257,8 @@ INSERT INTO "subscription_plans" (
 	'["content_board", "basic_analytics", "advanced_analytics", "sentiment_analysis", "team_collaboration_10", "custom_report_export", "dedicated_support", "api_access"]'::jsonb,
 	1
 )
-ON CONFLICT ("plan_key") DO NOTHING;
+ON CONFLICT ("plan_key") DO UPDATE SET
+	"price_annual" = EXCLUDED."price_annual";
 
 -- Create indexes for better query performance
 CREATE INDEX IF NOT EXISTS "subscriptions_user_id_idx" ON "subscriptions"("user_id");
@@ -203,11 +267,14 @@ CREATE INDEX IF NOT EXISTS "subscriptions_plan_type_idx" ON "subscriptions"("pla
 CREATE INDEX IF NOT EXISTS "billing_history_subscription_id_idx" ON "billing_history"("subscription_id");
 CREATE INDEX IF NOT EXISTS "payment_webhooks_processed_idx" ON "payment_webhooks"("processed");
 CREATE INDEX IF NOT EXISTS "subscription_plans_plan_key_idx" ON "subscription_plans"("plan_key");
+-- Note: settings_user_id_idx is already created in migration 0003
 
 -- Add comments for documentation
+-- Note: Settings table comments are already added in migration 0003
 COMMENT ON TABLE "subscription_plans" IS 'Available subscription plans (Basic, Pro, Business)';
 COMMENT ON TABLE "subscriptions" IS 'User subscription records';
 COMMENT ON TABLE "billing_history" IS 'Payment history for subscriptions';
 COMMENT ON TABLE "payment_webhooks" IS 'PayPal webhook events log';
 COMMENT ON TABLE "coupons" IS 'Trial and promotional coupon codes';
-
+COMMENT ON COLUMN "users"."avatar_url" IS 'User avatar URL extracted from OAuth provider metadata or auth.users';
+-- Note: settings.dark_mode comment is already added in migration 0003

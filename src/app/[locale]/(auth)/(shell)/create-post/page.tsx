@@ -959,6 +959,7 @@ export default function CreatePostPage() {
   const [limits, setLimits] = useState<{
     maxPostsPerMonth: number;
     maxAIGenerationsPerMonth: number;
+    maxImageGenerationsPerMonth: number; // Separate limit for image generation
     maxImagesPerPost: number;
     maxBrands: number;
     maxSocialAccounts: number;
@@ -967,12 +968,14 @@ export default function CreatePostPage() {
   const [usage, setUsage] = useState<{
     postsThisMonth: number;
     aiGenerationsThisMonth: number;
+    aiImageGenerationsThisMonth: number; // Separate tracking for image generations
     imagesInCurrentPost: number;
     brandsCount: number;
     socialAccountsCount: number;
   }>({
     postsThisMonth: 0,
     aiGenerationsThisMonth: 0,
+    aiImageGenerationsThisMonth: 0,
     imagesInCurrentPost: 0,
     brandsCount: 0,
     socialAccountsCount: 0,
@@ -1372,12 +1375,12 @@ export default function CreatePostPage() {
       return;
     }
 
-    // Check AI generation limit
-    if (limits && usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth) {
+    // Check image generation limit (separate from AI content limit)
+    if (limits && usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth) {
       setError(
         isRTL
-          ? `הגעת למגבלת יצירת תוכן AI החודשית (${limits.maxAIGenerationsPerMonth}). שדרג את התוכנית שלך כדי ליצור עוד תוכן.`
-          : `You've reached your monthly AI generation limit (${limits.maxAIGenerationsPerMonth}). Upgrade your plan to generate more content.`,
+          ? `הגעת למגבלת יצירת תמונות AI החודשית (${limits.maxImageGenerationsPerMonth}). שדרג את התוכנית שלך כדי ליצור עוד תמונות.`
+          : `You've reached your monthly AI image generation limit (${limits.maxImageGenerationsPerMonth}). Upgrade your plan to generate more images.`,
       );
       return;
     }
@@ -1415,14 +1418,11 @@ export default function CreatePostPage() {
 
       setMediaFiles(prev => [...prev, { url: data.url, type: 'image' }]);
 
-      // Update usage after successful AI media generation
-      setUsage(prev => ({ ...prev, aiGenerationsThisMonth: prev.aiGenerationsThisMonth + 1 }));
+      // Update image generation usage counter (separate from AI content)
+      setUsage(prev => ({ ...prev, aiImageGenerationsThisMonth: prev.aiImageGenerationsThisMonth + 1 }));
 
       // Clear prompt after successful generation
       setAiMediaPrompt(prev => ({ ...prev, [platform]: '' }));
-
-      // Update usage after generating AI content
-      setUsage(prev => ({ ...prev, aiGenerationsThisMonth: prev.aiGenerationsThisMonth + 1 }));
     } catch (err) {
       console.error('[AI Media] Error:', err);
       setError(err instanceof Error ? err.message : (isRTL ? 'שגיאה ביצירת תמונה' : 'Failed to generate image'));
@@ -1432,9 +1432,13 @@ export default function CreatePostPage() {
   };
 
   // Load subscription limits and usage
+  // Pass brandId to filter posts count by current brand
   const loadLimits = useCallback(async () => {
     try {
-      const response = await fetch('/api/subscriptions/limits');
+      const url = selectedBrandId
+        ? `/api/subscriptions/limits?brandId=${encodeURIComponent(selectedBrandId)}`
+        : '/api/subscriptions/limits';
+      const response = await fetch(url);
       if (!response.ok) {
         console.error('Failed to load subscription limits');
         return;
@@ -1452,13 +1456,36 @@ export default function CreatePostPage() {
     } catch (error) {
       console.error('Error loading subscription limits:', error);
     }
-  }, []);
+  }, [selectedBrandId]);
 
-  // Update images count when mediaUrls change
+  // Update images count when mediaUrls change - only count images for selected platforms
   useEffect(() => {
-    const totalImages = mediaUrls.length + Object.values(platformContent).reduce((sum, pc) => sum + (pc.mediaUrls?.length || 0), 0);
+    // Get selected platforms from variants (platforms that have variants selected)
+    const selectedPlatformsList = Array.from(new Set(variants.map(v => v.platform)));
+
+    if (selectedPlatformsList.length === 0) {
+      setUsage(prev => ({ ...prev, imagesInCurrentPost: 0 }));
+      return;
+    }
+
+    // Collect all unique image URLs for selected platforms
+    // For each platform: use platform-specific mediaUrls if they exist, otherwise use base mediaUrls
+    const uniqueImageUrls = new Set<string>();
+
+    selectedPlatformsList.forEach((platform) => {
+      const platformMedia = platformContent[platform]?.mediaUrls || [];
+      if (platformMedia.length > 0) {
+        // Platform has its own media - use those
+        platformMedia.forEach(url => uniqueImageUrls.add(url));
+      } else {
+        // Platform uses base mediaUrls (unified mode)
+        mediaUrls.forEach(url => uniqueImageUrls.add(url));
+      }
+    });
+
+    const totalImages = uniqueImageUrls.size;
     setUsage(prev => ({ ...prev, imagesInCurrentPost: totalImages }));
-  }, [mediaUrls, platformContent]);
+  }, [mediaUrls, platformContent, variants]);
 
   const loadAccounts = useCallback(async () => {
     try {
@@ -1529,7 +1556,7 @@ export default function CreatePostPage() {
 
   useEffect(() => {
     void loadLimits();
-  }, [loadLimits]);
+  }, [loadLimits, selectedBrandId]); // Reload limits when brand changes
 
   // Clear platform selection when brand changes
   useEffect(() => {
@@ -2588,26 +2615,26 @@ export default function CreatePostPage() {
               </CardContent>
             </Card>
 
-            {/* Images Counter */}
-            <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+            {/* AI Images Allowed Counter */}
+            <Card className={`border ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
-                    <p className={`text-2xl font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
-                      {usage.imagesInCurrentPost}
+                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תמונות AI החודש' : 'AI Images This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                      {usage.aiImageGenerationsThisMonth}
                       {' '}
                       /
-                      {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
+                      {limits.maxImageGenerationsPerMonth === 999999 ? '∞' : limits.maxImageGenerationsPerMonth}
                     </p>
-                    {usage.imagesInCurrentPost >= limits.maxImagesPerPost && (
+                    {usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth && (
                       <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
                         {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
                       </Link>
                     )}
                   </div>
-                  <div className={`rounded-full p-2 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
-                    <ImageIcon className={`h-5 w-5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                  <div className={`rounded-full p-2 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'bg-red-100' : 'bg-pink-100'}`}>
+                    <ImageIcon className={`h-5 w-5 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600' : 'text-pink-600'}`} />
                   </div>
                 </div>
               </CardContent>
@@ -3259,6 +3286,27 @@ export default function CreatePostPage() {
 
                                   {/* AI Generation Tab */}
                                   <TabsContent value="ai" className="mt-2 space-y-2">
+                                    {/* Images in Post Counter - moved here from top */}
+                                    {limits && (
+                                      <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+                                        <CardContent className="p-3">
+                                          <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                            <div className="flex-1">
+                                              <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
+                                              <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
+                                                {usage.imagesInCurrentPost}
+                                                {' '}
+                                                /
+                                                {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
+                                              </p>
+                                            </div>
+                                            <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
+                                              <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                                            </div>
+                                          </div>
+                                        </CardContent>
+                                      </Card>
+                                    )}
                                     <div className="space-y-2">
                                       <Textarea
                                         value={aiMediaPrompt.base || ''}
@@ -4063,6 +4111,27 @@ export default function CreatePostPage() {
 
                                                 {/* AI Generation Tab */}
                                                 <TabsContent value="ai" className="mt-2 space-y-2">
+                                                  {/* Images in Post Counter - moved here from top */}
+                                                  {limits && (
+                                                    <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+                                                      <CardContent className="p-3">
+                                                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                          <div className="flex-1">
+                                                            <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
+                                                            <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
+                                                              {usage.imagesInCurrentPost}
+                                                              {' '}
+                                                              /
+                                                              {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
+                                                            </p>
+                                                          </div>
+                                                          <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
+                                                            <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                                                          </div>
+                                                        </div>
+                                                      </CardContent>
+                                                    </Card>
+                                                  )}
                                                   <div className="space-y-2">
                                                     <Textarea
                                                       value={aiMediaPrompt[platform] || ''}

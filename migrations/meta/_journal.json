@@ -36,6 +36,41 @@
       "when": 1762692025000,
       "tag": "0004_add_getlate_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1769429812438,
+      "tag": "0005_add_subscriptions_and_plans",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1769430000000,
+      "tag": "0006_add_billing_cycle_and_annual_pricing",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1769431000000,
+      "tag": "0007_update_plan_prices_and_features",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1769432000000,
+      "tag": "0008_prevent_duplicate_analytics",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1769433000000,
+      "tag": "0009_add_user_usage_tracking",
+      "breakpoints": true
     }
   ]
 }

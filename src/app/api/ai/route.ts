@@ -40,6 +40,22 @@ export async function POST(request: Request) {
         temperature: 0.7,
       });
 
+      // Increment AI content generation counter
+      // Use the increment_user_usage function from migration 0009
+      try {
+        const { error: rpcError } = await supabase.rpc('increment_user_usage', {
+          p_user_id: user.id,
+          p_counter_type: 'ai_content',
+          p_amount: 1,
+        });
+        if (rpcError) {
+          console.warn('[AI Caption] Failed to increment usage counter:', rpcError);
+        }
+      } catch (error) {
+        // Log error but don't fail the request
+        console.warn('[AI Caption] Error calling increment_user_usage:', error);
+      }
+
       return NextResponse.json({ aiCaption: result.text });
     } catch (error) {
       console.error('OpenAI API error:', error);

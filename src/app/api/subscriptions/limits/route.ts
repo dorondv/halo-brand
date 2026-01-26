@@ -7,8 +7,10 @@ import { brands, socialAccounts } from '@/models/Schema';
 
 /**
  * Get user's subscription limits, current usage, and feature flags
+ * Query params:
+ * - brandId (optional): Filter posts count by brand
  */
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -17,11 +19,16 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    // Get optional brandId from query params
+    const url = new URL(request.url);
+    const brandId = url.searchParams.get('brandId');
+
     const subscription = await getUserSubscription(user.id);
 
     let limits: {
       maxPostsPerMonth: number;
       maxAIGenerationsPerMonth: number;
+      maxImageGenerationsPerMonth: number; // Separate limit for image generation, equals AI content limit
       maxImagesPerPost: number;
       maxBrands: number;
       maxSocialAccounts: number;
@@ -29,6 +36,7 @@ export async function GET() {
     } = {
       maxPostsPerMonth: 10,
       maxAIGenerationsPerMonth: 5,
+      maxImageGenerationsPerMonth: 5, // Same as AI content limit
       maxImagesPerPost: 3,
       maxBrands: 1,
       maxSocialAccounts: 3,
@@ -51,12 +59,15 @@ export async function GET() {
         const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
 
         if (plan) {
+          const maxAIGenerations = (plan.features as any)?.max_ai_generations_per_month
+            || (subscription.planType === 'basic'
+              ? 50
+              : subscription.planType === 'pro' ? 500 : 2500);
+
           limits = {
             maxPostsPerMonth: plan.maxPostsPerMonth || 999999, // Unlimited if null
-            maxAIGenerationsPerMonth: (plan.features as any)?.max_ai_generations_per_month
-              || (subscription.planType === 'basic'
-                ? 50
-                : subscription.planType === 'pro' ? 500 : 2500),
+            maxAIGenerationsPerMonth: maxAIGenerations,
+            maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
             maxImagesPerPost: (plan.features as any)?.max_images_per_post
               || (subscription.planType === 'basic'
                 ? 5
@@ -81,9 +92,12 @@ export async function GET() {
           }
         } else {
           // Fallback if plan not found - use hardcoded defaults
+          const maxAIGenerations = subscription.planType === 'basic' ? 50 : subscription.planType === 'pro' ? 500 : 2500;
+
           limits = {
             maxPostsPerMonth: subscription.planType === 'basic' ? 30 : subscription.planType === 'pro' ? 300 : 1500,
-            maxAIGenerationsPerMonth: subscription.planType === 'basic' ? 50 : subscription.planType === 'pro' ? 500 : 2500,
+            maxAIGenerationsPerMonth: maxAIGenerations,
+            maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
             maxImagesPerPost: subscription.planType === 'basic' ? 5 : subscription.planType === 'pro' ? 10 : 20,
             maxBrands: subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50,
             maxSocialAccounts: subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350,
@@ -102,24 +116,55 @@ export async function GET() {
       }
     }
 
-    // Calculate current usage
+    // Get current usage from user_usage table for AI generations
+    const currentMonth = new Date().getMonth() + 1; // 1-12
+    const currentYear = new Date().getFullYear();
+
+    const { data: usageRecord } = await supabase
+      .from('user_usage')
+      .select('ai_content_generations, ai_image_generations, posts_created')
+      .eq('user_id', user.id)
+      .eq('month', currentMonth)
+      .eq('year', currentYear)
+      .maybeSingle();
+
+    // Count posts from posts table (source of truth for posts created this month)
+    // Filter by brand if brandId is provided (for brand-specific post counts)
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
 
-    // Count posts created this month
-    const { count: postsCount } = await supabase
+    let postsQuery = supabase
       .from('posts')
       .select('*', { count: 'exact', head: true })
       .eq('user_id', user.id)
-      .gte('created_at', startOfMonth.toISOString());
+      .gte('created_at', startOfMonth.toISOString())
+      .lte('created_at', endOfMonth.toISOString());
 
-    // Count AI-generated content this month
-    const { count: aiContentCount } = await supabase
-      .from('posts')
-      .select('*', { count: 'exact', head: true })
-      .eq('user_id', user.id)
-      .or('ai_caption.not.is.null,metadata->>ai_generated.eq.true')
-      .gte('created_at', startOfMonth.toISOString());
+    // Filter by brand if brandId is provided
+    // This allows showing posts count per brand instead of total user posts
+    if (brandId) {
+      // Validate that the brand belongs to the user (security check)
+      const { data: brandCheck } = await supabase
+        .from('brands')
+        .select('id')
+        .eq('id', brandId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (brandCheck) {
+        postsQuery = postsQuery.eq('brand_id', brandId);
+      }
+      // If brand doesn't belong to user, ignore brandId and count all posts
+    }
+
+    const { count: postsCountFromTable } = await postsQuery;
+
+    // Use posts count from posts table (source of truth)
+    // Use AI generation counts from user_usage table (more efficient)
+    const postsCount = postsCountFromTable || 0;
+    const aiContentCount = usageRecord?.ai_content_generations || 0;
+    const aiImageCount = usageRecord?.ai_image_generations || 0;
 
     const brandsCount = await db
       .select({ count: brands.id })
@@ -134,6 +179,7 @@ export async function GET() {
     const usage = {
       postsThisMonth: postsCount || 0,
       aiGenerationsThisMonth: aiContentCount || 0,
+      aiImageGenerationsThisMonth: aiImageCount || 0, // AI image generations from user_usage table
       imagesInCurrentPost: 0, // Will be set by client
       brandsCount: brandsCount.length || 0,
       socialAccountsCount: socialAccountsCount.length || 0,
@@ -147,6 +193,7 @@ export async function GET() {
       canGenerateAI: (usage.aiGenerationsThisMonth || 0) < limits.maxAIGenerationsPerMonth,
       canCreateBrand: (usage.brandsCount || 0) < limits.maxBrands,
       canConnectAccount: (usage.socialAccountsCount || 0) < limits.maxSocialAccounts,
+      canGenerateImage: aiImageCount < limits.maxImageGenerationsPerMonth, // Separate check for image generation
     });
   } catch (error: any) {
     console.error('Error getting subscription limits:', error);

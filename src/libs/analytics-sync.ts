@@ -474,16 +474,18 @@ export async function syncAnalyticsFromGetlate(
               : null;
 
         // Check if analytics record already exists
-        // Use post_id + platform + date as unique identifier (one record per post per platform per day)
+        // Use post_id + platform + date + getlate_post_id as unique identifier
         // Since we normalize dates to midnight UTC, we can compare directly
         const normalizedDate = publishedDate.toISOString();
+
+        // First, try to find existing record using multiple criteria to prevent duplicates
         const { data: existingAnalytics } = await supabase
           .from('post_analytics')
           .select('id, metadata')
           .eq('post_id', foundPost.id)
-          .eq('getlate_post_id', getlatePostId)
           .eq('platform', platform)
           .eq('date', normalizedDate)
+          .or(`getlate_post_id.eq.${getlatePostId},getlate_post_id.is.null`)
           .maybeSingle();
 
         // Find platform-specific status from platforms array
@@ -545,7 +547,7 @@ export async function syncAnalyticsFromGetlate(
           shares,
           impressions,
           engagement_rate: calculatedEngagementRate !== null ? calculatedEngagementRate.toString() : null,
-          date: publishedDate.toISOString(), // Store as timestamp (normalized to midnight UTC)
+          date: normalizedDate, // Store as timestamp (normalized to midnight UTC)
           metadata,
         };
 
@@ -563,14 +565,64 @@ export async function syncAnalyticsFromGetlate(
               }
             }
           } else {
-            // Create new record
-            const { error: insertError } = await supabase
+            // Before inserting, do a final check to prevent race condition duplicates
+            // This is critical when multiple sync calls happen simultaneously
+            const { data: finalCheck } = await supabase
               .from('post_analytics')
-              .insert(analyticsData);
+              .select('id')
+              .eq('post_id', foundPost.id)
+              .eq('platform', platform)
+              .eq('date', normalizedDate)
+              .eq('getlate_post_id', getlatePostId)
+              .maybeSingle();
 
-            if (insertError) {
-              if (process.env.NODE_ENV === 'development') {
-                console.error(`[syncAnalyticsFromGetlate] Error inserting analytics for post ${getlatePostId}, platform ${platform}:`, insertError);
+            // If we found a record (including from concurrent inserts), update it instead
+            if (finalCheck) {
+              const { error: updateError } = await supabase
+                .from('post_analytics')
+                .update(analyticsData)
+                .eq('id', finalCheck.id);
+
+              if (updateError && process.env.NODE_ENV === 'development') {
+                console.error(`[syncAnalyticsFromGetlate] Error updating duplicate analytics for post ${getlatePostId}, platform ${platform}:`, updateError);
+              } else if (process.env.NODE_ENV === 'development') {
+                console.warn(`[syncAnalyticsFromGetlate] Duplicate prevented - updated existing record for post ${getlatePostId}, platform ${platform}`);
+              }
+            } else {
+              // Safe to insert - no duplicate found
+              const { error: insertError } = await supabase
+                .from('post_analytics')
+                .insert(analyticsData);
+
+              if (insertError) {
+                // If insert fails due to unique constraint violation (code 23505), try to update instead
+                // This handles race conditions where another process inserted between our check and insert
+                if (insertError.code === '23505' || insertError.message?.includes('duplicate') || insertError.message?.includes('unique')) {
+                  // Find the existing record and update it
+                  const { data: conflictRecord } = await supabase
+                    .from('post_analytics')
+                    .select('id')
+                    .eq('post_id', foundPost.id)
+                    .eq('platform', platform)
+                    .eq('date', normalizedDate)
+                    .eq('getlate_post_id', getlatePostId)
+                    .maybeSingle();
+
+                  if (conflictRecord) {
+                    const { error: updateError } = await supabase
+                      .from('post_analytics')
+                      .update(analyticsData)
+                      .eq('id', conflictRecord.id);
+
+                    if (updateError && process.env.NODE_ENV === 'development') {
+                      console.error(`[syncAnalyticsFromGetlate] Error updating conflicting analytics for post ${getlatePostId}, platform ${platform}:`, updateError);
+                    } else if (process.env.NODE_ENV === 'development') {
+                      console.warn(`[syncAnalyticsFromGetlate] Resolved duplicate conflict for post ${getlatePostId}, platform ${platform}`);
+                    }
+                  }
+                } else if (process.env.NODE_ENV === 'development') {
+                  console.error(`[syncAnalyticsFromGetlate] Error inserting analytics for post ${getlatePostId}, platform ${platform}:`, insertError);
+                }
               }
             }
           }

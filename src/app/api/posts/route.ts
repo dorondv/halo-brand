@@ -335,16 +335,70 @@ export async function POST(request: Request) {
               // Add hashtags if provided
               hashtags: payload.hashtags,
               // Publish immediately if not scheduled
+              // Note: Getlate API publishes asynchronously - the post is created immediately
+              // but publishing to social platforms happens in the background
               publishNow: !payload.scheduled_for,
             });
 
             getlatePostId = getlatePost.id || (getlatePost as any)._id;
             getlatePlatforms = getlatePost.platforms;
+
+            // Check post status - Getlate API returns immediately but publishing is async
+            // Status can be: 'draft', 'scheduled', 'published', or 'failed'
+            // If status is 'failed', it means Getlate's internal retry mechanism exhausted
+            // However, the post was still created in Getlate and may be retried later
+            if (getlatePost.status === 'failed') {
+              console.warn('[Getlate Post Creation] Post created in Getlate but publishing failed:', {
+                getlatePostId,
+                platforms: getlatePlatformsArray.map(p => p.platform),
+                status: getlatePost.status,
+                note: 'Post exists in Getlate but may not be published yet. Check Getlate dashboard for details.',
+              });
+              // Continue with local post creation - the post exists in Getlate
+              // User can retry publishing from Getlate dashboard if needed
+            } else if (!payload.scheduled_for && getlatePost.status !== 'published') {
+              // For immediate publishing, if status is not 'published', it's still processing
+              console.warn('[Getlate Post Creation] Post created, publishing in progress:', {
+                getlatePostId,
+                status: getlatePost.status,
+                note: 'Publishing happens asynchronously. Status will update once complete.',
+              });
+            }
           }
         }
       }
-    } catch {
+    } catch (error: any) {
+      // Log the error for debugging
+      const errorMessage = error?.message || String(error);
+
+      // Check if this is a publishing timeout/retry error from Getlate API
+      // These errors occur when Getlate's async publishing fails, but the post may still exist
+      const isPublishingError = errorMessage.includes('timeout')
+        || errorMessage.includes('max retries')
+        || errorMessage.includes('Publishing failed');
+
+      if (isPublishingError) {
+        // This is a publishing error - the post may have been created in Getlate
+        // but publishing to social platforms failed
+        console.warn('[Getlate Post Creation] Publishing error (post may still exist in Getlate):', {
+          error: errorMessage,
+          brandId: payload.brand_id,
+          platforms: payload.platforms?.map(p => p.platform),
+          note: 'The post may have been created in Getlate but publishing failed. Check Getlate dashboard to verify post status and retry if needed.',
+        });
+        // Continue with local post creation - user can check Getlate dashboard for post status
+      } else {
+        // This is a different error (API failure, network issue, etc.)
+        console.error('[Getlate Post Creation] Error creating post via Getlate API:', {
+          error: errorMessage,
+          stack: error?.stack,
+          brandId: payload.brand_id,
+          platforms: payload.platforms?.map(p => p.platform),
+        });
+      }
+
       // Continue with local post creation even if Getlate fails
+      // This allows the post to be saved locally even if Getlate API fails
     }
   }
 
@@ -376,14 +430,40 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: error.message }, { status: 400 });
   }
 
+  // Increment post creation counter
+  // Use the increment_user_usage function from migration 0009
+  try {
+    const { error: rpcError } = await supabase.rpc('increment_user_usage', {
+      p_user_id: user.id,
+      p_counter_type: 'post',
+      p_amount: 1,
+    });
+    if (rpcError) {
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[Post Creation] Failed to increment usage counter:', rpcError);
+      }
+    }
+  } catch (error) {
+    // Log error but don't fail the request
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[Post Creation] Error calling increment_user_usage:', error);
+    }
+  }
+
   // If post was created with Getlate, sync analytics in the background
   if (getlatePostId && payload.brand_id) {
     // Sync analytics asynchronously (don't wait for it)
     // Pass Getlate post ID directly for faster lookup
+    // Note: For immediate publishing, analytics may not be available immediately
+    // The sync will handle this gracefully and can be retried later
     syncAnalyticsFromGetlate(supabase, user.id, payload.brand_id, {
       getlatePostId,
-    }).catch(() => {
-      // Silently fail - analytics sync should not break post creation
+    }).catch((error) => {
+      // Log error but don't break post creation
+      // Analytics sync failures are non-critical - user can manually sync later
+      if (process.env.NODE_ENV === 'development') {
+        console.warn('[Post Creation] Analytics sync failed (non-critical):', error?.message || error);
+      }
     });
   }
 

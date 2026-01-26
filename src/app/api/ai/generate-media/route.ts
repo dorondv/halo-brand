@@ -121,6 +121,22 @@ export async function POST(request: Request) {
       .from('post-media')
       .getPublicUrl(fileName);
 
+    // Increment AI image generation counter
+    // Use the increment_user_usage function from migration 0009
+    try {
+      const { error: rpcError } = await supabase.rpc('increment_user_usage', {
+        p_user_id: userId,
+        p_counter_type: 'ai_image',
+        p_amount: 1,
+      });
+      if (rpcError) {
+        console.warn('[AI Media] Failed to increment usage counter:', rpcError);
+      }
+    } catch (error) {
+      // Log error but don't fail the request
+      console.warn('[AI Media] Error calling increment_user_usage:', error);
+    }
+
     return NextResponse.json({
       url: publicUrl,
       type: 'image',

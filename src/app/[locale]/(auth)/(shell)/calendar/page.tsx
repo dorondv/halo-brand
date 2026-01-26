@@ -818,26 +818,48 @@ export default function CalendarPage() {
               = importantDate && showImportantDates && selectedCategories.includes(importantDate.type);
             const config = importantDate ? getCategoryConfig(importantDate.type, t as any) : null;
 
+            // Check if date is in the past (excluding today)
+            const isPastDate = !isTodayDate && isPast(date);
+
             return (
               <motion.div
                 key={date.toISOString()}
                 whileHover={{ scale: 1.05 }}
-                className={`aspect-square cursor-pointer rounded-xl border-2 p-2 transition-all duration-300 ${
+                className={`aspect-square rounded-xl border-2 p-2 transition-all duration-300 ${
                   isSelected
-                    ? 'border-blue-500 bg-blue-50'
+                    ? 'cursor-pointer border-blue-500 bg-blue-50'
                     : isTodayDate
-                      ? 'border-emerald-300 bg-emerald-50'
+                      ? 'cursor-pointer border-emerald-300 bg-emerald-50'
                       : hasImportantDate
-                        ? `${config?.color.split(' ')[0]} border-${config?.bgColor.split('-')[1]}-300`
+                        ? `cursor-pointer ${config?.color.split(' ')[0]} border-${config?.bgColor.split('-')[1]}-300`
                         : dayPosts.length > 0
-                          ? 'border-orange-200 bg-orange-50 hover:border-orange-300'
-                          : 'border-white/30 hover:border-slate-200 hover:bg-white/50'
+                          ? 'cursor-pointer border-orange-200 bg-orange-50 hover:border-orange-300'
+                          : 'cursor-pointer border-white/30 hover:border-slate-200 hover:bg-white/50'
                 }`}
                 onClick={() => {
+                  // Allow clicking on past dates to view posts and events
                   setSelectedDate(date);
                   // Set time to default (current time or 5 min from now if today)
-                  setSelectedTime(getDefaultTime(date));
+                  // For past dates, set to a default time (e.g., 12:00)
+                  if (isPastDate) {
+                    setSelectedTime('12:00');
+                  } else {
+                    setSelectedTime(getDefaultTime(date));
+                  }
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setSelectedDate(date);
+                    if (isPastDate) {
+                      setSelectedTime('12:00');
+                    } else {
+                      setSelectedTime(getDefaultTime(date));
+                    }
+                  }
+                }}
+                role="button"
+                tabIndex={0}
               >
                 <div className="flex h-full flex-col">
                   <div
@@ -1325,66 +1347,68 @@ export default function CalendarPage() {
                           </div>
                         )}
 
-                    {/* Time Picker Section - Always Visible */}
-                    <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
-                      <div className={cn('mb-3 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                        <Clock className="h-4 w-4 text-pink-500" />
-                        <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700">
-                          {t('select_time')}
-                        </Label>
-                      </div>
-                      <div className="mb-3">
-                        <Input
-                          id="schedule-time"
-                          type="time"
-                          value={selectedTime}
-                          min={minTime}
-                          onChange={(e) => {
-                            const time = e.target.value;
-                            if (time) {
-                              setSelectedTime(time);
-                              validateTime(selectedDate, time);
-                            }
-                          }}
-                          className={cn(
-                            'w-full border-slate-300 bg-white focus:border-pink-400 focus:ring-pink-400',
-                            timeError ? 'border-red-300 focus:border-red-400 focus:ring-red-400' : '',
-                          )}
-                        />
-                      </div>
-                      <Link
-                        href={
-                          selectedDate && !timeError
-                            ? `/create-post?date=${format(selectedDate, 'yyyy-MM-dd')}&time=${selectedTime}&schedule=later`
-                            : '/create-post'
-                        }
-                        className="block w-full"
-                      >
-                        <Button
-                          size="default"
-                          disabled={!selectedDate || !!timeError}
-                          className="w-full bg-gradient-to-r from-pink-500 to-pink-600 py-2 text-white shadow-md hover:from-pink-600 hover:to-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                    {/* Time Picker Section - Only show for non-past dates */}
+                    {selectedDate && (!isPast(selectedDate) || isToday(selectedDate)) && (
+                      <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                        <div className={cn('mb-3 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                          <Clock className="h-4 w-4 text-pink-500" />
+                          <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700">
+                            {t('select_time')}
+                          </Label>
+                        </div>
+                        <div className="mb-3">
+                          <Input
+                            id="schedule-time"
+                            type="time"
+                            value={selectedTime}
+                            min={minTime}
+                            onChange={(e) => {
+                              const time = e.target.value;
+                              if (time) {
+                                setSelectedTime(time);
+                                validateTime(selectedDate, time);
+                              }
+                            }}
+                            className={cn(
+                              'w-full border-slate-300 bg-white focus:border-pink-400 focus:ring-pink-400',
+                              timeError ? 'border-red-300 focus:border-red-400 focus:ring-red-400' : '',
+                            )}
+                          />
+                        </div>
+                        <Link
+                          href={
+                            selectedDate && !timeError
+                              ? `/create-post?date=${format(selectedDate, 'yyyy-MM-dd')}&time=${selectedTime}&schedule=later`
+                              : '/create-post'
+                          }
+                          className="block w-full"
                         >
-                          <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
-                          {t('schedule_post')}
-                        </Button>
-                      </Link>
-                      {timeError
-                        ? (
-                            <p className="mt-2 text-xs text-red-600">{timeError}</p>
-                          )
-                        : (
-                            <p className="mt-2 text-xs text-slate-500">
-                              {selectedDate && selectedTime
-                                ? format(
-                                    new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}`),
-                                    'PPp',
-                                    { locale: locale === 'he' ? he : enUS },
-                                  )
-                                : t('select_time_hint')}
-                            </p>
-                          )}
-                    </div>
+                          <Button
+                            size="default"
+                            disabled={!selectedDate || !!timeError}
+                            className="w-full bg-gradient-to-r from-pink-500 to-pink-600 py-2 text-white shadow-md hover:from-pink-600 hover:to-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                            {t('schedule_post')}
+                          </Button>
+                        </Link>
+                        {timeError
+                          ? (
+                              <p className="mt-2 text-xs text-red-600">{timeError}</p>
+                            )
+                          : (
+                              <p className="mt-2 text-xs text-slate-500">
+                                {selectedDate && selectedTime
+                                  ? format(
+                                      new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}`),
+                                      'PPp',
+                                      { locale: locale === 'he' ? he : enUS },
+                                    )
+                                  : t('select_time_hint')}
+                              </p>
+                            )}
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
