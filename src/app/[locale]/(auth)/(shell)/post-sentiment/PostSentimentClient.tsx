@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { motion } from 'framer-motion';
 import {
   AlertCircle,
+  BarChart3,
   Briefcase,
   ExternalLink,
   Facebook,
@@ -117,6 +118,7 @@ export function PostSentimentClient() {
   const [analysis, setAnalysis] = useState<AnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [error, setError] = useState('');
+  const [errorStatus, setErrorStatus] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
   const loadData = useCallback(async () => {
@@ -326,6 +328,7 @@ export function PostSentimentClient() {
     setSelectedPost(post);
     setIsAnalyzing(true);
     setError('');
+    setErrorStatus(null);
 
     try {
       const platform = Array.isArray(post.platforms) && post.platforms.length > 0
@@ -348,14 +351,28 @@ export function PostSentimentClient() {
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.'));
+        const errorMessage = errorData.error || (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.');
+        setErrorStatus(response.status);
+        setError(errorMessage);
+        setIsAnalyzing(false);
+        return; // Exit early instead of throwing
       }
 
       const result = await response.json();
       setAnalysis(result);
+      setError('');
+      setErrorStatus(null);
     } catch (e) {
-      console.error('Analysis failed:', e);
-      setError(e instanceof Error ? e.message : (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.'));
+      // Only log unexpected errors (network errors, etc.)
+      if (e instanceof TypeError || e instanceof SyntaxError) {
+        console.error('Analysis failed:', e);
+      }
+      const errorMessage = e instanceof Error ? e.message : (isRTL ? 'שגיאה בניתוח הפוסט. אנא נסה שוב.' : 'Error analyzing post. Please try again.');
+      setError(errorMessage);
+      // If errorStatus wasn't set, it means this is a network/parsing error
+      if (!errorStatus) {
+        setErrorStatus(null);
+      }
     } finally {
       setIsAnalyzing(false);
     }
@@ -545,24 +562,15 @@ export function PostSentimentClient() {
                           return (
                             <div
                               key={post.id}
-                              role="button"
-                              tabIndex={0}
-                              onClick={() => handleAnalyzePost(post)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter' || e.key === ' ') {
-                                  e.preventDefault();
-                                  handleAnalyzePost(post);
-                                }
-                              }}
                               className={
-                                `cursor-pointer rounded-lg border p-3 transition-all duration-300 ${
+                                `rounded-lg border p-3 transition-all duration-300 ${
                                   isSelected
                                     ? 'border-pink-500 bg-pink-50'
                                     : 'border-gray-200 hover:border-pink-300'
                                 }`
                               }
                             >
-                              <div className="flex items-start gap-3">
+                              <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-50">
                                   <Icon className={`h-4 w-4 ${config.color}`} />
                                 </div>
@@ -580,6 +588,30 @@ export function PostSentimentClient() {
                                     {t('comments')}
                                   </p>
                                 </div>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleAnalyzePost(post);
+                                  }}
+                                  disabled={isAnalyzing && selectedPost?.id === post.id}
+                                  className={`flex items-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                  title={t('analyze_button')}
+                                >
+                                  {isAnalyzing && selectedPost?.id === post.id
+                                    ? (
+                                        <>
+                                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          {t('analyzing_button')}
+                                        </>
+                                      )
+                                    : (
+                                        <>
+                                          <BarChart3 className="h-3.5 w-3.5" />
+                                          {t('analyze_button')}
+                                        </>
+                                      )}
+                                </button>
                               </div>
                             </div>
                           );
@@ -612,10 +644,29 @@ export function PostSentimentClient() {
                   )
                 : error
                   ? (
-                      <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-100 p-4 text-red-700">
-                        <AlertCircle className="h-5 w-5" />
-                        <p>{error}</p>
-                      </div>
+                      <Card className="glass-effect border-white/20 shadow-xl">
+                        <CardContent className="pt-6">
+                          <div className={`flex flex-col gap-4 ${isRTL ? 'text-right' : ''}`}>
+                            <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                              <AlertCircle className={`h-5 w-5 flex-shrink-0 ${errorStatus === 403 ? 'text-amber-500' : 'text-red-500'}`} />
+                              <div className="flex-1">
+                                <p className={`font-medium ${errorStatus === 403 ? 'text-amber-800' : 'text-red-700'}`}>
+                                  {error}
+                                </p>
+                                {errorStatus === 403 && (
+                                  <Link
+                                    href={`/${locale}/pricing`}
+                                    className={`mt-3 inline-flex items-center gap-2 rounded-lg bg-pink-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-pink-600 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                  >
+                                    {isRTL ? 'שדרג עכשיו' : 'Upgrade Now'}
+                                    <TrendingUp className="h-4 w-4" />
+                                  </Link>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
                     )
                   : analysis
                     ? (

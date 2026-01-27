@@ -613,6 +613,8 @@
     "selected_post": "Selected Post",
     "view_on_platform": "View on Platform",
     "view_post": "View Post",
+    "analyze_button": "Analyze",
+    "analyzing_button": "Analyzing...",
     "platform_disclaimer": "Comment analysis is currently available for Instagram, Facebook, and TikTok posts only. Posts from other platforms will not appear in this view."
   },
   "Inbox": {

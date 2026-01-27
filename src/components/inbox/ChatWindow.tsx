@@ -124,6 +124,12 @@ function CommentThread({
                 : 'rounded-bl-sm bg-gray-100 text-gray-900',
           )}
         >
+          {/* Sender name */}
+          {(message.senderName || (isOutgoing && conversation)) && (
+            <p className={cn('mb-1 text-xs font-semibold', isRTL && 'text-right')} style={{ color: isOutgoing ? 'rgba(255, 255, 255, 0.9)' : '#6B7280' }}>
+              {isOutgoing ? (message.senderName || 'You') : message.senderName}
+            </p>
+          )}
           <p className={cn('break-words whitespace-pre-wrap', isReply ? 'text-xs' : 'text-sm')}>{message.content}</p>
           <div className={cn('mt-1 flex items-center gap-2', isRTL && 'flex-row-reverse')}>
             <p

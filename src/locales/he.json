@@ -613,6 +613,8 @@
     "selected_post": "פוסט נבחר",
     "view_on_platform": "צפה בפלטפורמה",
     "view_post": "צפה בפוסט",
+    "analyze_button": "ניתוח סנטימנט",
+    "analyzing_button": "מנתח...",
     "platform_disclaimer": "ניתוח תגובות זמין כרגע רק עבור פוסטים ב-Instagram, Facebook ו-TikTok. פוסטים מפלטפורמות אחרות לא יופיעו בתצוגה זו."
   },
   "Inbox": {
