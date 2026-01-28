@@ -3,7 +3,7 @@
 import { ArrowLeft, Check, Lock } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { useToast } from '@/components/ui/toast';
@@ -16,6 +16,8 @@ declare global {
     paypal?: {
       Buttons: (options: any) => {
         render: (container: string) => void;
+        close?: () => void;
+        isEligible?: () => boolean;
       };
     };
   }
@@ -51,79 +53,142 @@ export function PaymentClient() {
   const [paypalClientId, setPaypalClientId] = useState<string | null>(null);
   const [paypalPlanId, setPaypalPlanId] = useState<string | null>(null);
   const [processing, setProcessing] = useState(false);
+  const paypalButtonsRef = useRef<any>(null);
+  const scriptRef = useRef<HTMLScriptElement | null>(null);
+  const isRenderingRef = useRef(false);
 
   const planDetail = planDetails[plan];
   const displayPrice = isAnnual ? planDetail.priceAnnual / 12 : planDetail.priceMonthly;
   const planName = t(`plan_${plan}`);
   const billingCycle = isAnnual ? t('billing_cycle_annual') : t('billing_cycle');
 
-  const renderPayPalButtons = () => {
+  // Cleanup PayPal buttons
+  const cleanupPayPalButtons = () => {
+    if (paypalButtonsRef.current) {
+      try {
+        // PayPal buttons cleanup
+        if (typeof paypalButtonsRef.current.close === 'function') {
+          paypalButtonsRef.current.close();
+        }
+      } catch (error) {
+        // Ignore cleanup errors
+        console.warn('PayPal cleanup warning:', error);
+      }
+      paypalButtonsRef.current = null;
+    }
+
+    const container = document.getElementById('paypal-button-container');
+    if (container) {
+      container.innerHTML = '';
+    }
+  };
+
+  const renderPayPalButtons = useCallback(() => {
+    // Prevent multiple simultaneous renders
+    if (isRenderingRef.current) {
+      return;
+    }
+
     const container = document.getElementById('paypal-button-container');
     if (!container || !window.paypal || !paypalPlanId) {
       return;
     }
 
-    container.innerHTML = '';
+    // Clean up existing buttons first
+    cleanupPayPalButtons();
 
-    window.paypal.Buttons({
-      style: {
-        shape: 'rect',
-        color: 'white',
-        layout: 'vertical',
-        label: 'subscribe',
-      },
-      createSubscription(_data: any, actions: any) {
-        return actions.subscription.create({
-          plan_id: paypalPlanId,
-        });
-      },
-      async onApprove(data: any, _actions: any) {
-        const subscriptionID = data.subscriptionID || data.subscription_id || data.id;
-
-        try {
-          setProcessing(true);
-
-          const response = await fetch('/api/subscriptions/link', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              subscriptionID,
-              planType: plan,
-              billingCycle: billing,
-            }),
-          });
-
-          if (!response.ok) {
-            const error = await response.json();
-            throw new Error(error.error || 'Failed to link subscription');
-          }
-
-          toast.showToast(t('payment_success'), 'success');
-
-          setTimeout(() => {
-            router.push('/dashboard');
-          }, 1000);
-        } catch (error: any) {
-          console.error('Error linking subscription:', error);
-          toast.showToast(error.message || t('payment_error'), 'error');
-          setProcessing(false);
-        }
-      },
-      onError(err: any) {
-        console.error('PayPal error:', err);
-        toast.showToast(t('payment_error'), 'error');
-        setProcessing(false);
-      },
-      onCancel() {
-        setProcessing(false);
-      },
-    }).render('#paypal-button-container');
-  };
-
-  const loadPayPalSDK = async () => {
     try {
+      isRenderingRef.current = true;
+
+      const buttons = window.paypal.Buttons({
+        style: {
+          shape: 'rect',
+          color: 'white',
+          layout: 'vertical',
+          label: 'subscribe',
+        },
+        locale: locale === 'he' ? 'he_IL' : 'en_US', // Add locale for Hebrew support
+        createSubscription(_data: any, actions: any) {
+          return actions.subscription.create({
+            plan_id: paypalPlanId,
+          });
+        },
+        async onApprove(data: any, _actions: any) {
+          const subscriptionID = data.subscriptionID || data.subscription_id || data.id;
+
+          try {
+            setProcessing(true);
+
+            const response = await fetch('/api/subscriptions/link', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                subscriptionID,
+                planType: plan,
+                billingCycle: billing,
+              }),
+            });
+
+            if (!response.ok) {
+              const error = await response.json();
+              throw new Error(error.error || 'Failed to link subscription');
+            }
+
+            toast.showToast(t('payment_success'), 'success');
+
+            setTimeout(() => {
+              router.push('/dashboard');
+            }, 1000);
+          } catch (error: any) {
+            console.error('Error linking subscription:', error);
+            toast.showToast(error.message || t('payment_error'), 'error');
+            setProcessing(false);
+          }
+        },
+        onError(err: any) {
+          // Suppress PayPal SDK internal errors
+          if (err?.message?.includes('zoid') || err?.message?.includes('destroyed')) {
+            console.warn('PayPal SDK warning (ignored):', err);
+            return;
+          }
+          console.error('PayPal error:', err);
+          toast.showToast(t('payment_error'), 'error');
+          setProcessing(false);
+        },
+        onCancel() {
+          setProcessing(false);
+        },
+      });
+
+      try {
+        buttons.render('#paypal-button-container');
+        paypalButtonsRef.current = buttons;
+      } catch (renderError: any) {
+        // Suppress PayPal SDK render errors (zoid destroyed, etc.)
+        if (renderError?.message?.includes('zoid') || renderError?.message?.includes('destroyed')) {
+          console.warn('PayPal render warning (ignored):', renderError);
+          return;
+        }
+        throw renderError;
+      }
+    } catch (error: any) {
+      // Only show user-facing errors for real issues
+      if (!error?.message?.includes('zoid') && !error?.message?.includes('destroyed')) {
+        console.error('Error rendering PayPal buttons:', error);
+        toast.showToast(t('payment_error'), 'error');
+      }
+    } finally {
+      isRenderingRef.current = false;
+    }
+  }, [locale, paypalPlanId, plan, billing, router, t, toast]);
+
+  const loadPayPalSDK = useCallback(async () => {
+    try {
+      // Clean up existing buttons before loading new SDK
+      cleanupPayPalButtons();
+
       const response = await fetch(`/api/subscriptions/client-id?plan=${plan}&billing=${billing}`);
       const { clientId, planId } = await response.json();
       setPaypalClientId(clientId);
@@ -131,38 +196,114 @@ export function PaymentClient() {
         setPaypalPlanId(planId);
       }
 
+      // Check if PayPal SDK is already loaded
       if (window.paypal) {
         setPaypalLoading(false);
         return;
       }
 
+      // Remove existing script if any
+      if (scriptRef.current) {
+        scriptRef.current.remove();
+        scriptRef.current = null;
+      }
+
+      // Add locale parameter for Hebrew support
+      const localeParam = locale === 'he' ? '&locale=he_IL' : '&locale=en_US';
       const script = document.createElement('script');
-      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&currency=USD`;
+      script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&vault=true&intent=subscription&currency=USD${localeParam}`;
       script.async = true;
+      script.setAttribute('data-namespace', 'paypal_sdk');
+
       script.onload = () => {
         setPaypalLoading(false);
       };
+
       script.onerror = () => {
         setPaypalLoading(false);
         toast.showToast(t('error_loading_sdk'), 'error');
       };
+
+      // Suppress PayPal SDK console errors
+      const originalError = console.error;
+      console.error = (...args: any[]) => {
+        if (args[0]?.includes?.('paypal') || args[0]?.includes?.('zoid')) {
+          // Suppress PayPal SDK internal errors
+          return;
+        }
+        originalError.apply(console, args);
+      };
+
       document.head.appendChild(script);
+      scriptRef.current = script;
+
+      // Restore console.error after a delay
+      setTimeout(() => {
+        console.error = originalError;
+      }, 1000);
     } catch (error: any) {
       console.error('Error loading PayPal:', error);
       setPaypalLoading(false);
       toast.showToast(t('error_loading_paypal'), 'error');
     }
-  };
+  }, [plan, billing, locale, t, toast]);
 
   useEffect(() => {
+    // Global error handler for PayPal SDK errors
+    const handlePayPalError = (event: ErrorEvent): void => {
+      const errorMessage = event.message || event.error?.message || '';
+      if (errorMessage.includes('paypal') || errorMessage.includes('zoid') || errorMessage.includes('destroyed') || errorMessage.includes('unhandled_exception')) {
+        event.preventDefault();
+        event.stopPropagation();
+        console.warn('PayPal SDK error suppressed:', errorMessage);
+      }
+    };
+
+    // Handle unhandled promise rejections from PayPal SDK
+    const handleUnhandledRejection = (event: PromiseRejectionEvent): void => {
+      const errorMessage = event.reason?.message || event.reason?.toString() || '';
+      if (errorMessage.includes('paypal') || errorMessage.includes('zoid') || errorMessage.includes('destroyed') || errorMessage.includes('unhandled_exception')) {
+        event.preventDefault();
+        console.warn('PayPal SDK promise rejection suppressed:', errorMessage);
+      }
+    };
+
+    window.addEventListener('error', handlePayPalError);
+    window.addEventListener('unhandledrejection', handleUnhandledRejection);
+
     void loadPayPalSDK();
-  }, [plan, billing]);
+
+    // Cleanup on unmount
+    return () => {
+      window.removeEventListener('error', handlePayPalError);
+      window.removeEventListener('unhandledrejection', handleUnhandledRejection);
+      cleanupPayPalButtons();
+      if (scriptRef.current) {
+        scriptRef.current.remove();
+        scriptRef.current = null;
+      }
+    };
+  }, [plan, billing, locale, loadPayPalSDK]);
 
   useEffect(() => {
-    if (!paypalLoading && paypalClientId && window.paypal && paypalPlanId) {
-      renderPayPalButtons();
+    if (!paypalLoading && paypalClientId && window.paypal && paypalPlanId && !isRenderingRef.current) {
+      // Small delay to ensure DOM is ready
+      const timeoutId = setTimeout(() => {
+        renderPayPalButtons();
+      }, 100);
+
+      // Cleanup on dependencies change
+      return () => {
+        clearTimeout(timeoutId);
+        cleanupPayPalButtons();
+      };
     }
-  }, [paypalLoading, paypalClientId, paypalPlanId]);
+
+    // Cleanup on dependencies change
+    return () => {
+      cleanupPayPalButtons();
+    };
+  }, [paypalLoading, paypalClientId, paypalPlanId, renderPayPalButtons]);
 
   return (
     <div className={cn('min-h-screen p-6', isRTL ? 'rtl' : 'ltr')}>
