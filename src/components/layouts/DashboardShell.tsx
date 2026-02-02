@@ -4,7 +4,6 @@ import {
   BarChart3,
   Calendar as CalendarIcon,
   FileText,
-  Headphones,
   LayoutDashboard,
   Mail,
   Menu,
@@ -46,7 +45,6 @@ const baseNav = [
   { href: '/reports', key: 'reports', icon: FileText },
   { href: '/connections', key: 'integrations', icon: Plug },
   { href: '/settings', key: 'settings', icon: Settings },
-  { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
   // Only include getlate-test in non-production environments
   ...(process.env.VERCEL_ENV !== 'production' ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }] : []),
