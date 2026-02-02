@@ -75,13 +75,31 @@ export async function GET(request: NextRequest) {
       const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
 
       // Find the Facebook account matching this getlate_account_id
+      // Try multiple matching strategies since accountId format might vary
       const rawFacebookAccount = rawAccounts.find(
-        (acc: any) => (acc._id || acc.id) === accountId && acc.platform === 'facebook',
+        (acc: any) => {
+          const accId = acc._id || acc.id;
+          return (accId === accountId || String(accId) === String(accountId)) && acc.platform === 'facebook';
+        },
       );
 
       if (rawFacebookAccount) {
-        // Get availablePages (like in getlate-test page)
-        const availablePages = rawFacebookAccount.availablePages || rawFacebookAccount.available_pages;
+        // Get availablePages from multiple possible locations
+        // 1. Direct property: availablePages or available_pages
+        // 2. In metadata: metadata.availablePages
+        // 3. In platform_specific_data: platform_specific_data.availablePages
+        let availablePages = rawFacebookAccount.availablePages
+          || rawFacebookAccount.available_pages
+          || (rawFacebookAccount.metadata as any)?.availablePages
+          || (rawFacebookAccount.metadata as any)?.available_pages
+          || (rawFacebookAccount.platform_specific_data as any)?.availablePages
+          || (rawFacebookAccount.platform_specific_data as any)?.available_pages;
+
+        // Also check if metadata itself is an object with availablePages
+        if (!availablePages && rawFacebookAccount.metadata && typeof rawFacebookAccount.metadata === 'object') {
+          const metadata = rawFacebookAccount.metadata as any;
+          availablePages = metadata.availablePages || metadata.available_pages;
+        }
 
         if (availablePages && Array.isArray(availablePages) && availablePages.length > 0) {
           // availablePages already contains the pages list - use it directly
@@ -92,12 +110,17 @@ export async function GET(request: NextRequest) {
             pageId: page.pageId || page.facebookPageId || page.id,
             pageName: page.pageName || page.name || page.title,
             pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
+            accessToken: page.pageAccessToken || page.page_access_token || page.accessToken || page.access_token,
             metadata: page.metadata || {},
           })).filter(page => !!page.id && !!page.name);
 
-          // Return pages from availablePages
-          return NextResponse.json({ pages });
+          if (pages.length > 0) {
+            // Return pages from availablePages
+            return NextResponse.json({ pages });
+          }
         }
+      } else {
+        console.warn(`[Getlate Facebook Pages] Facebook account with ID ${accountId} not found in raw accounts`);
       }
     } catch (fetchError) {
       console.error('[Getlate Facebook Pages] Error fetching accounts from Getlate:', fetchError);
@@ -105,59 +128,45 @@ export async function GET(request: NextRequest) {
     }
 
     // Fallback: Try account-specific endpoint (doesn't require tempToken)
+    // This should work for already-connected accounts
     if (pages.length === 0) {
       try {
         pages = await getlateClient.getFacebookPages(accountId);
         if (pages.length > 0) {
           return NextResponse.json({ pages });
         }
-      } catch (error) {
-        // Continue to OAuth flow method
-        if (!(error instanceof Error && error.message.includes('HTTP 404'))) {
-          throw error;
-        }
-      }
-    }
 
-    // Fallback: Try OAuth flow method with tempToken
-    if (pages.length === 0) {
-      let tempToken: string | undefined;
-
-      try {
-        const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
-        const rawFacebookAccount = rawAccounts.find(
-          (acc: any) => (acc._id || acc.id) === accountId && acc.platform === 'facebook',
-        );
-
-        if (rawFacebookAccount) {
-          tempToken = rawFacebookAccount.accessToken
-            || rawFacebookAccount.tempToken
-            || rawFacebookAccount.access_token
-            || rawFacebookAccount.temp_token
-            || (rawFacebookAccount.metadata as Record<string, unknown> | undefined)?.accessToken as string | undefined
-            || (rawFacebookAccount.metadata as Record<string, unknown> | undefined)?.tempToken as string | undefined
-            || (rawFacebookAccount.metadata as Record<string, unknown> | undefined)?.access_token as string | undefined
-            || undefined;
-        }
-      } catch (fetchError) {
-        console.error('[Getlate Facebook Pages] Error fetching account from Getlate:', fetchError);
-      }
-
-      if (tempToken) {
+        // If getFacebookPages returns empty, verify account exists and is Facebook
+        // This helps debug why pages aren't available
         try {
-          pages = await getlateClient.getFacebookSelectPage(brandRecord.getlate_profile_id, tempToken);
-        } catch (selectError) {
-          if (selectError instanceof Error && selectError.message.includes('HTTP 404')) {
-            pages = [];
+          const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
+          const accountExists = rawAccounts.some(
+            (acc: any) => {
+              const accId = acc._id || acc.id;
+              return (accId === accountId || String(accId) === String(accountId)) && acc.platform === 'facebook';
+            },
+          );
+
+          if (!accountExists) {
+            console.warn(`[Getlate Facebook Pages] Account ${accountId} not found in profile ${brandRecord.getlate_profile_id}`);
           } else {
-            throw selectError;
+            console.warn(`[Getlate Facebook Pages] Account ${accountId} exists but has no pages available. This might be normal if the account doesn't manage any pages.`);
           }
+        } catch (verifyError) {
+          console.error('[Getlate Facebook Pages] Error verifying account:', verifyError);
         }
-      } else {
-        return NextResponse.json(
-          { error: 'Temporary token missing. Please reconnect the account to refresh permissions.' },
-          { status: 400 },
-        );
+
+        // Return empty pages array - this is valid if account has no pages
+        return NextResponse.json({ pages: [] });
+      } catch (error) {
+        // If getFacebookPages fails with 404, account might not be connected properly
+        // Return empty pages instead of requiring tempToken (which is only for OAuth flow)
+        if (error instanceof Error && error.message.includes('HTTP 404')) {
+          console.warn(`[Getlate Facebook Pages] Account ${accountId} endpoint returned 404. Account may need to be reconnected.`);
+          return NextResponse.json({ pages: [] });
+        }
+        // For other errors, throw them
+        throw error;
       }
     }
 

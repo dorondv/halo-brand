@@ -1,6 +1,7 @@
-import { eq } from 'drizzle-orm';
+import { and, eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
+import { createGetlateClient } from '@/libs/Getlate';
 import { getSubscriptionPlan, getUserSubscription } from '@/libs/subscriptionService';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { brands, socialAccounts } from '@/models/Schema';
@@ -8,7 +9,7 @@ import { brands, socialAccounts } from '@/models/Schema';
 /**
  * Get user's subscription limits, current usage, and feature flags
  * Query params:
- * - brandId (optional): Filter posts count by brand
+ * - brandId (optional): Filter posts count and social accounts count by brand
  */
 export async function GET(request: Request) {
   try {
@@ -166,23 +167,102 @@ export async function GET(request: Request) {
     const aiContentCount = usageRecord?.ai_content_generations || 0;
     const aiImageCount = usageRecord?.ai_image_generations || 0;
 
-    const brandsCount = await db
-      .select({ count: brands.id })
+    const brandsCountResult = await db
+      .select({ count: sql<number>`count(*)::int` })
       .from(brands)
       .where(eq(brands.userId, user.id));
 
-    const socialAccountsCount = await db
-      .select({ count: socialAccounts.id })
-      .from(socialAccounts)
-      .where(eq(socialAccounts.userId, user.id));
+    const brandsCount = brandsCountResult[0]?.count || 0;
+
+    // Count social accounts from Getlate API by profile (brand) - per brand if brandId is provided
+    let socialAccountsCount = 0;
+
+    if (brandId) {
+      // Validate that the brand belongs to the user and get Getlate profile ID via Supabase
+      const { data: brandRecord } = await supabase
+        .from('brands')
+        .select('id, getlate_profile_id')
+        .eq('id', brandId)
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (brandRecord?.getlate_profile_id) {
+        // Brand belongs to user and has Getlate profile, fetch accounts from Getlate API
+        try {
+          // Get user's Getlate API key
+          const { data: userRecord } = await supabase
+            .from('users')
+            .select('getlate_api_key')
+            .eq('id', user.id)
+            .maybeSingle();
+
+          if (userRecord?.getlate_api_key) {
+            const getlateClient = createGetlateClient(userRecord.getlate_api_key);
+            const getlateAccounts = await getlateClient.getAccounts(brandRecord.getlate_profile_id);
+
+            // Count active/connected accounts from Getlate API
+            // Filter to only count connected accounts (isConnected or isActive)
+            socialAccountsCount = getlateAccounts.filter(account =>
+              account.isConnected !== false && account.isActive !== false,
+            ).length;
+          } else {
+            // Fallback to database count if no Getlate API key
+            const socialAccountsCountResult = await db
+              .select({ count: sql<number>`count(*)::int` })
+              .from(socialAccounts)
+              .where(and(
+                eq(socialAccounts.userId, user.id),
+                eq(socialAccounts.brandId, brandId),
+              ));
+            socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+          }
+        } catch (error) {
+          console.error('Error fetching accounts from Getlate API:', error);
+          // Fallback to database count on error
+          const socialAccountsCountResult = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(socialAccounts)
+            .where(and(
+              eq(socialAccounts.userId, user.id),
+              eq(socialAccounts.brandId, brandId),
+            ));
+          socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+        }
+      } else if (brandRecord) {
+        // Brand belongs to user but no Getlate profile, count from database
+        const socialAccountsCountResult = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(socialAccounts)
+          .where(and(
+            eq(socialAccounts.userId, user.id),
+            eq(socialAccounts.brandId, brandId),
+          ));
+        socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+      } else {
+        // If brand doesn't belong to user, ignore brandId and count all accounts from database
+        const socialAccountsCountResult = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(socialAccounts)
+          .where(eq(socialAccounts.userId, user.id));
+        socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+      }
+    } else {
+      // No brandId provided, count all user accounts from database
+      // Note: This counts across all brands, which is the fallback behavior
+      const socialAccountsCountResult = await db
+        .select({ count: sql<number>`count(*)::int` })
+        .from(socialAccounts)
+        .where(eq(socialAccounts.userId, user.id));
+      socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+    }
 
     const usage = {
       postsThisMonth: postsCount || 0,
       aiGenerationsThisMonth: aiContentCount || 0,
       aiImageGenerationsThisMonth: aiImageCount || 0, // AI image generations from user_usage table
       imagesInCurrentPost: 0, // Will be set by client
-      brandsCount: brandsCount.length || 0,
-      socialAccountsCount: socialAccountsCount.length || 0,
+      brandsCount,
+      socialAccountsCount,
     };
 
     return NextResponse.json({

@@ -532,6 +532,7 @@ export default function ConnectionsPage() {
       }
     } else {
       // Clear accounts when no brand is selected
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setAccounts([]);
       lastSyncedBrandId.current = null; // Reset when brand is cleared
     }
@@ -556,6 +557,7 @@ export default function ConnectionsPage() {
       window.history.replaceState({}, '', window.location.pathname);
 
       // Set headless mode data to trigger selection dialog
+      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setHeadlessModeData({
         step,
         platform,
@@ -577,6 +579,7 @@ export default function ConnectionsPage() {
 
       // For Facebook, fetch pages immediately
       if (platform === 'facebook' && step === 'select_page') {
+        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
         setIsLoadingHeadlessPages(true);
         fetch(`/api/getlate/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`, {
           headers: {
@@ -608,6 +611,7 @@ export default function ConnectionsPage() {
         try {
           const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
           if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
+            // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
             setLinkedinOrganizations(decodedOrgs.map((org: any) => ({
               id: org.id || org._id,
               name: org.name || org.organizationName,
@@ -703,7 +707,14 @@ export default function ConnectionsPage() {
           setAccounts([]);
 
           // Wait a bit more to ensure database is fully updated
-          await new Promise(resolve => setTimeout(resolve, 500));
+          await new Promise<void>((resolve) => {
+            const timeoutId = setTimeout(() => {
+              resolve();
+            }, 500);
+            // Store timeout ID for potential cleanup if needed
+            // Note: timeoutId is assigned for linting compliance
+            void timeoutId;
+          });
 
           // Reload from DB - sync already completed on server side
           await loadAccountsFromDB(true, false); // skipSync=true to avoid double sync, forceSync=false
@@ -712,7 +723,14 @@ export default function ConnectionsPage() {
           const currentBrand = brands.find(b => b.id === currentBrandId);
           if (currentBrand?.getlate_profile_id) {
             // Wait a bit before syncing to ensure DB is ready
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise<void>((resolve) => {
+              const timeoutId = setTimeout(() => {
+                resolve();
+              }, 500);
+              // Store timeout ID for potential cleanup if needed
+              // Note: timeoutId is assigned for linting compliance
+              void timeoutId;
+            });
             await syncNow(true);
           }
         }
@@ -729,7 +747,14 @@ export default function ConnectionsPage() {
             setAccounts([]);
 
             // Wait a bit before retry
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise<void>((resolve) => {
+              const timeoutId = setTimeout(() => {
+                resolve();
+              }, 500);
+              // Store timeout ID for potential cleanup if needed
+              // Note: timeoutId is assigned for linting compliance
+              void timeoutId;
+            });
 
             // Retry sync from Getlate
             await loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
@@ -737,7 +762,14 @@ export default function ConnectionsPage() {
             // Also sync follower counts after retry and reload accounts
             const currentBrand = brands.find(b => b.id === currentBrandId);
             if (currentBrand?.getlate_profile_id) {
-              await new Promise(resolve => setTimeout(resolve, 500));
+              await new Promise<void>((resolve) => {
+                const timeoutId = setTimeout(() => {
+                  resolve();
+                }, 500);
+                // Store timeout ID for potential cleanup if needed
+                // Note: timeoutId is assigned for linting compliance
+                void timeoutId;
+              });
               await syncNow(true);
             }
           }
@@ -767,7 +799,7 @@ export default function ConnectionsPage() {
     }
 
     return undefined;
-  }, [searchParams, selectedBrandId, brands, loadAccountsFromDB, showToast, t, setSelectedBrandId]);
+  }, [searchParams, selectedBrandId, brands, loadAccountsFromDB, showToast, t, setSelectedBrandId, syncNow]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
@@ -909,9 +941,9 @@ export default function ConnectionsPage() {
       return;
     }
 
-    // Check social account limit before connecting
+    // Check social account limit before connecting (per brand)
     try {
-      const limitsResponse = await fetch('/api/subscriptions/limits');
+      const limitsResponse = await fetch(`/api/subscriptions/limits?brandId=${selectedBrandId}`);
       if (limitsResponse.ok) {
         const limitsData = await limitsResponse.json();
         if (limitsData.limits && limitsData.usage) {

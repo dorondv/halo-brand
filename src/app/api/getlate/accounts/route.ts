@@ -217,15 +217,20 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        const existingAccountsCount = await db
-          .select({ count: socialAccountsTable.id })
+        // Count existing accounts for this specific brand (limit is per brand)
+        const { and, sql } = await import('drizzle-orm');
+        const existingAccountsCountResult = await db
+          .select({ count: sql<number>`count(*)::int` })
           .from(socialAccountsTable)
-          .where(eq(socialAccountsTable.userId, user.id));
+          .where(and(
+            eq(socialAccountsTable.userId, user.id),
+            eq(socialAccountsTable.brandId, brandId),
+          ));
 
-        const currentAccountCount = existingAccountsCount.length;
+        const currentAccountCount = existingAccountsCountResult[0]?.count || 0;
 
         if (currentAccountCount >= maxSocialAccounts && !oauthReconnect) {
-          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}). Skipping account creation for ${accountName}.`);
+          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. Skipping account creation for ${accountName}.`);
           continue;
         }
 
