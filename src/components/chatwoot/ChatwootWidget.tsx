@@ -51,8 +51,7 @@ export function ChatwootWidget({
   const readyIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Get configuration from environment or props
-    const token = websiteToken || process.env.NEXT_PUBLIC_CHATWOOT_WEBSITE_TOKEN;
+    const token = websiteToken;
 
     if (!token) {
       console.warn('Chatwoot website token not configured');

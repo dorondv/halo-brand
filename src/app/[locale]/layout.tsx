@@ -49,13 +49,15 @@ export default async function RootLayout(props: {
 
   const dir = locale === 'he' ? 'rtl' : 'ltr';
 
+  const chatwootToken = process.env.CHATWOOT_WEBSITE_TOKEN;
+
   return (
     <html lang={locale} dir={dir} className={inter.variable}>
       <body className="font-sans antialiased">
         <NextIntlClientProvider>
           <PostHogProvider>
             {props.children}
-            <ChatwootWidget agentName="branda" />
+            <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
           </PostHogProvider>
 
         </NextIntlClientProvider>
