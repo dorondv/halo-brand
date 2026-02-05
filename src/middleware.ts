@@ -18,31 +18,43 @@ function isPublicRoute(pathname: string): boolean {
   // Normalize pathname (remove trailing slash except for root)
   const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
 
-  // Root route (marketing page) - can be / or /en/ or /he/
-  if (normalized === '/' || normalized === '/en' || normalized === '/he') {
+  // Root route (marketing page) - can be / or /en/ or /he/ or /es/ or /fr/ or /de/
+  if (normalized === '/' || normalized === '/en' || normalized === '/he' || normalized === '/es' || normalized === '/fr' || normalized === '/de') {
     return true;
   }
 
-  // Sign-in routes - /sign-in, /en/sign-in, /he/sign-in
+  // Sign-in routes - /sign-in, /en/sign-in, /he/sign-in, /es/sign-in, /fr/sign-in, /de/sign-in
   if (
     normalized === '/sign-in'
     || normalized === '/en/sign-in'
     || normalized === '/he/sign-in'
+    || normalized === '/es/sign-in'
+    || normalized === '/fr/sign-in'
+    || normalized === '/de/sign-in'
     || normalized.startsWith('/sign-in/')
     || normalized.startsWith('/en/sign-in/')
     || normalized.startsWith('/he/sign-in/')
+    || normalized.startsWith('/es/sign-in/')
+    || normalized.startsWith('/fr/sign-in/')
+    || normalized.startsWith('/de/sign-in/')
   ) {
     return true;
   }
 
-  // Sign-up routes - /sign-up, /en/sign-up, /he/sign-up
+  // Sign-up routes - /sign-up, /en/sign-up, /he/sign-up, /es/sign-up, /fr/sign-up, /de/sign-up
   if (
     normalized === '/sign-up'
     || normalized === '/en/sign-up'
     || normalized === '/he/sign-up'
+    || normalized === '/es/sign-up'
+    || normalized === '/fr/sign-up'
+    || normalized === '/de/sign-up'
     || normalized.startsWith('/sign-up/')
     || normalized.startsWith('/en/sign-up/')
     || normalized.startsWith('/he/sign-up/')
+    || normalized.startsWith('/es/sign-up/')
+    || normalized.startsWith('/fr/sign-up/')
+    || normalized.startsWith('/de/sign-up/')
   ) {
     return true;
   }
@@ -96,7 +108,7 @@ export async function middleware(req: NextRequest) {
 
   // Extract locale from pathname for redirects
   // With 'as-needed' prefix mode, Hebrew (default) doesn't have a prefix
-  const localeMatch = pathname.match(/^\/(en|he)(\/|$)/);
+  const localeMatch = pathname.match(/^\/(en|he|es|fr|de)(\/|$)/);
   const hasLocalePrefix = !!localeMatch;
   const locale = localeMatch ? localeMatch[1] : 'he'; // Default to Hebrew
 

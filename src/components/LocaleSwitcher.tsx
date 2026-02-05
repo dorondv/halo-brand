@@ -8,6 +8,9 @@ import { usePathname } from '@/libs/I18nNavigation';
 const locales = [
   { code: 'en', name: 'English', flag: '🇺🇸' },
   { code: 'he', name: 'עברית', flag: '🇮🇱' },
+  { code: 'es', name: 'Español', flag: '🇪🇸' },
+  { code: 'fr', name: 'Français', flag: '🇫🇷' },
+  { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
 ];
 
 export function LocaleSwitcher() {
