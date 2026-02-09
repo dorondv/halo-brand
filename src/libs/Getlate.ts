@@ -224,6 +224,7 @@ export class GetlateClient {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
+    retries = 3,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
@@ -232,23 +233,60 @@ export class GetlateClient {
       ...options.headers,
     };
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: 'Unknown error',
-        message: `HTTP ${response.status}: ${response.statusText}`,
-      })) as GetlateError;
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
 
-      throw new Error(
-        errorData.message || errorData.error || `HTTP ${response.status}`,
-      );
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          error: 'Unknown error',
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        })) as GetlateError;
+
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+        const isTimeout = response.status === 504 || response.status === 408;
+        const isRetryable = isTimeout || response.status >= 500;
+
+        // Retry on timeout or server errors (5xx) with exponential backoff
+        if (isRetryable && retries > 0) {
+          const delay = Math.min(1000 * 2 ** (3 - retries), 5000); // Exponential backoff, max 5s
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, retries - 1);
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+
+      // Handle abort (timeout) or network errors
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+        if (retries > 0) {
+          const delay = Math.min(1000 * 2 ** (3 - retries), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, retries - 1);
+        }
+        throw new Error('Request timeout after multiple retries');
+      }
+
+      // Re-throw if it's already an Error with message
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      throw new Error(`Request failed: ${String(error)}`);
     }
-
-    return response.json() as Promise<T>;
   }
 
   /**

@@ -113,16 +113,29 @@ export async function syncAnalyticsFromGetlate(
           hasMorePages = false;
         }
       } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        const isRateLimit = errorMessage.includes('429') || errorMessage.includes('rate limit');
+        const isTimeout = errorMessage.includes('504') || errorMessage.includes('timeout') || errorMessage.includes('Gateway Timeout');
+
         // Handle rate limit errors (HTTP 429)
-        if (error?.message?.includes('429') || error?.message?.includes('rate limit')) {
+        if (isRateLimit) {
           if (process.env.NODE_ENV === 'development') {
             console.warn('[syncAnalyticsFromGetlate] Rate limit reached, stopping pagination');
           }
           hasMorePages = false;
+        } else if (isTimeout) {
+          // For timeout errors, log once and stop pagination gracefully
+          // The retry logic in GetlateClient should have already attempted retries
+          if (currentPage === 1) {
+            // Only log on first page to avoid spam
+            console.warn('[syncAnalyticsFromGetlate] Gateway timeout after retries, stopping pagination. This may be due to Getlate API being temporarily unavailable.');
+          }
+          hasMorePages = false;
         } else {
-          // For other errors, log and stop
-          if (process.env.NODE_ENV === 'development') {
-            console.error('[syncAnalyticsFromGetlate] Error fetching page', currentPage, ':', error);
+          // For other errors, log once and stop
+          if (currentPage === 1) {
+            // Only log on first page to avoid spam
+            console.error('[syncAnalyticsFromGetlate] Error fetching page', currentPage, ':', errorMessage);
           }
           hasMorePages = false;
         }

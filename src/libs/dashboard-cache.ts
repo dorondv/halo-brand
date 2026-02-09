@@ -156,6 +156,7 @@ export async function syncAnalyticsInBackground(
               continue;
             }
             try {
+              // Wrap in try-catch to handle individual brand sync errors gracefully
               await syncAnalyticsFromGetlate(supabase, userId, brand.id, {
                 fromDate: fromDate.toISOString().split('T')[0],
                 toDate: toDate.toISOString().split('T')[0],
@@ -165,11 +166,21 @@ export async function syncAnalyticsInBackground(
               if (i < brands.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
               }
-            } catch (error) {
-              // Log error but continue with other brands
-              if (process.env.NODE_ENV === 'development') {
-                console.error(`[syncAnalyticsInBackground] Brand ${brand.id} failed:`, error);
+            } catch (error: any) {
+              // Handle errors gracefully - don't spam logs for timeout errors
+              const errorMessage = error?.message || String(error);
+              const isTimeout = errorMessage.includes('504') || errorMessage.includes('timeout') || errorMessage.includes('Gateway Timeout');
+
+              // Only log non-timeout errors or log timeout once per brand
+              if (!isTimeout) {
+                if (process.env.NODE_ENV === 'development') {
+                  console.error(`[syncAnalyticsInBackground] Brand ${brand.id} failed:`, errorMessage);
+                }
+              } else if (process.env.NODE_ENV === 'development' && i === 0) {
+                // Only log timeout on first brand to avoid spam
+                console.warn(`[syncAnalyticsInBackground] Gateway timeout for brand ${brand.id}. Getlate API may be temporarily unavailable. Continuing with other brands...`);
               }
+              // Continue with next brand even if this one fails
             }
           }
         }

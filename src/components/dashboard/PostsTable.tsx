@@ -5,7 +5,8 @@ import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FileText, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
-import React, { useMemo } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import React, { startTransition, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -34,6 +35,7 @@ type PostRow = {
 
 type PostsTableProps = {
   posts?: PostRow[];
+  initialPlatformFilter?: string | null; // Platform filter from URL/searchParams
 };
 
 const EMPTY_POSTS: PostRow[] = [];
@@ -141,14 +143,47 @@ const getScoreColor = (score: number) => {
   return 'bg-red-100 text-red-800 border border-red-200';
 };
 
-function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
+function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTableProps) {
   const t = useTranslations('DashboardPage');
   const localeCode = useLocale();
   const dfLocale = localeCode === 'he' ? dfHe : dfEnUS;
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [sortColumn, setSortColumn] = React.useState<string | null>('date');
   const [sortDirection, setSortDirection] = React.useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = React.useState(1);
-  const [selectedPlatform, setSelectedPlatform] = React.useState<string>('all');
+
+  // Sync platform filter with URL params - use initialPlatformFilter from server-side
+  // This ensures PostsTable filter matches the dashboard's platform filter
+  const normalizedInitialFilter = initialPlatformFilter && initialPlatformFilter !== 'all'
+    ? initialPlatformFilter.toLowerCase()
+    : 'all';
+
+  // Derive selected platform from URL params (source of truth)
+  const selectedPlatformFromUrl = useMemo(() => {
+    const urlPlatform = searchParams.get('platform');
+    return urlPlatform && urlPlatform !== 'all'
+      ? urlPlatform.toLowerCase()
+      : 'all';
+  }, [searchParams]);
+
+  const [selectedPlatform, setSelectedPlatform] = React.useState<string>(normalizedInitialFilter);
+  const prevUrlPlatformRef = React.useRef<string>(selectedPlatformFromUrl);
+
+  // Update local state when URL param changes (e.g., from platform card clicks)
+  // Use ref to track previous value and avoid unnecessary updates
+  useEffect(() => {
+    if (selectedPlatformFromUrl !== prevUrlPlatformRef.current) {
+      prevUrlPlatformRef.current = selectedPlatformFromUrl;
+      // Use startTransition to batch state updates and avoid cascading renders
+      startTransition(() => {
+        setSelectedPlatform(selectedPlatformFromUrl);
+        setCurrentPage(1); // Reset to first page when platform changes
+      });
+    }
+  }, [selectedPlatformFromUrl]);
+
   const postsPerPage = 5;
 
   // Get unique platforms from posts
@@ -163,6 +198,9 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   }, [posts]);
 
   // Stabilize posts array and filter by platform
+  // Note: If initialPlatformFilter is set, posts are already filtered server-side
+  // We still apply client-side filtering to allow users to change filter without page reload
+  // When filter changes, URL is updated which triggers server-side refetch
   const displayPosts = useMemo(() => {
     // Filter by platform if selected
     let filteredPosts = posts;
@@ -257,8 +295,18 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
   };
 
   const handlePlatformFilterChange = (value: string) => {
-    setSelectedPlatform(value);
-    setCurrentPage(1); // Reset to first page when filter changes
+    // Update URL params to sync with dashboard filtering
+    // This ensures server-side filtering matches client-side filter
+    const params = new URLSearchParams(searchParams.toString());
+    if (value === 'all' || !value) {
+      params.delete('platform');
+    } else {
+      params.set('platform', value);
+    }
+    const queryString = params.toString();
+    const url = queryString ? `${pathname}?${queryString}` : pathname;
+    router.replace(url, { scroll: false });
+    // State will be updated via useEffect when URL changes
   };
 
   // Platform display names
@@ -322,14 +370,14 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
               <table className="min-w-full divide-y divide-gray-200">
                 <thead>
                   <tr className="border-b border-gray-200">
-                    <th className="sticky left-0 z-10 bg-white px-2 py-2 text-center text-xs font-medium text-gray-700 sm:px-3 sm:py-2">
+                    <th className="sticky left-0 z-10 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs">
                       {t('posts_table_platform')}
                     </th>
-                    <th className="min-w-[200px] px-2 py-2 text-right text-xs font-medium text-gray-700 sm:px-3 sm:py-2">
+                    <th className="max-w-[200px] min-w-[150px] px-1.5 py-2 text-right text-[10px] font-medium text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs">
                       {t('posts_table_post')}
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('date')}
                     >
                       <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -340,119 +388,126 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('impressions')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        <span className="hidden sm:inline">{t('posts_table_impressions')}</span>
-                        <span className="sm:hidden">Imp</span>
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_impressions')}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Impr' : 'Imp'}</span>
                         {sortColumn === 'impressions' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('reach')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_reach') || 'Reach'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_reach') || 'Reach'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Alc' : 'Reach'}</span>
                         {sortColumn === 'reach' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('clicks')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_clicks') || 'Clicks'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_clicks') || 'Clicks'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Clics' : 'Clicks'}</span>
                         {sortColumn === 'clicks' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('views')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_views') || 'Views'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_views') || 'Views'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Vist' : 'Views'}</span>
                         {sortColumn === 'views' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('likes')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_likes') || 'Likes'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_likes') || 'Likes'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Me g' : 'Likes'}</span>
                         {sortColumn === 'likes' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('comments')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_comments') || 'Comments'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_comments') || 'Comments'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Com' : 'Comm'}</span>
                         {sortColumn === 'comments' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('shares')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_shares') || 'Shares'}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_shares') || 'Shares'}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Comp' : 'Shares'}</span>
                         {sortColumn === 'shares' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('engagement')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        <span className="hidden sm:inline">{t('posts_table_engagement')}</span>
-                        <span className="sm:hidden">Eng</span>
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_engagement')}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Inter' : 'Eng'}</span>
                         {sortColumn === 'engagement' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('engagementRate')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        <span className="hidden sm:inline">{t('posts_table_engagement_rate')}</span>
-                        <span className="sm:hidden">ER%</span>
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_engagement_rate')}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Tasa%' : 'ER%'}</span>
                         {sortColumn === 'engagementRate' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
                     <th
-                      className="cursor-pointer px-2 py-2 text-right text-xs font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-3 sm:py-2"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
                       onClick={() => handleSort('score')}
                     >
-                      <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
-                        {t('posts_table_score')}
+                      <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
+                        <span className="hidden md:inline">{t('posts_table_score')}</span>
+                        <span className="md:hidden">{localeCode === 'es' ? 'Punt' : 'Score'}</span>
                         {sortColumn === 'score' && (
                           sortDirection === 'desc' ? <ChevronDown className="h-3 w-3" /> : <ChevronUp className="h-3 w-3" />
                         )}
                       </div>
                     </th>
-                    <th className="sticky right-0 z-10 bg-white px-2 py-2 text-center text-xs font-medium text-gray-700 sm:px-3 sm:py-2">
+                    <th className="sticky right-0 z-10 w-12 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs">
                       {t('posts_table_link') || 'Link'}
                     </th>
                   </tr>
@@ -480,14 +535,14 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
 
                         return (
                           <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
-                            <td className="sticky left-0 z-10 bg-white px-2 py-2 sm:px-3 sm:py-2">
+                            <td className="sticky left-0 z-10 bg-white px-1.5 py-2 sm:px-2">
                               <div className="flex items-center justify-center">
                                 <div className={`flex h-6 w-6 items-center justify-center rounded sm:h-8 sm:w-8 ${getPlatformBgColor(post.platform)}`}>
                                   <PlatformIcon platform={post.platform} className="h-4 w-4 text-white sm:h-5 sm:w-5" />
                                 </div>
                               </div>
                             </td>
-                            <td className={`max-w-[300px] min-w-[200px] px-2 py-2 text-xs text-gray-700 sm:max-w-md sm:px-3 sm:py-2 sm:text-sm ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                            <td className={`max-w-[200px] min-w-[150px] px-1.5 py-2 text-[10px] text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
                               {/* Media Thumbnails - Show all media */}
                               {(() => {
                                 // Normalize and stabilize media URLs to prevent hydration mismatch
@@ -593,47 +648,47 @@ function PostsTable({ posts = EMPTY_POSTS }: PostsTableProps) {
                                 {post.postContent}
                               </div>
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               <div>
                                 <div className="font-medium">{dateStr}</div>
-                                <div className="text-gray-500">{timeStr}</div>
-                                <div className="hidden text-xs text-gray-500 sm:block">{dayName}</div>
+                                <div className="text-[9px] text-gray-500 sm:text-[10px]">{timeStr}</div>
+                                <div className="hidden text-[9px] text-gray-500 sm:block">{dayName}</div>
                               </div>
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.impressions)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.reach)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.clicks)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.views)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.likes)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.comments)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.shares)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.engagement)}
                             </td>
-                            <td className="px-2 py-2 text-right text-xs whitespace-nowrap text-gray-700 sm:px-3 sm:py-2 sm:text-sm">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
                               {post.engagementRate.toFixed(1)}
                               %
                             </td>
-                            <td className="px-2 py-2 text-right whitespace-nowrap sm:px-3 sm:py-2">
-                              <span className={`inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold sm:px-3 sm:py-1 sm:text-sm ${getScoreColor(post.score)}`}>
+                            <td className="px-1.5 py-2 text-right whitespace-nowrap sm:px-2">
+                              <span className={`inline-flex items-center justify-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold sm:px-2 sm:py-1 sm:text-xs ${getScoreColor(post.score)}`}>
                                 {Math.round(post.score)}
                               </span>
                             </td>
-                            <td className="sticky right-0 z-10 bg-white px-2 py-2 text-center sm:px-3 sm:py-2">
+                            <td className="sticky right-0 z-10 bg-white px-1.5 py-2 text-center sm:px-2">
                               {post.platformPostUrl
                                 ? (
                                     <a
