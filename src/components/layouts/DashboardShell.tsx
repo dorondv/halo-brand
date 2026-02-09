@@ -92,15 +92,33 @@ export function DashboardShell({ children }: Props) {
 
           // Check admin status via API (server-side check, doesn't expose email)
           try {
-            const adminCheckResponse = await fetch('/api/admin/check');
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+            const adminCheckResponse = await fetch('/api/admin/check', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
             if (adminCheckResponse.ok) {
               const adminData = await adminCheckResponse.json();
               setIsAdmin(adminData.isAdmin || false);
             } else {
               setIsAdmin(false);
             }
-          } catch (error) {
-            console.error('Error checking admin status:', error);
+          } catch (error: any) {
+            // Silently handle network errors (expected if server is down or route doesn't exist)
+            // Only log unexpected errors
+            if (error.name !== 'AbortError' && error.name !== 'NetworkError' && error.name !== 'TypeError') {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Admin check failed (non-critical):', error.message || error);
+              }
+            }
             setIsAdmin(false);
           }
         }
@@ -113,7 +131,7 @@ export function DashboardShell({ children }: Props) {
   }, []);
 
   return (
-    <div dir={dir} className="flex min-h-screen w-full bg-gray-100 font-sans">
+    <div dir={dir} className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-white font-sans">
       {/* Sidebar */}
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
@@ -161,7 +179,7 @@ export function DashboardShell({ children }: Props) {
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex w-full min-w-0 flex-1 flex-col">
         <header
           className={`flex items-center ${locale === 'he'
             ? 'flex-row-reverse'
@@ -251,7 +269,7 @@ export function DashboardShell({ children }: Props) {
                 </>
               )}
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 py-6">{children}</main>
       </div>
     </div>
   );
