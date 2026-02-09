@@ -1,6 +1,6 @@
 'use client';
 
-import { CreditCard, DollarSign, Gift, LayoutDashboard, Users } from 'lucide-react';
+import { CreditCard, DollarSign, Gift, LayoutDashboard, TrendingUp, Users } from 'lucide-react';
 import Link from 'next/link';
 import { AdminRoute } from '@/components/admin/AdminRoute';
 import { usePathname } from '@/libs/I18nNavigation';
@@ -11,6 +11,7 @@ const adminNavItems = [
   { path: '/admin/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { path: '/admin/coupons', label: 'Coupons', icon: Gift },
   { path: '/admin/payments', label: 'Payments', icon: DollarSign },
+  { path: '/admin/marketing', label: 'Marketing', icon: TrendingUp },
 ];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {

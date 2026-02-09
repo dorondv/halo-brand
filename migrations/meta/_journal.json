@@ -71,6 +71,13 @@
       "when": 1769433000000,
       "tag": "0009_add_user_usage_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1769434000000,
+      "tag": "0010_add_marketing_tracking",
+      "breakpoints": true
     }
   ]
 }

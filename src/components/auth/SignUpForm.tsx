@@ -2,11 +2,12 @@
 
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
-import { useActionState, useTransition } from 'react';
+import { useActionState, useEffect, useTransition } from 'react';
 import { signInWithFacebook, signInWithGoogle, signUp } from '@/app/actions/auth';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/libs/cn';
+import { trackEvent } from '@/utils/tracking';
 
 // OAuth Provider Icons
 const GoogleIcon = () => (
@@ -46,16 +47,25 @@ export function SignUpForm() {
   const ArrowIcon = isRTL ? ArrowLeft : ArrowRight;
 
   const handleGoogleSignIn = () => {
+    trackEvent('signup_start');
     startGoogleTransition(async () => {
       await signInWithGoogle();
     });
   };
 
   const handleFacebookSignIn = () => {
+    trackEvent('signup_start');
     startFacebookTransition(async () => {
       await signInWithFacebook();
     });
   };
+
+  // Track signup complete when signup is successful
+  useEffect(() => {
+    if (state?.message) {
+      trackEvent('signup_complete');
+    }
+  }, [state?.message]);
 
   return (
     <div className="space-y-5" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -105,7 +115,13 @@ export function SignUpForm() {
       </div>
 
       {/* Email/Password Form */}
-      <form action={action} className="space-y-5">
+      <form
+        action={action}
+        className="space-y-5"
+        onSubmit={() => {
+          trackEvent('signup_start');
+        }}
+      >
         <div className="space-y-2">
           <Label htmlFor="fullName" className="text-sm font-medium text-gray-900">
             {t('full_name_label')}

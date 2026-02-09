@@ -3,6 +3,7 @@ import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { Inter } from 'next/font/google';
 import { notFound } from 'next/navigation';
+import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import { ChatwootWidget } from '@/components/chatwoot/ChatwootWidget';
 import { routing } from '@/libs/I18nRouting';
@@ -56,6 +57,7 @@ export default async function RootLayout(props: {
       <body className="font-sans antialiased">
         <NextIntlClientProvider>
           <PostHogProvider>
+            <GoogleAnalytics />
             {props.children}
             <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
           </PostHogProvider>

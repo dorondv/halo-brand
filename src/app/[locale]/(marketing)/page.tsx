@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { TrackingInit } from '@/components/marketing/TrackingInit';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
@@ -39,6 +40,7 @@ export default async function MarketingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
+      <TrackingInit />
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">

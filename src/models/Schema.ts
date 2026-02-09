@@ -23,6 +23,21 @@ export const users = pgTable('users', {
   avatarUrl: text('avatar_url'), // User avatar extracted from OAuth provider metadata or auth.users
   provider: varchar('provider', { length: 50 }), // 'email', 'google', 'facebook', 'twitter', 'github', 'linkedin', etc.
   isActive: boolean('is_active').default(true).notNull(),
+  // Marketing / UTM fields (first source tracking)
+  utmSource: text('utm_source'), // First UTM source
+  utmMedium: text('utm_medium'), // First UTM medium
+  utmCampaign: text('utm_campaign'), // First UTM campaign
+  utmTerm: text('utm_term'), // First UTM term
+  utmContent: text('utm_content'), // First UTM content
+  firstReferrer: text('first_referrer'), // First referrer URL
+  firstLandingUrl: text('first_landing_url'), // First landing page URL
+  // Geo fields (rough geo via timezone/lang + IP)
+  geoCountry: text('geo_country'), // Detected country (from IP or timezone/lang)
+  geoTz: text('geo_tz'), // Timezone (e.g., "Asia/Jerusalem")
+  geoLang: text('geo_lang'), // Browser language (e.g., "he-IL")
+  geoCityApprox: text('geo_city_approx'), // Approximate city (if derivable)
+  // Business fields
+  cancelDate: timestamp('cancel_date', { mode: 'date' }), // When subscription was cancelled
   updatedAt: timestamp('updated_at', { mode: 'date' })
     .defaultNow()
     .$onUpdate(() => new Date())
@@ -231,6 +246,37 @@ export const paymentWebhooks = pgTable('payment_webhooks', {
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 });
 
+// Marketing events table
+export const marketingEvents = pgTable('marketing_events', {
+  id: uuid('id').primaryKey().defaultRandom(),
+  eventType: varchar('event_type', { length: 50 }).notNull(), // pageview, signup_start, signup_complete, lead_submit, purchase_complete
+  userId: uuid('user_id').references(() => users.id, { onDelete: 'set null' }),
+  url: text('url'),
+  referrer: text('referrer'),
+  userAgent: text('user_agent'),
+  ipAddress: text('ip_address'), // IP address (for geo detection)
+  // UTM parameters
+  utmSource: text('utm_source'),
+  utmMedium: text('utm_medium'),
+  utmCampaign: text('utm_campaign'),
+  utmTerm: text('utm_term'),
+  utmContent: text('utm_content'),
+  // Click IDs
+  gclid: text('gclid'), // Google click ID
+  fbclid: text('fbclid'), // Facebook click ID
+  msclkid: text('msclkid'), // Microsoft click ID
+  ttclid: text('ttclid'), // TikTok click ID
+  // Geo data
+  timezone: text('timezone'),
+  language: text('language'),
+  country: text('country'), // ISO country code (2 chars)
+  // Business fields
+  purchaseAmount: doublePrecision('purchase_amount'),
+  currency: varchar('currency', { length: 10 }),
+  revenueTotal: doublePrecision('revenue_total'),
+  createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
+});
+
 // Relations
 export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
   user: one(users, {
@@ -257,4 +303,15 @@ export const couponsRelations = relations(coupons, ({ many }) => ({
 
 export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
   subscriptions: many(subscriptions),
+}));
+
+export const usersRelations = relations(users, ({ many }) => ({
+  marketingEvents: many(marketingEvents),
+}));
+
+export const marketingEventsRelations = relations(marketingEvents, ({ one }) => ({
+  user: one(users, {
+    fields: [marketingEvents.userId],
+    references: [users.id],
+  }),
 }));
