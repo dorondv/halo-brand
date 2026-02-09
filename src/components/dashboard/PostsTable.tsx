@@ -197,33 +197,59 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
     return Array.from(platforms).sort();
   }, [posts]);
 
-  // Stabilize posts array and filter by platform
+  // OPTIMIZED: Stabilize posts array and filter by platform with memoization
   // Note: If initialPlatformFilter is set, posts are already filtered server-side
   // We still apply client-side filtering to allow users to change filter without page reload
   // When filter changes, URL is updated which triggers server-side refetch
   const displayPosts = useMemo(() => {
-    // Filter by platform if selected
-    let filteredPosts = posts;
-    if (selectedPlatform !== 'all') {
-      filteredPosts = posts.filter(post =>
-        post.platform?.toLowerCase() === selectedPlatform.toLowerCase(),
-      );
+    // OPTIMIZED: Early return if no platform filter
+    if (selectedPlatform === 'all') {
+      // Still normalize numeric values but skip filtering
+      return posts.map(post => ({
+        ...post,
+        score: Number(post.score) || 0,
+        engagementRate: Number(post.engagementRate) || 0,
+        engagement: Number(post.engagement) || 0,
+        likes: Number(post.likes) || 0,
+        comments: Number(post.comments) || 0,
+        shares: Number(post.shares) || 0,
+        impressions: Number(post.impressions) || 0,
+        reach: Number(post.reach) || 0,
+        clicks: Number(post.clicks) || 0,
+        views: Number(post.views) || 0,
+      }));
     }
 
-    // Ensure all numeric values are properly converted to numbers
-    return filteredPosts.map(post => ({
-      ...post,
-      score: Number(post.score) || 0,
-      engagementRate: Number(post.engagementRate) || 0,
-      engagement: Number(post.engagement) || 0,
-      likes: Number(post.likes) || 0,
-      comments: Number(post.comments) || 0,
-      shares: Number(post.shares) || 0,
-      impressions: Number(post.impressions) || 0,
-      reach: Number(post.reach) || 0,
-      clicks: Number(post.clicks) || 0,
-      views: Number(post.views) || 0,
-    }));
+    // OPTIMIZED: Pre-normalize platform for comparison (avoid repeated toLowerCase calls)
+    const normalizedSelectedPlatform = selectedPlatform.toLowerCase();
+
+    // Filter by platform and normalize numeric values in a single pass
+    const filteredPosts: PostRow[] = [];
+    for (let i = 0; i < posts.length; i++) {
+      const post = posts[i];
+      // Skip if post is undefined
+      if (!post) {
+        continue;
+      }
+
+      if (post.platform?.toLowerCase() === normalizedSelectedPlatform) {
+        filteredPosts.push({
+          ...post,
+          score: Number(post.score) || 0,
+          engagementRate: Number(post.engagementRate) || 0,
+          engagement: Number(post.engagement) || 0,
+          likes: Number(post.likes) || 0,
+          comments: Number(post.comments) || 0,
+          shares: Number(post.shares) || 0,
+          impressions: Number(post.impressions) || 0,
+          reach: Number(post.reach) || 0,
+          clicks: Number(post.clicks) || 0,
+          views: Number(post.views) || 0,
+        } as PostRow);
+      }
+    }
+
+    return filteredPosts;
   }, [posts, selectedPlatform]);
 
   const handleSort = (column: string) => {
@@ -237,37 +263,41 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
     setCurrentPage(1);
   };
 
-  // Use useMemo to stabilize sorting and prevent hydration mismatches
+  // OPTIMIZED: Use useMemo to stabilize sorting with optimized comparison logic
   const sortedPosts = useMemo(() => {
-    const postsToSort = [...displayPosts];
-
+    // Early return if no sorting needed
     if (!sortColumn) {
-      return postsToSort;
+      return displayPosts;
     }
+
+    // OPTIMIZED: Create a copy and sort in-place (more memory efficient than spread + sort)
+    const postsToSort = displayPosts.slice();
+
+    // OPTIMIZED: Pre-compute comparison values based on column type
+    const isDateColumn = sortColumn === 'date';
+    const isNumericColumn = ['score', 'engagementRate', 'engagement', 'likes', 'comments', 'shares', 'impressions', 'reach', 'clicks', 'views'].includes(sortColumn);
 
     return postsToSort.sort((a, b) => {
       let aVal: any = a[sortColumn as keyof PostRow];
       let bVal: any = b[sortColumn as keyof PostRow];
 
-      // Handle date sorting
-      if (sortColumn === 'date') {
+      // OPTIMIZED: Handle date sorting with cached timestamp
+      if (isDateColumn) {
         aVal = new Date(aVal).getTime();
         bVal = new Date(bVal).getTime();
       }
 
-      // Handle numeric sorting (ensure numbers)
-      if (typeof aVal === 'number' && typeof bVal === 'number') {
-        if (sortDirection === 'asc') {
-          return aVal - bVal;
-        }
-        return bVal - aVal;
+      // OPTIMIZED: Handle numeric sorting (most common case)
+      if (isNumericColumn || (typeof aVal === 'number' && typeof bVal === 'number')) {
+        const diff = aVal - bVal;
+        return sortDirection === 'asc' ? diff : -diff;
       }
 
-      // Handle string sorting
-      if (sortDirection === 'asc') {
-        return String(aVal).localeCompare(String(bVal));
-      }
-      return String(bVal).localeCompare(String(aVal));
+      // Handle string sorting (less common)
+      const aStr = String(aVal);
+      const bStr = String(bVal);
+      const comparison = aStr.localeCompare(bStr);
+      return sortDirection === 'asc' ? comparison : -comparison;
     });
   }, [displayPosts, sortColumn, sortDirection]);
 

@@ -76,7 +76,7 @@ function PlatformCardsContent({
   };
 
   return (
-    <div className="grid w-full auto-rows-fr grid-cols-2 gap-4 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
+    <div className="grid w-full auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
       {currentPlatformData.map((platform) => {
         const isSelected = selectedPlatform
           ? platform.platform === selectedPlatform

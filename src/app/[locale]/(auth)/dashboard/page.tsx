@@ -265,7 +265,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   }
   const dateFilteredPosts = Array.from(postsMap.values());
 
-  // Filter analytics by date range
+  // OPTIMIZED: Filter analytics by date range with early returns
   // Include analytics that are within the date range (regardless of post publish date)
   // Normalize analytics dates to date-only (midnight) for accurate comparison
   // rangeFrom is already startOfDay, rangeTo is endOfDay, so we compare dates properly
@@ -280,15 +280,22 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // For rangeTo, we want to include the entire end day, so compare with start of that day
   const normalizedRangeTo = normalizeAnalyticsDateToDateOnly(rangeTo);
 
-  const dateFilteredAnalyticsRaw = (analyticsData || []).filter((a) => {
-    if (!a.date) {
-      return false;
+  // OPTIMIZED: Use for loop instead of filter for better performance with early returns
+  const dateFilteredAnalyticsRaw: NonNullable<typeof analyticsData[0]>[] = [];
+  const analyticsArray = analyticsData || [];
+
+  for (let i = 0; i < analyticsArray.length; i++) {
+    const a = analyticsArray[i];
+
+    // Skip if undefined or no date
+    if (!a || !a.date) {
+      continue;
     }
+
     const analyticsDate = normalizeAnalyticsDateToDateOnly(new Date(a.date));
-    // Include analytics if date is >= rangeFrom and <= rangeTo (inclusive)
-    const isInDateRange = analyticsDate >= normalizedRangeFrom && analyticsDate <= normalizedRangeTo;
-    if (!isInDateRange) {
-      return false;
+    // Early return: skip if outside date range
+    if (analyticsDate < normalizedRangeFrom || analyticsDate > normalizedRangeTo) {
+      continue;
     }
 
     // Only include published posts (External Post IDs)
@@ -303,8 +310,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     // Exclude drafts and scheduled posts that haven't been published yet
     const isPublished = isExternal || status === 'published';
 
-    return isPublished;
-  });
+    if (isPublished) {
+      dateFilteredAnalyticsRaw.push(a);
+    }
+  }
 
   // Deduplicate analytics entries: only keep one entry per post_id + platform + date combination
   // This prevents double-counting when sync creates duplicate entries
@@ -1080,68 +1089,102 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Use date-filtered data (already calculated above)
   const dateFilteredAnalyticsForMetrics = dateFilteredAnalytics;
 
-  // Filter posts by platform first (include posts even if they don't have analytics yet)
-  const finalFilteredPosts = selectedPlatform && selectedPlatform !== 'all'
-    ? dateFilteredPosts.filter((p) => {
-        const normalizedSelectedPlatform = normalizePlatform(selectedPlatform);
+  // OPTIMIZED: Pre-compute normalized platform value once
+  const normalizedSelectedPlatform = selectedPlatform && selectedPlatform !== 'all'
+    ? normalizePlatform(selectedPlatform)
+    : null;
 
-        // Check if post has analytics with matching platform
-        const platformsFromAnalytics = postPlatformMap.get(p.id);
-        if (platformsFromAnalytics && platformsFromAnalytics.has(normalizedSelectedPlatform)) {
-          return true;
+  // OPTIMIZED: Filter posts by platform with cached platform lookups
+  // Build a Set of matching post IDs first for O(1) lookup
+  let finalFilteredPosts: typeof dateFilteredPosts;
+  let finalFilteredPostIds: Set<string>;
+
+  if (normalizedSelectedPlatform) {
+    // Pre-build Set of post IDs that match the platform filter
+    // This avoids repeated lookups in the filter function
+    const matchingPostIds = new Set<string>();
+
+    for (const post of dateFilteredPosts) {
+      // Check if post has analytics with matching platform
+      const platformsFromAnalytics = postPlatformMap.get(post.id);
+      if (platformsFromAnalytics?.has(normalizedSelectedPlatform)) {
+        matchingPostIds.add(post.id);
+        continue;
+      }
+
+      // Check scheduled posts -> social accounts -> platform
+      const platformsFromScheduled = postPlatformMapFromScheduled.get(post.id);
+      if (platformsFromScheduled?.has(normalizedSelectedPlatform)) {
+        matchingPostIds.add(post.id);
+        continue;
+      }
+
+      // Check post platforms array (from Getlate) - optimized with early return
+      const postPlatforms = (post as any)?.platforms;
+      if (Array.isArray(postPlatforms) && postPlatforms.length > 0) {
+        let found = false;
+        for (const pl of postPlatforms) {
+          const platform = typeof pl === 'string'
+            ? normalizePlatform(pl)
+            : pl?.platform ? normalizePlatform(pl.platform) : null;
+          if (platform === normalizedSelectedPlatform) {
+            found = true;
+            break;
+          }
         }
-
-        // Check scheduled posts -> social accounts -> platform
-        const platformsFromScheduled = postPlatformMapFromScheduled.get(p.id);
-        if (platformsFromScheduled && platformsFromScheduled.has(normalizedSelectedPlatform)) {
-          return true;
+        if (found) {
+          matchingPostIds.add(post.id);
+          continue;
         }
+      }
 
-        // Check post platforms array (from Getlate)
-        const postPlatforms = (p as any)?.platforms;
-        if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
-          const platforms = postPlatforms.map((pl: any) => {
-            if (typeof pl === 'string') {
-              return normalizePlatform(pl);
+      // Check post metadata
+      const meta = (post as any)?.metadata as any;
+      const metaPlatform = normalizePlatform(meta?.platform ?? 'unknown');
+      if (metaPlatform === normalizedSelectedPlatform) {
+        matchingPostIds.add(post.id);
+      }
+    }
+
+    // Filter posts using the pre-built Set (O(1) lookup)
+    finalFilteredPosts = dateFilteredPosts.filter(p => matchingPostIds.has(p.id));
+    finalFilteredPostIds = matchingPostIds;
+  } else {
+    // No platform filter - use all posts
+    finalFilteredPosts = dateFilteredPosts;
+    finalFilteredPostIds = new Set(dateFilteredPosts.map(p => p.id));
+  }
+
+  // OPTIMIZED: Filter analytics in a single pass with early returns
+  const finalFilteredAnalytics = normalizedSelectedPlatform
+    ? (() => {
+        // Pre-normalize selectedPlatform once
+        const normalized = normalizedSelectedPlatform;
+        const result: typeof dateFilteredAnalyticsForMetrics = [];
+
+        for (const a of dateFilteredAnalyticsForMetrics) {
+          // Early return: must belong to a filtered post
+          if (!finalFilteredPostIds.has(a.post_id)) {
+            continue;
+          }
+
+          // Check platform match - use direct comparison if platform exists
+          if (a.platform) {
+            if (normalizePlatform(a.platform) === normalized) {
+              result.push(a);
             }
-            if (pl?.platform) {
-              return normalizePlatform(pl.platform);
-            }
-            return null;
-          }).filter(Boolean) as string[];
-          if (platforms.includes(normalizedSelectedPlatform)) {
-            return true;
+            continue;
+          }
+
+          // Fallback: check if post has matching platform
+          const platforms = postPlatformMap.get(a.post_id);
+          if (platforms?.has(normalized)) {
+            result.push(a);
           }
         }
 
-        // Check post metadata
-        const meta = (p as any)?.metadata as any;
-        const metaPlatform = normalizePlatform(meta?.platform ?? 'unknown');
-        if (metaPlatform === normalizedSelectedPlatform) {
-          return true;
-        }
-
-        return false;
-      })
-    : dateFilteredPosts;
-
-  // Filter analytics by platform AND ensure they belong to filtered posts
-  const finalFilteredPostIds = new Set(finalFilteredPosts.map(p => p.id));
-  const finalFilteredAnalytics = selectedPlatform && selectedPlatform !== 'all'
-    ? dateFilteredAnalyticsForMetrics.filter((a) => {
-        // Must belong to a filtered post
-        if (!finalFilteredPostIds.has(a.post_id)) {
-          return false;
-        }
-
-        // Check platform match
-        if (a.platform) {
-          return normalizePlatform(a.platform) === normalizePlatform(selectedPlatform);
-        }
-        // Fallback: check if post has matching platform
-        const platforms = postPlatformMap.get(a.post_id);
-        return platforms && platforms.has(normalizePlatform(selectedPlatform));
-      })
+        return result;
+      })()
     : dateFilteredAnalyticsForMetrics;
 
   // Recalculate metrics based on filtered analytics data (platform + date filtered)
