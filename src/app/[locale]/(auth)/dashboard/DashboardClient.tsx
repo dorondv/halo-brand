@@ -76,7 +76,7 @@ function PlatformCardsContent({
   };
 
   return (
-    <div className="grid grid-cols-2 gap-4 sm:grid-cols-4 lg:grid-cols-7">
+    <div className="grid w-full auto-rows-fr grid-cols-2 gap-4 overflow-x-hidden sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
       {currentPlatformData.map((platform) => {
         const isSelected = selectedPlatform
           ? platform.platform === selectedPlatform
@@ -87,7 +87,7 @@ function PlatformCardsContent({
             key={platform.platform}
             type="button"
             onClick={() => handlePlatformClick(platform.platform)}
-            className="w-full cursor-pointer text-left transition-transform hover:scale-105"
+            className="w-full min-w-0 cursor-pointer text-left transition-transform hover:scale-105"
           >
             <PlatformCard
               platform={platform.platform}
