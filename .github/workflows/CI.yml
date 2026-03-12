@@ -10,11 +10,11 @@ jobs:
   build:
     strategy:
       matrix:
-        node-version: [22.x, 24.x]
+        node-version: [24.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     name: Build with ${{ matrix.node-version }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -52,7 +52,7 @@ jobs:
         node-version: [22.x]
 
     name: Run static checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
@@ -87,7 +87,7 @@ jobs:
         node-version: [22.x]
 
     name: Run unit tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build]
 
@@ -115,7 +115,7 @@ jobs:
         node-version: [22.x]
 
     name: Run Storybook
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build]
 
@@ -138,7 +138,7 @@ jobs:
         node-version: [22.x]
 
     name: Run E2E tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     needs: [build]
 
@@ -182,7 +182,7 @@ jobs:
 
   synchronize-with-crowdin:
     name: GitHub PR synchronize with Crowdin
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     needs: [build, static]

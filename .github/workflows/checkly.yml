@@ -18,7 +18,7 @@ jobs:
     if: github.event.deployment_status.state == 'success'
 
     name: Test E2E on Checkly
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:

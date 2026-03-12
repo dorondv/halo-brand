@@ -53,6 +53,7 @@ next-env.d.ts
 
 # Database
 *.db
+local.db/
 
 # storybook
 storybook-static
