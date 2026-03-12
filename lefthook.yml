@@ -2,17 +2,17 @@
 commit-msg:
   commands:
     commitlint:
-      run: npx --no -- commitlint --edit {1}
+      run: bash -c 'source "$HOME/.nvm/nvm.sh" 2>/dev/null || true; npx --no -- commitlint --edit {1}'
 
 # Validate content before committing
 pre-commit:
   commands:
     lint:
       glob: '*'
-      run: npx --no -- eslint --fix --no-warn-ignored {staged_files}
+      run: bash -c 'source "$HOME/.nvm/nvm.sh" 2>/dev/null || true; npx --no -- eslint --fix --no-warn-ignored "$@"' -- {staged_files}
       stage_fixed: true
       priority: 1
     check-types:
       glob: '*.{ts,tsx}'
-      run: npm run check:types
+      run: bash -c 'source "$HOME/.nvm/nvm.sh" 2>/dev/null || true; npm run check:types'
       priority: 2

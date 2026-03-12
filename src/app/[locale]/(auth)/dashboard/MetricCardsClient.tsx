@@ -52,11 +52,11 @@ export function MetricCardsClient({
   };
 
   return (
-    <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+    <div className="grid w-full auto-rows-fr grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-4">
       <button
         type="button"
         onClick={() => handleMetricClick('followers')}
-        className="text-left"
+        className="w-full text-left"
       >
         <MetricCard
           title={t('metric_total_followers')}
@@ -70,7 +70,7 @@ export function MetricCardsClient({
       <button
         type="button"
         onClick={() => handleMetricClick('impressions')}
-        className="text-left"
+        className="w-full text-left"
       >
         <MetricCard
           title={t('metric_total_impressions')}
@@ -84,7 +84,7 @@ export function MetricCardsClient({
       <button
         type="button"
         onClick={() => handleMetricClick('engagement')}
-        className="text-left"
+        className="w-full text-left"
       >
         <MetricCard
           title={t('metric_total_engagement')}
@@ -98,7 +98,7 @@ export function MetricCardsClient({
       <button
         type="button"
         onClick={() => handleMetricClick('posts')}
-        className="text-left"
+        className="w-full text-left"
       >
         <MetricCard
           title={t('metric_total_posts')}

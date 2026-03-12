@@ -57,8 +57,9 @@ export async function syncAnalyticsFromGetlate(
     }
 
     // Fetch analytics from Getlate with pagination support
-    // Getlate API supports pagination: limit (default: 50), page (default: 1)
-    // Rate limit: 30 requests per hour per user
+    // Getlate API supports pagination: limit (default: 50, max: 100), page (default: 1)
+    // Rate limit: 150 requests per hour per user (for refresh operations)
+    // Reading cached analytics data does not count against rate limit
     // We'll fetch all pages to get comprehensive data
     let allGetlateAnalytics: any[] = [];
     let currentPage = 1;
@@ -112,16 +113,29 @@ export async function syncAnalyticsFromGetlate(
           hasMorePages = false;
         }
       } catch (error: any) {
+        const errorMessage = error?.message || String(error);
+        const isRateLimit = errorMessage.includes('429') || errorMessage.includes('rate limit');
+        const isTimeout = errorMessage.includes('504') || errorMessage.includes('timeout') || errorMessage.includes('Gateway Timeout');
+
         // Handle rate limit errors (HTTP 429)
-        if (error?.message?.includes('429') || error?.message?.includes('rate limit')) {
+        if (isRateLimit) {
           if (process.env.NODE_ENV === 'development') {
             console.warn('[syncAnalyticsFromGetlate] Rate limit reached, stopping pagination');
           }
           hasMorePages = false;
+        } else if (isTimeout) {
+          // For timeout errors, log once and stop pagination gracefully
+          // The retry logic in GetlateClient should have already attempted retries
+          if (currentPage === 1) {
+            // Only log on first page to avoid spam
+            console.warn('[syncAnalyticsFromGetlate] Gateway timeout after retries, stopping pagination. This may be due to Getlate API being temporarily unavailable.');
+          }
+          hasMorePages = false;
         } else {
-          // For other errors, log and stop
-          if (process.env.NODE_ENV === 'development') {
-            console.error('[syncAnalyticsFromGetlate] Error fetching page', currentPage, ':', error);
+          // For other errors, log once and stop
+          if (currentPage === 1) {
+            // Only log on first page to avoid spam
+            console.error('[syncAnalyticsFromGetlate] Error fetching page', currentPage, ':', errorMessage);
           }
           hasMorePages = false;
         }
@@ -132,8 +146,11 @@ export async function syncAnalyticsFromGetlate(
 
     // Sync analytics to database
     for (const post of getlateAnalytics) {
-      // GetlateAnalyticsPost uses _id field
-      const getlatePostId = post._id || post.id;
+      // GetlateAnalyticsPost uses _id field (External Post ID from synced analytics)
+      // Also supports postId field (Late Post ID for posts scheduled via API)
+      // Both IDs can be used to correlate posts - platformPostUrl is the unique identifier
+      const getlatePostId = post._id || post.id; // External Post ID
+      // Note: post.postId (Late Post ID) is available but not currently used in sync logic
       if (!getlatePostId) {
         if (process.env.NODE_ENV === 'development') {
           console.warn('[syncAnalyticsFromGetlate] Post missing _id or id:', post);
@@ -363,6 +380,7 @@ export async function syncAnalyticsFromGetlate(
       ));
 
       // Handle multiple platforms: GetlateAnalyticsPost can have analytics per platform
+      // Late API returns either 'platforms' array (list endpoint) or 'platformAnalytics' array (single post endpoint)
       const platformsToProcess: Array<{
         platform: string;
         analytics: {
@@ -376,10 +394,25 @@ export async function syncAnalyticsFromGetlate(
           engagementRate?: number;
           lastUpdated?: string;
         };
+        accountId?: string; // From platformAnalytics (single post endpoint)
+        accountUsername?: string; // From platformAnalytics (single post endpoint)
       }> = [];
 
-      // If post has platform-specific analytics, process each platform separately
-      if (post.platforms && Array.isArray(post.platforms) && post.platforms.length > 0) {
+      // Priority 1: Check platformAnalytics (from single post endpoint)
+      // This is the structure returned by GET /v1/analytics?postId=xxx
+      if (post.platformAnalytics && Array.isArray(post.platformAnalytics) && post.platformAnalytics.length > 0) {
+        for (const platformData of post.platformAnalytics) {
+          if (platformData.platform && platformData.analytics) {
+            platformsToProcess.push({
+              platform: platformData.platform,
+              analytics: platformData.analytics,
+            });
+          }
+        }
+      }
+
+      // Priority 2: Check platforms array (from list endpoint)
+      if (platformsToProcess.length === 0 && post.platforms && Array.isArray(post.platforms) && post.platforms.length > 0) {
         for (const platformData of post.platforms) {
           if (platformData.platform && platformData.analytics) {
             platformsToProcess.push({
@@ -390,7 +423,7 @@ export async function syncAnalyticsFromGetlate(
         }
       }
 
-      // If no platform-specific analytics but post-level analytics exist, use those
+      // Priority 3: If no platform-specific analytics but post-level analytics exist, use those
       if (platformsToProcess.length === 0 && post.analytics) {
         // Use the post-level platform or default to 'unknown'
         const platform = post.platform || 'unknown';
@@ -409,8 +442,9 @@ export async function syncAnalyticsFromGetlate(
       }
 
       // Process each platform's analytics separately
-      for (const { platform, analytics: platformAnalytics } of platformsToProcess) {
-        // Extract engagement metrics from platform analytics
+      for (const { platform, analytics: platformAnalytics, accountId, accountUsername } of platformsToProcess) {
+        // Extract ALL metrics directly from Getlate API analytics object
+        // These values come directly from the API response and represent current/latest values
         const likes = platformAnalytics.likes ?? null;
         const comments = platformAnalytics.comments ?? null;
         const shares = platformAnalytics.shares ?? null;
@@ -420,10 +454,22 @@ export async function syncAnalyticsFromGetlate(
         const views = platformAnalytics.views ?? null;
         const engagementRate = platformAnalytics.engagementRate ?? null;
 
-        // Extract platformPostUrl from the platform data in platforms array
-        // Getlate stores platformPostUrl in platforms[].platformPostUrl
+        // Extract platformPostUrl from multiple sources (priority order):
+        // 1. platformAnalytics array (from single post endpoint) - has accountId/accountUsername
+        // 2. platforms array (from list endpoint) - may have platformPostUrl
+        // 3. post.platformPostUrl (top-level)
         let platformPostUrlFromPlatform = null;
-        if (post.platforms && Array.isArray(post.platforms)) {
+
+        // Priority 1: Check platformAnalytics (single post endpoint)
+        if (post.platformAnalytics && Array.isArray(post.platformAnalytics)) {
+          const platformData = post.platformAnalytics.find((p: any) => p.platform === platform);
+          if (platformData?.platformPostUrl) {
+            platformPostUrlFromPlatform = platformData.platformPostUrl;
+          }
+        }
+
+        // Priority 2: Check platforms array (list endpoint)
+        if (!platformPostUrlFromPlatform && post.platforms && Array.isArray(post.platforms)) {
           const platformData = post.platforms.find((p: any) => {
             const pPlatform = typeof p === 'object' ? p.platform : p;
             return pPlatform === platform;
@@ -441,16 +487,18 @@ export async function syncAnalyticsFromGetlate(
               : null;
 
         // Check if analytics record already exists
-        // Use post_id + platform + date as unique identifier (one record per post per platform per day)
+        // Use post_id + platform + date + getlate_post_id as unique identifier
         // Since we normalize dates to midnight UTC, we can compare directly
         const normalizedDate = publishedDate.toISOString();
+
+        // First, try to find existing record using multiple criteria to prevent duplicates
         const { data: existingAnalytics } = await supabase
           .from('post_analytics')
           .select('id, metadata')
           .eq('post_id', foundPost.id)
-          .eq('getlate_post_id', getlatePostId)
           .eq('platform', platform)
           .eq('date', normalizedDate)
+          .or(`getlate_post_id.eq.${getlatePostId},getlate_post_id.is.null`)
           .maybeSingle();
 
         // Find platform-specific status from platforms array
@@ -476,6 +524,7 @@ export async function syncAnalyticsFromGetlate(
           reach,
           clicks,
           views,
+          engagementRate: calculatedEngagementRate !== null ? calculatedEngagementRate : (existingMetadata.engagementRate ?? null),
           lastUpdated: platformAnalytics.lastUpdated,
           // Post metadata - preserve existing values if new ones are not available
           profileId: post.profileId || existingMetadata.profileId || null,
@@ -487,11 +536,19 @@ export async function syncAnalyticsFromGetlate(
           mediaType: post.mediaType || existingMetadata.mediaType || null,
           // Platform-specific data
           platformStatus: platformStatusValue || existingMetadata.platformStatus || null,
+          // Account information (from platformAnalytics - single post endpoint)
+          accountId: accountId || existingMetadata.accountId || null,
+          accountUsername: accountUsername || existingMetadata.accountUsername || null,
+          // Post IDs (both Late Post ID and External Post ID)
+          postId: post.postId || existingMetadata.postId || null, // Late Post ID
+          getlatePostId: getlatePostId || existingMetadata.getlatePostId || null, // External Post ID (_id)
           // Dates - preserve existing if new ones are not available
           publishedAt: post.publishedAt || existingMetadata.publishedAt || null,
           scheduledFor: post.scheduledFor || existingMetadata.scheduledFor || null,
           // Media data - preserve existing if new ones are not available
           mediaItems: post.mediaItems || existingMetadata.mediaItems || null,
+          // Additional metadata from API
+          ...(post.metadata || {}),
         };
 
         const analyticsData = {
@@ -503,7 +560,7 @@ export async function syncAnalyticsFromGetlate(
           shares,
           impressions,
           engagement_rate: calculatedEngagementRate !== null ? calculatedEngagementRate.toString() : null,
-          date: publishedDate.toISOString(), // Store as timestamp (normalized to midnight UTC)
+          date: normalizedDate, // Store as timestamp (normalized to midnight UTC)
           metadata,
         };
 
@@ -521,14 +578,64 @@ export async function syncAnalyticsFromGetlate(
               }
             }
           } else {
-            // Create new record
-            const { error: insertError } = await supabase
+            // Before inserting, do a final check to prevent race condition duplicates
+            // This is critical when multiple sync calls happen simultaneously
+            const { data: finalCheck } = await supabase
               .from('post_analytics')
-              .insert(analyticsData);
+              .select('id')
+              .eq('post_id', foundPost.id)
+              .eq('platform', platform)
+              .eq('date', normalizedDate)
+              .eq('getlate_post_id', getlatePostId)
+              .maybeSingle();
 
-            if (insertError) {
-              if (process.env.NODE_ENV === 'development') {
-                console.error(`[syncAnalyticsFromGetlate] Error inserting analytics for post ${getlatePostId}, platform ${platform}:`, insertError);
+            // If we found a record (including from concurrent inserts), update it instead
+            if (finalCheck) {
+              const { error: updateError } = await supabase
+                .from('post_analytics')
+                .update(analyticsData)
+                .eq('id', finalCheck.id);
+
+              if (updateError && process.env.NODE_ENV === 'development') {
+                console.error(`[syncAnalyticsFromGetlate] Error updating duplicate analytics for post ${getlatePostId}, platform ${platform}:`, updateError);
+              } else if (process.env.NODE_ENV === 'development') {
+                console.warn(`[syncAnalyticsFromGetlate] Duplicate prevented - updated existing record for post ${getlatePostId}, platform ${platform}`);
+              }
+            } else {
+              // Safe to insert - no duplicate found
+              const { error: insertError } = await supabase
+                .from('post_analytics')
+                .insert(analyticsData);
+
+              if (insertError) {
+                // If insert fails due to unique constraint violation (code 23505), try to update instead
+                // This handles race conditions where another process inserted between our check and insert
+                if (insertError.code === '23505' || insertError.message?.includes('duplicate') || insertError.message?.includes('unique')) {
+                  // Find the existing record and update it
+                  const { data: conflictRecord } = await supabase
+                    .from('post_analytics')
+                    .select('id')
+                    .eq('post_id', foundPost.id)
+                    .eq('platform', platform)
+                    .eq('date', normalizedDate)
+                    .eq('getlate_post_id', getlatePostId)
+                    .maybeSingle();
+
+                  if (conflictRecord) {
+                    const { error: updateError } = await supabase
+                      .from('post_analytics')
+                      .update(analyticsData)
+                      .eq('id', conflictRecord.id);
+
+                    if (updateError && process.env.NODE_ENV === 'development') {
+                      console.error(`[syncAnalyticsFromGetlate] Error updating conflicting analytics for post ${getlatePostId}, platform ${platform}:`, updateError);
+                    } else if (process.env.NODE_ENV === 'development') {
+                      console.warn(`[syncAnalyticsFromGetlate] Resolved duplicate conflict for post ${getlatePostId}, platform ${platform}`);
+                    }
+                  }
+                } else if (process.env.NODE_ENV === 'development') {
+                  console.error(`[syncAnalyticsFromGetlate] Error inserting analytics for post ${getlatePostId}, platform ${platform}:`, insertError);
+                }
               }
             }
           }

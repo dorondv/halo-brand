@@ -17,7 +17,8 @@ export type GetlatePlatform
     | 'linkedin'
     | 'tiktok'
     | 'youtube'
-    | 'threads';
+    | 'threads'
+    | 'googlebusiness';
 
 export type GetlateProfile = {
   id?: string;
@@ -38,7 +39,7 @@ export type GetlateAccount = {
   displayName?: string;
   avatarUrl?: string; // May be profilePicture in API response
   profilePicture?: string; // Getlate API uses profilePicture
-  followerCount?: number;
+  followersCount?: number; // Getlate API uses followersCount in profileData
   isConnected?: boolean; // May be isActive in API response
   isActive?: boolean; // Getlate API uses isActive
   lastSync?: string;
@@ -91,7 +92,8 @@ export type GetlatePost = {
 };
 
 export type GetlateAnalyticsPost = {
-  _id: string;
+  _id: string; // External Post ID (from synced analytics)
+  postId?: string; // Late Post ID (for posts scheduled via API)
   content: string;
   publishedAt: string;
   scheduledFor: string;
@@ -104,9 +106,29 @@ export type GetlateAnalyticsPost = {
     shares: number;
     clicks: number;
     views: number;
+    engagementRate?: number;
     lastUpdated: string;
   };
-  platforms: Array<{
+  // Single post endpoint response format (detailed per-platform analytics)
+  platformAnalytics?: Array<{
+    platform: string;
+    status: string;
+    accountId?: string;
+    accountUsername?: string;
+    analytics: {
+      impressions: number;
+      reach: number;
+      likes: number;
+      comments: number;
+      shares: number;
+      clicks: number;
+      views: number;
+      engagementRate: number;
+      lastUpdated: string;
+    };
+  }>;
+  // List endpoint response format (simplified platform analytics)
+  platforms?: Array<{
     platform: string;
     status: string;
     analytics: {
@@ -120,6 +142,7 @@ export type GetlateAnalyticsPost = {
       engagementRate: number;
       lastUpdated: string;
     };
+    platformPostUrl?: string; // May be in platforms array
   }>;
   platform: string;
   platformPostUrl?: string;
@@ -128,6 +151,7 @@ export type GetlateAnalyticsPost = {
   thumbnailUrl?: string;
   mediaType?: string;
   mediaItems?: unknown[];
+  metadata?: Record<string, unknown>; // Additional metadata from API
 };
 
 export type GetlateAnalyticsResponse = {
@@ -144,6 +168,27 @@ export type GetlateAnalyticsResponse = {
     total: number;
     pages: number;
   };
+};
+
+export type GetlateFollowerStatsResponse = {
+  accounts: Array<{
+    _id: string;
+    platform: string;
+    username: string;
+    currentFollowers: number;
+    growth: number;
+    growthPercentage: number;
+    dataPoints: number;
+  }>;
+  stats: Record<string, Array<{
+    date: string;
+    followers: number;
+  }>>;
+  dateRange: {
+    from: string;
+    to: string;
+  };
+  granularity: 'daily' | 'weekly' | 'monthly';
 };
 
 // Legacy type for backward compatibility
@@ -179,6 +224,7 @@ export class GetlateClient {
   private async request<T>(
     endpoint: string,
     options: RequestInit = {},
+    retries = 3,
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
     const headers = {
@@ -187,23 +233,60 @@ export class GetlateClient {
       ...options.headers,
     };
 
-    const response = await fetch(url, {
-      ...options,
-      headers,
-    });
+    // Create AbortController for timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
 
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({
-        error: 'Unknown error',
-        message: `HTTP ${response.status}: ${response.statusText}`,
-      })) as GetlateError;
+    try {
+      const response = await fetch(url, {
+        ...options,
+        headers,
+        signal: controller.signal,
+      });
 
-      throw new Error(
-        errorData.message || errorData.error || `HTTP ${response.status}`,
-      );
+      clearTimeout(timeoutId);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          error: 'Unknown error',
+          message: `HTTP ${response.status}: ${response.statusText}`,
+        })) as GetlateError;
+
+        const errorMessage = errorData.message || errorData.error || `HTTP ${response.status}`;
+        const isTimeout = response.status === 504 || response.status === 408;
+        const isRetryable = isTimeout || response.status >= 500;
+
+        // Retry on timeout or server errors (5xx) with exponential backoff
+        if (isRetryable && retries > 0) {
+          const delay = Math.min(1000 * 2 ** (3 - retries), 5000); // Exponential backoff, max 5s
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, retries - 1);
+        }
+
+        throw new Error(errorMessage);
+      }
+
+      return response.json() as Promise<T>;
+    } catch (error: any) {
+      clearTimeout(timeoutId);
+
+      // Handle abort (timeout) or network errors
+      if (error.name === 'AbortError' || error.message?.includes('timeout')) {
+        if (retries > 0) {
+          const delay = Math.min(1000 * 2 ** (3 - retries), 5000);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          return this.request<T>(endpoint, options, retries - 1);
+        }
+        throw new Error('Request timeout after multiple retries');
+      }
+
+      // Re-throw if it's already an Error with message
+      if (error instanceof Error) {
+        throw error;
+      }
+
+      throw new Error(`Request failed: ${String(error)}`);
     }
-
-    return response.json() as Promise<T>;
   }
 
   /**
@@ -252,37 +335,80 @@ export class GetlateClient {
     }
 
     // Map Getlate API response format to our interface
-    // API uses: _id, username, profilePicture, isActive
-    // We need: id, accountName, avatarUrl, isConnected
-    return accounts.map((account: any) => ({
-      id: account._id || account.id,
-      _id: account._id,
-      profileId: account.profileId,
-      platform: account.platform,
-      accountName: account.username || account.accountName, // Map username to accountName
-      username: account.username,
-      accountId: account.accountId || account._id, // Use _id as accountId if not provided
-      displayName: account.displayName,
-      avatarUrl: account.profilePicture || account.avatarUrl, // Map profilePicture to avatarUrl
-      profilePicture: account.profilePicture,
-      followerCount: account.followerCount,
-      isConnected: account.isActive !== undefined ? account.isActive : account.isConnected, // Map isActive to isConnected
-      isActive: account.isActive,
-      lastSync: account.lastSync,
-      tokenExpiresAt: account.tokenExpiresAt,
-      permissions: account.permissions,
-      // Preserve accessToken and tempToken if present in the account object
-      accessToken: account.accessToken || account.access_token,
-      tempToken: account.tempToken || account.temp_token,
-      metadata: {
-        ...(account.metadata || {}),
-        // Also include accessToken/tempToken in metadata if they exist
-        ...(account.accessToken ? { accessToken: account.accessToken } : {}),
-        ...(account.tempToken ? { tempToken: account.tempToken } : {}),
-        ...(account.access_token ? { accessToken: account.access_token } : {}),
-        ...(account.temp_token ? { tempToken: account.temp_token } : {}),
-      },
-    })) as GetlateAccount[];
+    // API uses: _id, username, profilePicture, isActive, profileData.followersCount
+    // We need: id, accountName, avatarUrl, isConnected, followersCount
+    return accounts.map((account: any) => {
+      // Extract followersCount from multiple possible locations:
+      // For Facebook: metadata.availablePages[].fan_count (where id matches selectedPageId)
+      // For TikTok: metadata.profileData.followersCount
+      // For other platforms: profileData.followersCount, metadata.followersCount, etc.
+      let followersCount: number | undefined;
+
+      // Facebook-specific: Extract fan_count from selected page
+      if (account.platform === 'facebook' && account.metadata && typeof account.metadata === 'object') {
+        const metadata = account.metadata as any;
+        const selectedPageId = metadata.selectedPageId;
+        const availablePages = metadata.availablePages;
+
+        if (selectedPageId && Array.isArray(availablePages)) {
+          const selectedPage = availablePages.find((page: any) => page.id === selectedPageId);
+          if (selectedPage && typeof selectedPage.fan_count === 'number') {
+            followersCount = selectedPage.fan_count;
+          }
+        }
+      }
+
+      // TikTok-specific: Extract followersCount from metadata.profileData.followersCount
+      if (followersCount === undefined && account.platform === 'tiktok' && account.metadata && typeof account.metadata === 'object') {
+        const metadata = account.metadata as any;
+        if (metadata.profileData && typeof metadata.profileData === 'object' && typeof metadata.profileData.followersCount === 'number') {
+          followersCount = metadata.profileData.followersCount;
+        }
+      }
+
+      // Fallback to other locations if not found above
+      if (followersCount === undefined) {
+        followersCount = account.profileData?.followersCount
+          ?? (account.metadata && typeof account.metadata === 'object' ? (account.metadata as any).followersCount : undefined)
+          ?? (account.metadata && typeof account.metadata === 'object' ? (account.metadata as any).followerCount : undefined)
+          ?? account.followersCount
+          ?? account.followerCount
+          ?? account.profileData?.followerCount
+          ?? undefined;
+      }
+
+      return {
+        id: account._id || account.id,
+        _id: account._id,
+        profileId: account.profileId,
+        platform: account.platform,
+        accountName: account.username || account.accountName, // Map username to accountName
+        username: account.username,
+        accountId: account.accountId || account._id, // Use _id as accountId if not provided
+        displayName: account.displayName,
+        avatarUrl: account.profilePicture || account.avatarUrl, // Map profilePicture to avatarUrl
+        profilePicture: account.profilePicture,
+        followersCount: followersCount ?? 0, // Extract from profileData.followersCount, default to 0
+        isConnected: account.isActive !== undefined ? account.isActive : account.isConnected, // Map isActive to isConnected
+        isActive: account.isActive,
+        lastSync: account.lastSync,
+        tokenExpiresAt: account.tokenExpiresAt,
+        permissions: account.permissions,
+        // Preserve accessToken and tempToken if present in the account object
+        accessToken: account.accessToken || account.access_token,
+        tempToken: account.tempToken || account.temp_token,
+        metadata: {
+          ...(account.metadata || {}),
+          // Preserve profileData if it exists in metadata or as separate field
+          ...(account.profileData ? { profileData: account.profileData } : {}),
+          // Also include accessToken/tempToken in metadata if they exist
+          ...(account.accessToken ? { accessToken: account.accessToken } : {}),
+          ...(account.tempToken ? { tempToken: account.tempToken } : {}),
+          ...(account.access_token ? { accessToken: account.access_token } : {}),
+          ...(account.temp_token ? { tempToken: account.temp_token } : {}),
+        },
+      };
+    }) as GetlateAccount[];
   }
 
   /**
@@ -293,14 +419,19 @@ export class GetlateClient {
    * According to Getlate API docs:
    * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL
    *
+   * Headless mode (Facebook, LinkedIn, Google Business Profile):
+   * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL&headless=true
+   *
    * Note: Getlate API returns JSON with authUrl instead of redirecting directly
-   * Success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
+   * Standard mode success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
+   * Headless mode redirect: redirect_url?profileId=X&tempToken=Y&userProfile=Z&connect_token=CT&platform=PLATFORM&step=STEP
    * Error redirect: redirect_url?error=ERROR_TYPE&platform=PLATFORM
    */
   async connectAccount(
     platform: GetlatePlatform,
     profileId: string,
     redirectUrl?: string,
+    headless?: boolean,
   ): Promise<{ authUrl: string; state?: string }> {
     // Normalize platform name (x -> twitter for Getlate API)
     const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
@@ -311,6 +442,11 @@ export class GetlateClient {
     // Add redirect_url if provided
     if (redirectUrl) {
       endpoint += `&redirect_url=${encodeURIComponent(redirectUrl)}`;
+    }
+
+    // Add headless=true for supported platforms (Facebook, LinkedIn, Google Business Profile)
+    if (headless && (normalizedPlatform === 'facebook' || normalizedPlatform === 'linkedin' || normalizedPlatform === 'googlebusiness')) {
+      endpoint += `&headless=true`;
     }
 
     // Getlate API returns JSON with authUrl, not a redirect
@@ -340,6 +476,7 @@ export class GetlateClient {
   async createPost(data: {
     profileId: string;
     content: string;
+    title?: string; // Optional title (for YouTube, LinkedIn)
     mediaUrls?: string[]; // Legacy - will be converted to mediaItems
     mediaItems?: Array<{
       type: 'image' | 'video';
@@ -352,6 +489,11 @@ export class GetlateClient {
       accountId: string;
       platformSpecificData?: Record<string, unknown>;
     }>;
+    hashtags?: string[]; // Hashtags array
+    tags?: string[]; // Tags/keywords array
+    mentions?: string[]; // Mentions array
+    publishNow?: boolean; // Publish immediately
+    isDraft?: boolean; // Create as draft
     queuedFromProfile?: string; // Profile ID if post is added to queue
   }): Promise<GetlatePost> {
     // Convert mediaUrls to mediaItems format if needed
@@ -659,8 +801,13 @@ export class GetlateClient {
   /**
    * Get analytics for posts
    * ⚠️ Requires Analytics add-on. Returns HTTP 402 if not enabled.
-   * Rate limit: 30 requests per hour per user
+   * Rate limit: 150 requests per hour per user (for refresh operations)
+   * Reading cached analytics data does not count against rate limit
    * Returns structured response with overview, posts, and pagination
+   *
+   * Response format:
+   * - Single post (with postId param): Returns single GetlateAnalyticsPost with platformAnalytics array
+   * - List (no postId): Returns GetlateAnalyticsResponse with posts array and pagination
    */
   async getAnalytics(params: {
     profileId?: string;
@@ -690,7 +837,9 @@ export class GetlateClient {
       queryParams.append('toDate', params.toDate);
     }
     if (params.limit) {
-      queryParams.append('limit', params.limit.toString());
+      // Limit range: 1-100 (default: 50)
+      const limit = Math.min(100, Math.max(1, params.limit));
+      queryParams.append('limit', limit.toString());
     }
     if (params.page) {
       queryParams.append('page', params.page.toString());
@@ -704,6 +853,39 @@ export class GetlateClient {
 
     const endpoint = `/analytics${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
     return this.request<GetlateAnalyticsResponse>(endpoint);
+  }
+
+  /**
+   * Get follower stats and growth metrics for connected social accounts
+   * Requires analytics add-on subscription
+   * Rate limit: 150 requests per hour per user
+   */
+  async getFollowerStats(params?: {
+    accountIds?: string; // Comma-separated list of account IDs (optional, defaults to all user's accounts)
+    profileId?: string;
+    fromDate?: string; // Start date in YYYY-MM-DD format (defaults to 30 days ago)
+    toDate?: string; // End date in YYYY-MM-DD format (defaults to today)
+    granularity?: 'daily' | 'weekly' | 'monthly'; // Data aggregation level (default: 'daily')
+  }): Promise<GetlateFollowerStatsResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.accountIds) {
+      queryParams.append('accountIds', params.accountIds);
+    }
+    if (params?.profileId) {
+      queryParams.append('profileId', params.profileId);
+    }
+    if (params?.fromDate) {
+      queryParams.append('fromDate', params.fromDate);
+    }
+    if (params?.toDate) {
+      queryParams.append('toDate', params.toDate);
+    }
+    if (params?.granularity) {
+      queryParams.append('granularity', params.granularity);
+    }
+
+    const endpoint = `/accounts/follower-stats${queryParams.toString() ? `?${queryParams.toString()}` : ''}`;
+    return this.request<GetlateFollowerStatsResponse>(endpoint);
   }
 
   /**
@@ -1218,6 +1400,192 @@ export class GetlateClient {
     });
 
     return response;
+  }
+
+  /**
+   * Get Facebook pages during headless OAuth flow
+   * Uses GET /v1/connect/facebook/select-page endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async getFacebookPagesForSelection(
+    profileId: string,
+    tempToken: string,
+    connectToken: string,
+  ): Promise<GetlateFacebookPage[]> {
+    const endpoint = `/connect/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+    });
+
+    const rawPages = Array.isArray(response?.pages)
+      ? response.pages
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawPages)) {
+      return [];
+    }
+
+    return rawPages
+      .map((page: any) => ({
+        id: page._id || page.id || page.pageId || page.facebookPageId,
+        name: page.name || page.pageName || page.title || 'Page',
+        pageId: page.pageId || page.facebookPageId || page.id,
+        pageName: page.pageName || page.name || page.title,
+        pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
+        accessToken: page.pageAccessToken || page.accessToken,
+        metadata: page.metadata || {},
+      }))
+      .filter(page => !!page.id && !!page.name);
+  }
+
+  /**
+   * Select a Facebook page during headless OAuth flow
+   * Uses POST /v1/connect/facebook/select-page endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectFacebookPageForConnection(
+    payload: {
+      profileId: string;
+      pageId: string;
+      tempToken: string;
+      userProfile: any;
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/facebook/select-page', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        pageId: payload.pageId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
+  }
+
+  /**
+   * Select a LinkedIn organization during headless OAuth flow
+   * Uses POST /v1/connect/linkedin/select-organization endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectLinkedInOrganizationForConnection(
+    payload: {
+      profileId: string;
+      tempToken: string;
+      userProfile: any;
+      accountType: 'personal' | 'organization';
+      selectedOrganization?: {
+        id: string;
+        name: string;
+        vanityName?: string;
+      };
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/linkedin/select-organization', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        accountType: payload.accountType,
+        selectedOrganization: payload.selectedOrganization,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
+  }
+
+  /**
+   * Get Google Business locations during headless OAuth flow
+   * Uses GET /v1/connect/googlebusiness/locations endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async getGoogleBusinessLocations(
+    profileId: string,
+    tempToken: string,
+    connectToken: string,
+  ): Promise<Array<{
+    id: string;
+    name: string;
+    address?: string;
+    phoneNumber?: string;
+    website?: string;
+  }>> {
+    const endpoint = `/connect/googlebusiness/locations?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const response = await this.request<any>(endpoint, {
+      method: 'GET',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+    });
+
+    const rawLocations = Array.isArray(response?.locations)
+      ? response.locations
+      : Array.isArray(response?.data)
+        ? response.data
+        : Array.isArray(response?.results)
+          ? response.results
+          : [];
+
+    if (!Array.isArray(rawLocations)) {
+      return [];
+    }
+
+    return rawLocations
+      .map((location: any) => ({
+        id: location.locationId || location.id || location._id,
+        name: location.name || location.locationName || 'Location',
+        address: location.address || location.formattedAddress,
+        phoneNumber: location.phoneNumber || location.phone,
+        website: location.website || location.websiteUrl,
+      }))
+      .filter(location => !!location.id && !!location.name);
+  }
+
+  /**
+   * Select a Google Business location during headless OAuth flow
+   * Uses POST /v1/connect/googlebusiness/select-location endpoint
+   * Requires X-Connect-Token header for authentication
+   */
+  async selectGoogleBusinessLocation(
+    payload: {
+      profileId: string;
+      locationId: string;
+      tempToken: string;
+      userProfile: any;
+      redirectUrl?: string;
+    },
+    connectToken: string,
+  ): Promise<any> {
+    return this.request('/connect/googlebusiness/select-location', {
+      method: 'POST',
+      headers: {
+        'X-Connect-Token': connectToken,
+      },
+      body: JSON.stringify({
+        profileId: payload.profileId,
+        locationId: payload.locationId,
+        tempToken: payload.tempToken,
+        userProfile: payload.userProfile,
+        redirect_url: payload.redirectUrl,
+      }),
+    });
   }
 }
 

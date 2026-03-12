@@ -1,28 +1,12 @@
-# Halo Brand - Social Media Scheduling & Analytics Platform
+# Branda - Social Media Scheduling & Analytics Platform
 
 <p align="center">
-  <a href="https://halo-brand.com">
-    <svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="200" height="60" rx="12" fill="url(#gradient)"/>
-      <circle cx="30" cy="30" r="12" fill="white" opacity="0.9"/>
-      <circle cx="30" cy="30" r="8" fill="url(#innerGradient)"/>
-      <text x="55" y="25" font-family="Inter, sans-serif" font-size="18" font-weight="700" fill="white">Halo</text>
-      <text x="55" y="42" font-family="Inter, sans-serif" font-size="12" font-weight="500" fill="white" opacity="0.8">Brand</text>
-      <defs>
-        <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
-        </linearGradient>
-        <linearGradient id="innerGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" style="stop-color:#ffecd2;stop-opacity:1" />
-          <stop offset="100%" style="stop-color:#fcb69f;stop-opacity:1" />
-        </linearGradient>
-      </defs>
-    </svg>
+  <a href="https://branda.com">
+    <img src="/public/assets/images/logo.svg" alt="Branda Logo" width="200" height="60" />
   </a>
 </p>
 
-🚀 **Halo Brand** is a social media scheduling and analytics platform similar to Metricool, built with AI assistance. Schedule, post, and analyze social media content across multiple platforms with intelligent automation and insights.
+🚀 **Branda** is a social media scheduling and analytics platform similar to Metricool, built with AI assistance. Schedule, post, and analyze social media content across multiple platforms with intelligent automation and insights.
 
 ## 🌟 Key Features
 

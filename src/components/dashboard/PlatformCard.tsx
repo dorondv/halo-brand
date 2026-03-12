@@ -74,26 +74,26 @@ export function PlatformCard({
   return (
     <Card
       className={cn(
-        'bg-white shadow-md rounded-lg transition-all cursor-pointer',
+        'bg-white shadow-md rounded-lg transition-all cursor-pointer w-full h-full',
         // Override base Card border styles when selected
         isSelected
           ? '!border-2 !border-pink-500 ring-2 ring-pink-100 shadow-lg'
           : 'border border-gray-200',
       )}
     >
-      <CardContent className="flex flex-col items-center gap-3 p-4">
+      <CardContent className="flex h-full min-w-0 flex-1 flex-col items-center gap-2 p-3 sm:gap-3 sm:p-4">
         {/* Icon in pink circular background */}
-        <div className="mt-2 flex h-12 w-12 flex-shrink-0 items-center justify-center rounded-full bg-pink-100">
-          <Icon className="h-6 w-6 text-pink-600" />
+        <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-pink-100 sm:mt-2 sm:h-12 sm:w-12">
+          <Icon className="h-5 w-5 text-pink-600 sm:h-6 sm:w-6" />
         </div>
 
         {/* Platform name */}
-        <p className="text-center text-base font-medium text-gray-700">
+        <p className="line-clamp-2 flex min-h-10 items-center justify-center px-1 text-center text-xs font-medium break-words text-gray-700 sm:text-sm md:text-base">
           {displayName}
         </p>
 
         {/* Value */}
-        <p className="text-xl font-semibold text-gray-900">{formatted}</p>
+        <p className="text-lg font-semibold whitespace-nowrap text-gray-900 sm:text-xl">{formatted}</p>
 
         {/* Percentage change */}
         <div className="flex items-center gap-1">

@@ -1,6 +1,7 @@
 'use client';
 
 import { Calendar, Clock } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -19,6 +20,7 @@ export default function ScheduleSelector({
   scheduledTime,
   onScheduledTimeChange,
 }: ScheduleSelectorProps) {
+  const t = useTranslations('CreatePost');
   const now = new Date();
   const minDateTime = new Date(now.getTime() + 5 * 60000); // 5 minutes from now
   const minDateTimeString = minDateTime.toISOString().slice(0, 16);
@@ -28,7 +30,7 @@ export default function ScheduleSelector({
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Calendar className="h-5 w-5 text-pink-500" />
-          Publishing Schedule
+          {t('schedule_title')}
         </CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -44,7 +46,7 @@ export default function ScheduleSelector({
             }
           >
             <Clock className="mr-2 h-4 w-4" />
-            Now
+            {t('schedule_now')}
           </Button>
           <Button
             type="button"
@@ -57,14 +59,14 @@ export default function ScheduleSelector({
             }
           >
             <Calendar className="mr-2 h-4 w-4" />
-            Schedule
+            {t('schedule_later')}
           </Button>
         </div>
 
         {scheduleMode === 'later' && (
           <div className="space-y-2">
             <Label htmlFor="scheduled_time" className="text-sm font-medium text-slate-700">
-              Select Date & Time
+              {t('schedule_select_datetime')}
             </Label>
             <Input
               id="scheduled_time"
@@ -74,7 +76,7 @@ export default function ScheduleSelector({
               onChange={e => onScheduledTimeChange(e.target.value)}
               className="border-gray-200 focus:border-pink-300"
             />
-            <p className="text-xs text-slate-500">Posts will be published at the scheduled time</p>
+            <p className="text-xs text-slate-500">{t('schedule_hint')}</p>
           </div>
         )}
       </CardContent>

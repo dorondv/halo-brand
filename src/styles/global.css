@@ -6,6 +6,31 @@
   --color-pink-brand: #ec4899;
   --color-pink-brand-light: #f472b6;
   --color-pink-brand-lighter: #f9a8d4;
+
+  --font-sans:
+    var(--font-inter), ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    'Helvetica Neue', Arial, 'Noto Sans', sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji', 'Segoe UI Symbol',
+    'Noto Color Emoji';
+}
+
+/* Apply Inter font globally */
+body {
+  font-family:
+    var(--font-inter),
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    'Helvetica Neue',
+    Arial,
+    'Noto Sans',
+    sans-serif;
+  font-feature-settings: 'kern' 1;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* react-date-range custom styling */

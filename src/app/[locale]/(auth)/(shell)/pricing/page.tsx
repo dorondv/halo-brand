@@ -1,5 +1,5 @@
-import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
+import { PricingClient } from '@/components/pricing/PricingClient';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 // Force dynamic rendering - this page requires authentication
@@ -11,11 +11,5 @@ export default async function PricingPage() {
   if (authError || !user) {
     redirect('/sign-in');
   }
-  const t = await getTranslations('PageTitles');
-  return (
-    <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">{t('pricing')}</h1>
-      <p className="text-gray-600">{t('coming_soon')}</p>
-    </div>
-  );
+  return <PricingClient />;
 }

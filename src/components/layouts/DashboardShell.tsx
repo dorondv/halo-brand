@@ -4,14 +4,17 @@ import {
   BarChart3,
   Calendar as CalendarIcon,
   FileText,
-  Headphones,
   LayoutDashboard,
   Mail,
   Menu,
+  MessageSquareText,
   PenTool,
+  Plug,
   Settings,
+  Shield,
   Tags,
   TestTube,
+  TrendingUp,
   User,
   X,
 } from 'lucide-react';
@@ -33,14 +36,15 @@ type Props = {
 
 const baseNav = [
   { href: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
-  { href: '/inbox', key: 'inbox', icon: Mail },
+  { href: '/inbox', key: 'comments_center', icon: Mail },
   { href: '/create-post', key: 'create_post', icon: PenTool },
   { href: '/calendar', key: 'calendar', icon: CalendarIcon },
-  { href: '/analytics', key: 'analytics', icon: BarChart3 },
+  { href: '/insights', key: 'insights', icon: BarChart3 },
+  { href: '/brand-sentiment', key: 'brand_sentiment', icon: TrendingUp },
+  { href: '/post-sentiment', key: 'post_sentiment', icon: MessageSquareText },
   { href: '/reports', key: 'reports', icon: FileText },
-  { href: '/connections', key: 'integrations', icon: Settings },
+  { href: '/connections', key: 'integrations', icon: Plug },
   { href: '/settings', key: 'settings', icon: Settings },
-  { href: '/support', key: 'support', icon: Headphones },
   { href: '/pricing', key: 'pricing', icon: Tags },
   // Only include getlate-test in non-production environments
   ...(process.env.VERCEL_ENV !== 'production' ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }] : []),
@@ -52,6 +56,7 @@ export function DashboardShell({ children }: Props) {
   const [userName, setUserName] = React.useState<string | null>(null);
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
   const [avatarError, setAvatarError] = React.useState(false);
+  const [isAdmin, setIsAdmin] = React.useState(false);
   const t = useTranslations('Nav');
   const locale = useLocale();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
@@ -84,6 +89,38 @@ export function DashboardShell({ children }: Props) {
             // Use name from database if available
             setUserName(userRecord.name);
           }
+
+          // Check admin status via API (server-side check, doesn't expose email)
+          try {
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+            const adminCheckResponse = await fetch('/api/admin/check', {
+              method: 'GET',
+              headers: {
+                'Content-Type': 'application/json',
+              },
+              signal: controller.signal,
+            });
+
+            clearTimeout(timeoutId);
+
+            if (adminCheckResponse.ok) {
+              const adminData = await adminCheckResponse.json();
+              setIsAdmin(adminData.isAdmin || false);
+            } else {
+              setIsAdmin(false);
+            }
+          } catch (error: any) {
+            // Silently handle network errors (expected if server is down or route doesn't exist)
+            // Only log unexpected errors
+            if (error.name !== 'AbortError' && error.name !== 'NetworkError' && error.name !== 'TypeError') {
+              if (process.env.NODE_ENV === 'development') {
+                console.warn('Admin check failed (non-critical):', error.message || error);
+              }
+            }
+            setIsAdmin(false);
+          }
         }
       } catch (error) {
         console.error('Error fetching user:', error);
@@ -94,13 +131,13 @@ export function DashboardShell({ children }: Props) {
   }, []);
 
   return (
-    <div dir={dir} className="flex min-h-screen w-full bg-gray-100 font-sans">
+    <div dir={dir} className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-white font-sans">
       {/* Sidebar */}
       <aside className={`absolute inset-y-0 right-0 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 transition duration-200 ease-in-out lg:relative lg:translate-x-0 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'} z-30 shadow-lg lg:shadow-none`}>
         <div className="space-y-2 px-4">
           <div className="flex items-center justify-between">
-            <div className="shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
-              <Logo width={120} height={30} className="text-white" />
+            <div className="shrink-0 pb-1">
+              <Logo width={130} height={35} />
             </div>
             <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(false)}>
               <X className="h-6 w-6" />
@@ -125,6 +162,16 @@ export function DashboardShell({ children }: Props) {
               </Link>
             );
           })}
+          {isAdmin && (
+            <Link
+              href="/admin"
+              onClick={() => setIsMobileMenuOpen(false)}
+              className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${pathname?.startsWith('/admin') ? 'bg-white font-semibold text-pink-600' : 'text-gray-700 hover:bg-gray-100'}`}
+            >
+              <Shield className="h-5 w-5 shrink-0" />
+              <span>Admin</span>
+            </Link>
+          )}
           <div className="pt-4">
             <SignOutButton />
           </div>
@@ -132,7 +179,7 @@ export function DashboardShell({ children }: Props) {
       </aside>
 
       {/* Main */}
-      <div className="flex flex-1 flex-col">
+      <div className="flex w-full min-w-0 flex-1 flex-col">
         <header
           className={`flex items-center ${locale === 'he'
             ? 'flex-row-reverse'
@@ -222,7 +269,7 @@ export function DashboardShell({ children }: Props) {
                 </>
               )}
         </header>
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 py-6">{children}</main>
       </div>
     </div>
   );

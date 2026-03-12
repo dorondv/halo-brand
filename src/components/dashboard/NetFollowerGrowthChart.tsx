@@ -26,6 +26,7 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
             width={70}
             axisLine={false}
             tickLine={false}
+            domain={[0, 'auto']}
             tickFormatter={value => new Intl.NumberFormat('he-IL').format(value)}
           />
           <Tooltip
@@ -38,7 +39,7 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
           />
           <Bar dataKey="growth" radius={[4, 4, 0, 0]}>
             {formattedData.map(entry => (
-              <Cell key={`cell-${entry.date}-${entry.growth}`} fill={entry.growth >= 0 ? '#FF0083' : '#9CA3AF'} />
+              <Cell key={`cell-${entry.date}-${entry.growth}`} fill="#FF0083" />
             ))}
           </Bar>
         </BarChart>

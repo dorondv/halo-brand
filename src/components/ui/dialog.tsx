@@ -55,7 +55,7 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
 
   return createPortalFn(
     <DialogContext value={{ open, onOpenChange }}>
-      <div className="fixed inset-0 z-9999 flex items-center justify-center">
+      <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
         {/* Backdrop/Overlay */}
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
@@ -72,7 +72,7 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
           }}
         />
         {/* Dialog content - centered */}
-        <div className="relative z-9999 w-full max-w-md px-4">
+        <div className="relative z-9999 flex w-full max-w-full items-center justify-center">
           {children}
         </div>
       </div>
@@ -90,7 +90,7 @@ export function DialogContent({ children, className, ...props }: React.HTMLAttri
   return (
     <div
       className={cn(
-        'relative w-full rounded-lg bg-white p-6 shadow-xl',
+        'relative w-full rounded-lg bg-white p-6 shadow-xl mx-auto',
         className,
       )}
       // Use pointer down to avoid triggering eslint jsx-a11y/click-events-have-key-events

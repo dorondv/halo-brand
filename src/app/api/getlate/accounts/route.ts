@@ -42,7 +42,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get brand to fetch Getlate profile ID
     const { data: brandRecord, error: brandError } = await supabase
       .from('brands')
       .select('id, getlate_profile_id')
@@ -102,7 +101,8 @@ export async function GET(request: NextRequest) {
       const accountIdValue = getlateAccount.accountId || accountId;
       const displayName = getlateAccount.displayName || accountName; // Fallback to accountName if displayName not provided
       const avatarUrl = getlateAccount.avatarUrl || getlateAccount.profilePicture;
-      const followerCount = getlateAccount.followerCount || 0;
+      // Extract followersCount (correct API field name) from GetlateAccount
+      const followerCount = getlateAccount.followersCount ?? 0;
       const lastSync = getlateAccount.lastSync || new Date().toISOString();
       // Getlate API uses 'isActive', getAccounts() maps it to 'isConnected'
       const isConnected = getlateAccount.isConnected !== undefined
@@ -194,7 +194,67 @@ export async function GET(request: NextRequest) {
           syncedAccounts.push(updatedAccount);
         }
       } else {
+        const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
+        const { socialAccounts: socialAccountsTable } = await import('@/models/Schema');
+        const { eq } = await import('drizzle-orm');
+        const { db } = await import('@/libs/DB');
+
+        const subscription = await getUserSubscription(user.id);
+        let maxSocialAccounts = 3;
+
+        if (subscription && subscription.planType !== 'free') {
+          const now = new Date();
+          const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+          const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
+
+          if (isSubscriptionActive && isNotExpired) {
+            const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+            if (plan) {
+              maxSocialAccounts = plan.maxSocialAccounts || 999999;
+            } else {
+              maxSocialAccounts = subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350;
+            }
+          }
+        }
+
+        // Count existing accounts for this specific brand (limit is per brand)
+        const { and, sql } = await import('drizzle-orm');
+        const existingAccountsCountResult = await db
+          .select({ count: sql<number>`count(*)::int` })
+          .from(socialAccountsTable)
+          .where(and(
+            eq(socialAccountsTable.userId, user.id),
+            eq(socialAccountsTable.brandId, brandId),
+          ));
+
+        const currentAccountCount = existingAccountsCountResult[0]?.count || 0;
+
+        if (currentAccountCount >= maxSocialAccounts && !oauthReconnect) {
+          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. Skipping account creation for ${accountName}.`);
+          continue;
+        }
+
         // Create new account
+        const platformSpecificDataForInsert = {
+          display_name: displayName,
+          avatar_url: avatarUrl,
+          follower_count: followerCount,
+          last_sync: lastSync,
+          ...metadata,
+        };
+
+        const { data: brandCheck } = await supabase
+          .from('brands')
+          .select('id, user_id')
+          .eq('id', brandId)
+          .eq('user_id', user.id)
+          .single();
+
+        if (!brandCheck) {
+          console.warn(`[Getlate Accounts Sync] User ${user.id} attempted to add account to brand ${brandId} they don't own. Skipping.`);
+          continue;
+        }
+
         const { data: newAccount, error: insertError } = await supabase
           .from('social_accounts')
           .insert({
@@ -204,14 +264,8 @@ export async function GET(request: NextRequest) {
             account_name: accountName,
             account_id: accountIdValue,
             getlate_account_id: accountId,
-            access_token: 'getlate-managed', // Getlate manages tokens
-            platform_specific_data: {
-              display_name: displayName,
-              avatar_url: avatarUrl,
-              follower_count: followerCount,
-              last_sync: lastSync,
-              ...metadata,
-            },
+            access_token: 'getlate-managed',
+            platform_specific_data: platformSpecificDataForInsert,
             is_active: isConnected,
           })
           .select()

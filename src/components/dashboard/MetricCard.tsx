@@ -22,15 +22,15 @@ export function MetricCard({
 }: MetricCardProps): React.ReactElement {
   return (
     <Card className={cn(
-      'group relative cursor-pointer rounded-lg bg-white shadow-md transition-transform hover:scale-105',
+      'group relative cursor-pointer rounded-lg bg-white shadow-md transition-transform hover:scale-105 w-full h-full',
       // Override base Card border styles when selected
       isSelected
         ? '!border-2 !border-pink-500 ring-2 ring-pink-100 shadow-lg'
         : 'border border-pink-100',
     )}
     >
-      <CardContent className="p-4">
-        <div className="flex flex-col gap-3">
+      <CardContent className="flex h-full flex-1 flex-col p-4">
+        <div className="flex flex-1 flex-col gap-3">
           {/* Icon positioned absolutely at top-right for LTR, top-left for RTL - with hover animation on card */}
           <div className="absolute top-3 right-3 flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-pink-500 to-pink-600 shadow-lg transition-transform duration-300 group-hover:scale-110 rtl:right-auto rtl:left-3">
             <Icon className="h-6 w-6 text-white" />

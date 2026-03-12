@@ -274,7 +274,7 @@ async function seed() {
   const DEFAULT_GETLATE_PROFILE_ID = '690c738f2e6c6b55e66c14e6';
 
   const brandsData = [
-    { name: 'Halo Brand', description: 'Main brand for social media marketing', getlate_profile_id: DEFAULT_GETLATE_PROFILE_ID },
+    { name: 'Branda', description: 'Main brand for social media marketing', getlate_profile_id: DEFAULT_GETLATE_PROFILE_ID },
     { name: 'Demo Corp', description: 'Secondary brand for testing', getlate_profile_id: null },
   ];
 

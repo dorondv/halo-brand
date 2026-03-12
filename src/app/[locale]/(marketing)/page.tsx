@@ -3,6 +3,7 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { TrackingInit } from '@/components/marketing/TrackingInit';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
@@ -39,12 +40,13 @@ export default async function MarketingPage() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
+      <TrackingInit />
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
         <div className="flex items-center justify-between">
           {/* Logo - Always first in DOM, appears on start (left in LTR, right in RTL) */}
-          <div className="flex-shrink-0 rounded-lg bg-gradient-to-br from-pink-500 to-pink-600 p-1">
-            <Logo width={140} height={35} className="text-white" />
+          <div className="flex-shrink-0 pb-2">
+            <Logo width={140} height={40} />
           </div>
           {/* Auth Links - Always second in DOM, appears on end (right in LTR, left in RTL) */}
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>
@@ -216,7 +218,7 @@ export default async function MarketingPage() {
 
       {/* Footer */}
       <footer className="container mx-auto px-6 py-8 text-center text-gray-600">
-        <p>{t('footer_copyright')}</p>
+        <p>{t('footer_copyright', { year: new Date().getFullYear() })}</p>
       </footer>
     </div>
   );

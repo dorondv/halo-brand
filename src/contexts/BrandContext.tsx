@@ -9,7 +9,7 @@ type BrandContextType = {
 
 const BrandContext = createContext<BrandContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'halo-brand-selected-brand-id';
+const STORAGE_KEY = 'branda-selected-brand-id';
 
 // Storage subscription for useSyncExternalStore (Next.js 16+ best practice)
 function getSnapshot(): string | null {

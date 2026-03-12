@@ -11,13 +11,12 @@ export async function getCachedPosts(
   dateFrom: Date,
   dateTo: Date,
 ) {
-  // Get all posts (include published, scheduled, and draft - we'll filter by date)
-  // Note: Posts might be in 'scheduled' or 'draft' status but still have analytics
+  // Get only published posts (filter by date)
   let postsQuery = supabase
     .from('posts')
     .select('id,metadata,created_at,content,brand_id,getlate_post_id,status,platforms,image_url')
     .eq('user_id', userId)
-    .in('status', ['published', 'scheduled', 'draft']); // Include all statuses
+    .eq('status', 'published'); // Only include published posts
 
   if (brandId && brandId !== 'all') {
     postsQuery = postsQuery.eq('brand_id', brandId);
@@ -60,13 +59,13 @@ export async function getCachedPosts(
     return publishDate >= dateFrom && publishDate <= dateTo;
   });
 
-  // Fetch analytics for ALL posts (not just filtered ones) - this ensures we get analytics
+  // Fetch analytics for all published posts (not just date-filtered ones) - this ensures we get analytics
   // even if the post's publish date is outside the range but analytics date is within range
   // The date filtering will be done in the dashboard component
   const { data: analyticsData, error: analyticsError } = await supabase
     .from('post_analytics')
     .select('post_id,likes,comments,shares,impressions,date,metadata,platform')
-    .in('post_id', allPostsData.map(p => p.id)) // Use allPostsData, not postsData
+    .in('post_id', allPostsData.map(p => p.id)) // Use allPostsData (all published posts), not postsData (date-filtered)
     .order('date', { ascending: false });
 
   // Log error for debugging (only in development)
@@ -157,6 +156,7 @@ export async function syncAnalyticsInBackground(
               continue;
             }
             try {
+              // Wrap in try-catch to handle individual brand sync errors gracefully
               await syncAnalyticsFromGetlate(supabase, userId, brand.id, {
                 fromDate: fromDate.toISOString().split('T')[0],
                 toDate: toDate.toISOString().split('T')[0],
@@ -166,11 +166,21 @@ export async function syncAnalyticsInBackground(
               if (i < brands.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 2000)); // 2 second delay
               }
-            } catch (error) {
-              // Log error but continue with other brands
-              if (process.env.NODE_ENV === 'development') {
-                console.error(`[syncAnalyticsInBackground] Brand ${brand.id} failed:`, error);
+            } catch (error: any) {
+              // Handle errors gracefully - don't spam logs for timeout errors
+              const errorMessage = error?.message || String(error);
+              const isTimeout = errorMessage.includes('504') || errorMessage.includes('timeout') || errorMessage.includes('Gateway Timeout');
+
+              // Only log non-timeout errors or log timeout once per brand
+              if (!isTimeout) {
+                if (process.env.NODE_ENV === 'development') {
+                  console.error(`[syncAnalyticsInBackground] Brand ${brand.id} failed:`, errorMessage);
+                }
+              } else if (process.env.NODE_ENV === 'development' && i === 0) {
+                // Only log timeout on first brand to avoid spam
+                console.warn(`[syncAnalyticsInBackground] Gateway timeout for brand ${brand.id}. Getlate API may be temporarily unavailable. Continuing with other brands...`);
               }
+              // Continue with next brand even if this one fails
             }
           }
         }
@@ -193,12 +203,12 @@ export async function getCachedDemographics(
   dateFrom: Date,
   dateTo: Date,
 ) {
-  // Get all posts for this user/brand (include all statuses) - don't filter by date yet
+  // Get only published posts for this user/brand - don't filter by date yet
   let postsQuery = supabase
     .from('posts')
     .select('id,created_at')
     .eq('user_id', userId)
-    .in('status', ['published', 'scheduled', 'draft']);
+    .eq('status', 'published'); // Only include published posts
 
   if (brandId && brandId !== 'all') {
     postsQuery = postsQuery.eq('brand_id', brandId);
