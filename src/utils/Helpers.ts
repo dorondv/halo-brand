@@ -1,10 +1,10 @@
 import { routing } from '@/libs/I18nRouting';
 
+/**
+ * Gets the base URL for the app. On Vercel, never falls back to localhost.
+ * Per Vercel docs: VERCEL_URL is automatically set for all deployments.
+ */
 export const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL;
-  }
-
   if (
     process.env.VERCEL_ENV === 'production'
     && process.env.VERCEL_PROJECT_PRODUCTION_URL
@@ -33,26 +33,19 @@ export const isServer = () => {
 
 /**
  * Gets the auth callback URL for Supabase OAuth.
+ * Prefers request headers (reflects actual URL user is on); falls back to env vars.
  *
- * For Supabase auth callbacks, you need to whitelist redirect URLs in your Supabase dashboard:
- * - Production: https://yourdomain.com/api/auth/callback (or use NEXT_PUBLIC_APP_URL)
- * - Previews: https://*.vercel.app/api/auth/callback (wildcard pattern)
- * - Local: http://localhost:3000/api/auth/callback
+ * Supabase dashboard must whitelist: production, https://*.vercel.app/api/auth/callback, localhost.
  *
- * @param headers - Optional headers object from Next.js headers() - use this in server actions for reliable URL detection
- * @returns The full callback URL including the /api/auth/callback path
+ * @param headers - Optional headers from headers() - use in server actions for reliable detection
  */
-export async function getAuthCallbackUrl(headers?: Headers) {
-  // If headers are provided (server actions), use them for reliable URL detection
+export async function getAuthCallbackUrl(headers?: Headers): Promise<string> {
   if (headers) {
-    const protocol = headers.get('x-forwarded-proto') || 'https';
-    const host = headers.get('host') || '';
+    const scheme = headers.get('x-forwarded-proto') === 'http' ? 'http' : 'https';
+    const host = headers.get('x-forwarded-host') || headers.get('host') || '';
     if (host) {
-      return `${protocol}://${host}/api/auth/callback`;
+      return `${scheme}://${host}/api/auth/callback`;
     }
   }
-
-  // Fallback to environment variables
-  const baseUrl = getBaseUrl();
-  return `${baseUrl}/api/auth/callback`;
+  return `${getBaseUrl()}/api/auth/callback`;
 }
