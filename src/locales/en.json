@@ -520,6 +520,8 @@
     "appearance_desc": "Customize the system's appearance to your liking",
     "light_mode": "Light Mode",
     "light_mode_desc": "Bright and clear interface",
+    "dark_mode": "Dark Mode",
+    "dark_mode_desc": "Easy on the eyes in low light",
     "save_tip": "Tip: Changes will be saved permanently and will apply to all your future logins",
     "save_success": "Settings saved successfully",
     "save_error": "Failed to save settings"

@@ -520,6 +520,8 @@
     "appearance_desc": "Personaliza la apariencia del sistema a tu gusto",
     "light_mode": "Modo Claro",
     "light_mode_desc": "Interfaz brillante y clara",
+    "dark_mode": "Modo Oscuro",
+    "dark_mode_desc": "Cómodo para la vista con poca luz",
     "save_tip": "Consejo: Los cambios se guardarán permanentemente y se aplicarán a todos tus futuros inicios de sesión",
     "save_success": "Configuración guardada exitosamente",
     "save_error": "Error al guardar configuración"

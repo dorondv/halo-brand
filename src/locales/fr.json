@@ -520,6 +520,8 @@
     "appearance_desc": "Personnalisez l'apparence du système selon vos préférences",
     "light_mode": "Mode Clair",
     "light_mode_desc": "Interface lumineuse et claire",
+    "dark_mode": "Mode Sombre",
+    "dark_mode_desc": "Confortable pour les yeux en faible luminosité",
     "save_tip": "Astuce : Les modifications seront enregistrées de manière permanente et s'appliqueront à toutes vos futures connexions",
     "save_success": "Paramètres enregistrés avec succès",
     "save_error": "Échec de l'enregistrement des paramètres"

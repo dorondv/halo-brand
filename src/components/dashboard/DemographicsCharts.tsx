@@ -64,7 +64,7 @@ function DemographicsCharts({
   const charts = [
     <Card key="countries" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Globe className="h-5 w-5 text-pink-600" />
           {countriesTitle}
         </CardTitle>
@@ -119,7 +119,7 @@ function DemographicsCharts({
     </Card>,
     <Card key="gender" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Users className="h-5 w-5 text-pink-600" />
           {genderTitle}
         </CardTitle>
@@ -174,7 +174,7 @@ function DemographicsCharts({
     </Card>,
     <Card key="age" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Users className="h-5 w-5 text-pink-600" />
           {ageTitle}
         </CardTitle>

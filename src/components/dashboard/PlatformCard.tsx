@@ -74,30 +74,30 @@ export function PlatformCard({
   return (
     <Card
       className={cn(
-        'bg-white shadow-md rounded-lg transition-all cursor-pointer w-full h-full',
+        'bg-white dark:bg-gray-800 shadow-md rounded-lg transition-all cursor-pointer w-full h-full',
         // Override base Card border styles when selected
         isSelected
-          ? '!border-2 !border-pink-500 ring-2 ring-pink-100 shadow-lg'
-          : 'border border-gray-200',
+          ? '!border-2 !border-pink-500 ring-2 ring-pink-100 dark:ring-pink-900/40 shadow-lg'
+          : 'border border-gray-200 dark:border-gray-700',
       )}
     >
       <CardContent className="flex h-full min-w-0 flex-1 flex-col items-center gap-2 p-3 sm:gap-3 sm:p-4">
         {/* Icon in pink circular background */}
-        <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-pink-100 sm:mt-2 sm:h-12 sm:w-12">
-          <Icon className="h-5 w-5 text-pink-600 sm:h-6 sm:w-6" />
+        <div className="mt-1 flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-full bg-pink-100 sm:mt-2 sm:h-12 sm:w-12 dark:bg-pink-900/40">
+          <Icon className="h-5 w-5 text-pink-600 sm:h-6 sm:w-6 dark:text-pink-400" />
         </div>
 
         {/* Platform name */}
-        <p className="line-clamp-2 flex min-h-10 items-center justify-center px-1 text-center text-xs font-medium break-words text-gray-700 sm:text-sm md:text-base">
+        <p className="line-clamp-2 flex min-h-10 items-center justify-center px-1 text-center text-xs font-medium break-words text-gray-700 sm:text-sm md:text-base dark:text-gray-200">
           {displayName}
         </p>
 
         {/* Value */}
-        <p className="text-lg font-semibold whitespace-nowrap text-gray-900 sm:text-xl">{formatted}</p>
+        <p className="text-lg font-semibold whitespace-nowrap text-gray-900 sm:text-xl dark:text-gray-100">{formatted}</p>
 
         {/* Percentage change */}
         <div className="flex items-center gap-1">
-          <span className="flex items-center gap-1 text-xs font-medium text-pink-600">
+          <span className="flex items-center gap-1 text-xs font-medium text-pink-600 dark:text-pink-400">
             <TrendingUp className="h-3 w-3" />
             {change >= 0 ? '+' : ''}
             {change.toFixed(1)}

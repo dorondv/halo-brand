@@ -5,12 +5,12 @@ export const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: 'bg-blue-600 text-white shadow hover:bg-blue-700',
-        destructive: 'bg-red-600 text-white shadow-sm hover:bg-red-700',
-        outline: 'border border-slate-300 bg-white shadow-sm hover:bg-slate-100 hover:text-slate-900',
-        secondary: 'bg-slate-100 text-slate-900 shadow-sm hover:bg-slate-200',
-        ghost: 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
-        link: 'text-blue-600 underline-offset-4 hover:underline',
+        default: 'bg-pink-500 text-white shadow hover:bg-pink-600 dark:bg-pink-600 dark:hover:bg-pink-700',
+        destructive: 'bg-red-600 text-white shadow-sm hover:bg-red-700 dark:bg-red-600 dark:hover:bg-red-700',
+        outline: 'border border-slate-300 bg-white shadow-sm hover:bg-slate-100 hover:text-slate-900 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700 dark:hover:text-gray-100',
+        secondary: 'bg-slate-100 text-slate-900 shadow-sm hover:bg-slate-200 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600',
+        ghost: 'text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-gray-300 dark:hover:bg-gray-800 dark:hover:text-gray-100',
+        link: 'text-pink-600 underline-offset-4 hover:underline dark:text-pink-400 dark:hover:underline',
       },
       size: {
         default: 'h-9 px-4 py-2',

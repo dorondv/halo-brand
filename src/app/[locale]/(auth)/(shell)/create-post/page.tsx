@@ -2533,21 +2533,21 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* AI Generation Loader Overlay */}
       {isGeneratingAll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative rounded-2xl bg-white p-8 shadow-2xl">
+          <div className="relative rounded-2xl bg-white p-8 shadow-2xl dark:border dark:border-gray-700 dark:bg-gray-800">
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="h-16 w-16 animate-spin rounded-full border-4 border-pink-200 border-t-pink-600" />
                 <Wand2 className="absolute top-1/2 left-1/2 h-6 w-6 -translate-x-1/2 -translate-y-1/2 text-pink-600" />
               </div>
               <div className="text-center">
-                <h3 className="text-lg font-semibold text-slate-900">
+                <h3 className="text-lg font-semibold text-slate-900 dark:text-gray-100">
                   {isRTL ? 'יוצר תוכן באמצעות AI...' : 'Generating content with AI...'}
                 </h3>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
                   {isRTL ? 'אנא המתן, זה עשוי לקחת כמה רגעים' : 'Please wait, this may take a few moments'}
                 </p>
               </div>
@@ -2559,19 +2559,19 @@ export default function CreatePostPage() {
       <div className="mx-auto max-w-[1600px] px-6 py-6">
         {/* Header */}
         <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-slate-900">{t('title')}</h1>
+          <h1 className="text-2xl font-semibold text-slate-900 dark:text-gray-100">{t('title')}</h1>
         </div>
 
         {/* Subscription Limits Counters */}
         {limits && (
           <div className={`mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 ${isRTL ? 'text-right' : ''}`}>
             {/* Posts Counter */}
-            <Card className={`border ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+            <Card className={`border ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'פוסטים החודש' : 'Posts This Month'}</p>
-                    <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'פוסטים החודש' : 'Posts This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.postsThisMonth}
                       {' '}
                       /
@@ -2591,12 +2591,12 @@ export default function CreatePostPage() {
             </Card>
 
             {/* AI Generations Counter */}
-            <Card className={`border ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+            <Card className={`border ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תוכן AI החודש' : 'AI Content This Month'}</p>
-                    <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'תוכן AI החודש' : 'AI Content This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiGenerationsThisMonth}
                       {' '}
                       /
@@ -2616,12 +2616,12 @@ export default function CreatePostPage() {
             </Card>
 
             {/* AI Images Allowed Counter */}
-            <Card className={`border ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+            <Card className={`border ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600">{isRTL ? 'תמונות AI החודש' : 'AI Images This Month'}</p>
-                    <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600' : 'text-slate-900'}`}>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'תמונות AI החודש' : 'AI Images This Month'}</p>
+                    <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiImageGenerationsThisMonth}
                       {' '}
                       /
@@ -2645,15 +2645,15 @@ export default function CreatePostPage() {
         {/* Check if brand is selected */}
         {!selectedBrandId
           ? (
-              <Card className="border-2 border-amber-200 bg-amber-50/50 shadow-lg">
+              <Card className="border-2 border-amber-200 bg-amber-50/50 shadow-lg dark:border-amber-900/50 dark:bg-amber-950/30">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="mb-4 rounded-full bg-amber-100 p-4">
-                    <AlertCircle className="h-12 w-12 text-amber-600" />
+                  <div className="mb-4 rounded-full bg-amber-100 p-4 dark:bg-amber-900/40">
+                    <AlertCircle className="h-12 w-12 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <h2 className="mb-2 text-2xl font-semibold text-slate-900">
+                  <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-gray-100">
                     {isRTL ? 'אנא בחר מותג' : 'Please Select a Brand'}
                   </h2>
-                  <p className="mb-6 max-w-md text-slate-600">
+                  <p className="mb-6 max-w-md text-slate-600 dark:text-gray-300">
                     {isRTL
                       ? 'על מנת ליצור פוסטים, אנא בחר מותג מהתפריט למעלה.'
                       : 'To create posts, please select a brand from the menu above.'}
@@ -2663,15 +2663,15 @@ export default function CreatePostPage() {
             )
           : !accounts.some(acc => acc.getlate_account_id && acc.getlate_account_id.trim() !== '')
               ? (
-                  <Card className="border-2 border-pink-200 bg-pink-50/50 shadow-lg">
+                  <Card className="border-2 border-pink-200 bg-pink-50/50 shadow-lg dark:border-pink-900/50 dark:bg-gray-800/80">
                     <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                      <div className="mb-4 rounded-full bg-pink-100 p-4">
-                        <Users className="h-12 w-12 text-pink-500" />
+                      <div className="mb-4 rounded-full bg-pink-100 p-4 dark:bg-pink-900/40">
+                        <Users className="h-12 w-12 text-pink-500 dark:text-pink-400" />
                       </div>
-                      <h2 className="mb-2 text-2xl font-semibold text-slate-900">
+                      <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-gray-100">
                         {isRTL ? 'אין חשבונות מחוברים' : 'No Connected Accounts'}
                       </h2>
-                      <p className="mb-6 max-w-md text-slate-600">
+                      <p className="mb-6 max-w-md text-slate-600 dark:text-gray-300">
                         {isRTL
                           ? 'על מנת ליצור פוסטים, אנא עבור לדף החיבורים וחבר חשבון עבור המותג הזה.'
                           : 'To create posts, please go to the connections page and connect an account for this brand.'}
@@ -2713,8 +2713,8 @@ export default function CreatePostPage() {
                                   className={cn(
                                     'flex shrink-0 items-center gap-2 rounded-lg border-2 p-2 transition-all',
                                     isSelected
-                                      ? 'border-pink-500 bg-pink-50'
-                                      : 'border-slate-200 bg-white hover:border-slate-300',
+                                      ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                      : 'border-slate-200 bg-white hover:border-slate-300 dark:border-gray-700 dark:bg-gray-800 dark:hover:border-gray-600',
                                     (!isConnected || !selectedBrandId) && 'opacity-50 cursor-not-allowed',
                                   )}
                                 >
@@ -2728,7 +2728,7 @@ export default function CreatePostPage() {
                                     disabled={!isConnected || !selectedBrandId}
                                     className={cn(
                                       'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg transition-colors',
-                                      isSelected ? config.bg : 'bg-slate-300',
+                                      isSelected ? config.bg : 'bg-slate-300 dark:bg-gray-600',
                                       (!isConnected || !selectedBrandId) && 'cursor-not-allowed opacity-50',
                                     )}
                                     title={
@@ -2739,7 +2739,7 @@ export default function CreatePostPage() {
                                             : undefined
                                     }
                                   >
-                                    <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-slate-600')} />
+                                    <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-slate-600 dark:text-gray-400')} />
                                   </button>
                                 </div>
                               );
@@ -2751,8 +2751,8 @@ export default function CreatePostPage() {
                           <Card className="border-0 shadow-lg">
                             <CardHeader className="pb-3">
                               <div className="flex items-center justify-between">
-                                <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
-                                  <Users className="h-5 w-5 text-pink-500" />
+                                <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-gray-100">
+                                  <Users className="h-5 w-5 text-pink-500 dark:text-pink-400" />
                                   {isRTL ? 'תוכן משותף לכל הפלטפורמות' : 'Shared Content for All Platforms'}
                                 </CardTitle>
                                 {selectedPlatforms.length > 1 && (
@@ -2917,7 +2917,7 @@ export default function CreatePostPage() {
                                   if (selectedPlatforms.length === 1 && formats[0]) {
                                     return (
                                       <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                                        <label className="text-sm font-semibold text-slate-900">
+                                        <label className="text-sm font-semibold text-slate-900 dark:text-gray-100">
                                           {isRTL ? 'סוג פוסט:' : 'Post Type:'}
                                         </label>
                                         <span className="rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
@@ -2930,7 +2930,7 @@ export default function CreatePostPage() {
                                   // Show formats per platform (for multiple platforms or when formats differ)
                                   return (
                                     <div className={cn('space-y-2', isRTL && 'text-right')}>
-                                      <label className="block text-sm font-semibold text-slate-900">
+                                      <label className="block text-sm font-semibold text-slate-900 dark:text-gray-100">
                                         {isRTL ? 'סוגי פוסט:' : 'Post Types:'}
                                       </label>
                                       <div className={cn('flex flex-wrap gap-2', isRTL && 'flex-row-reverse')}>
@@ -3288,12 +3288,12 @@ export default function CreatePostPage() {
                                   <TabsContent value="ai" className="mt-2 space-y-2">
                                     {/* Images in Post Counter - moved here from top */}
                                     {limits && (
-                                      <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+                                      <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                         <CardContent className="p-3">
                                           <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <div className="flex-1">
                                               <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
-                                              <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
+                                              <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                 {usage.imagesInCurrentPost}
                                                 {' '}
                                                 /
@@ -3639,7 +3639,7 @@ export default function CreatePostPage() {
                         {editMode === 'per-platform' && selectedPlatforms.length > 0 && (
                           <Card className="border-0 shadow-lg">
                             <CardHeader className="pb-3">
-                              <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900">
+                              <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-gray-100">
                                 <Pencil className="h-5 w-5 text-pink-500" />
                                 {isRTL ? 'עריכה לפי פלטפורמה' : 'Edit by Platform'}
                               </CardTitle>
@@ -3698,7 +3698,7 @@ export default function CreatePostPage() {
                                         {/* Post Type Selection */}
                                         {isSelected && availableFormats.length > 0 && (
                                           <div className={cn('space-y-2', isRTL && 'text-right')}>
-                                            <label className="block text-sm font-semibold text-slate-900">
+                                            <label className="block text-sm font-semibold text-slate-900 dark:text-gray-100">
                                               {isRTL ? 'בחר סוג פוסט:' : 'Select Post Type:'}
                                             </label>
                                             <Popover
@@ -4113,12 +4113,12 @@ export default function CreatePostPage() {
                                                 <TabsContent value="ai" className="mt-2 space-y-2">
                                                   {/* Images in Post Counter - moved here from top */}
                                                   {limits && (
-                                                    <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white'}`}>
+                                                    <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                                       <CardContent className="p-3">
                                                         <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                           <div className="flex-1">
                                                             <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
-                                                            <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-slate-900'}`}>
+                                                            <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                               {usage.imagesInCurrentPost}
                                                               {' '}
                                                               /
@@ -4338,7 +4338,7 @@ export default function CreatePostPage() {
                       <div className="hidden lg:block">
                         <Card className="sticky top-6 border-0 shadow-lg">
                           <CardHeader className="flex flex-row items-center justify-between pb-3">
-                            <CardTitle className="text-base font-semibold text-slate-900">
+                            <CardTitle className="text-base font-semibold text-slate-900 dark:text-gray-100">
                               {isRTL ? 'תצוגה מקדימה' : 'Preview'}
                             </CardTitle>
                             <div className="flex items-center gap-2">

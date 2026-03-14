@@ -310,10 +310,10 @@ export function InsightsClient() {
           className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center"
         >
           <div>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+            <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
           </div>
 
           <Button
@@ -366,7 +366,7 @@ export function InsightsClient() {
               ? (
                   <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
                     {/* Timing Insights */}
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Clock className="h-5 w-5 text-blue-500" />
@@ -377,14 +377,14 @@ export function InsightsClient() {
                         {currentInsights.timing?.map(tip => (
                           <div key={tip} className="flex items-start gap-3 rounded-lg bg-blue-50 p-3">
                             <Lightbulb className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-500" />
-                            <p className="text-sm text-slate-700">{tip}</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-200">{tip}</p>
                           </div>
                         ))}
                       </CardContent>
                     </Card>
 
                     {/* Content Insights */}
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <MessageSquare className="h-5 w-5 text-green-500" />
@@ -395,14 +395,14 @@ export function InsightsClient() {
                         {currentInsights.content?.map(tip => (
                           <div key={tip} className="flex items-start gap-3 rounded-lg bg-green-50 p-3">
                             <Target className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-500" />
-                            <p className="text-sm text-slate-700">{tip}</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-200">{tip}</p>
                           </div>
                         ))}
                       </CardContent>
                     </Card>
 
                     {/* Keywords Insights */}
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <Star className="h-5 w-5 text-yellow-500" />
@@ -413,14 +413,14 @@ export function InsightsClient() {
                         {currentInsights.keywords?.map(tip => (
                           <div key={tip} className="flex items-start gap-3 rounded-lg bg-yellow-50 p-3">
                             <Star className="mt-0.5 h-5 w-5 flex-shrink-0 text-yellow-500" />
-                            <p className="text-sm text-slate-700">{tip}</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-200">{tip}</p>
                           </div>
                         ))}
                       </CardContent>
                     </Card>
 
                     {/* Strategy Insights */}
-                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                    <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                       <CardHeader>
                         <CardTitle className="flex items-center gap-2">
                           <TrendingUp className="h-5 w-5 text-purple-500" />
@@ -431,7 +431,7 @@ export function InsightsClient() {
                         {currentInsights.strategy?.map(tip => (
                           <div key={tip} className="flex items-start gap-3 rounded-lg bg-purple-50 p-3">
                             <TrendingUp className="mt-0.5 h-5 w-5 flex-shrink-0 text-purple-500" />
-                            <p className="text-sm text-slate-700">{tip}</p>
+                            <p className="text-sm text-slate-700 dark:text-slate-200">{tip}</p>
                           </div>
                         ))}
                       </CardContent>
@@ -439,7 +439,7 @@ export function InsightsClient() {
                   </div>
                 )
               : (
-                  <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+                  <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
                     <CardContent className="py-12 text-center">
                       <Lightbulb className="mx-auto mb-4 h-16 w-16 text-gray-400" />
                       <p className="mb-4 text-lg font-medium text-slate-700">
@@ -475,7 +475,7 @@ export function InsightsClient() {
           </TabsContent>
 
           <TabsContent value="performance" className="mt-6 space-y-6">
-            <Card className="rounded-lg border border-gray-200 bg-white shadow-xl">
+            <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
               <CardHeader>
                 <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                   <div>
@@ -556,7 +556,7 @@ export function InsightsClient() {
                                 {index + 1}
                               </Badge>
                               <div className="flex-1">
-                                <p className="line-clamp-2 font-medium text-slate-900">{post.content}</p>
+                                <p className="line-clamp-2 font-medium text-slate-900 dark:text-slate-100">{post.content}</p>
                                 <div className={`mt-2 flex items-center gap-4 text-sm text-slate-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                   {platformDisplayName && (
                                     <div className="flex items-center gap-1">

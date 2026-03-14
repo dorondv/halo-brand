@@ -6,6 +6,8 @@ import { notFound } from 'next/navigation';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import { ChatwootWidget } from '@/components/chatwoot/ChatwootWidget';
+import { ThemeInitScript } from '@/components/theme/ThemeInitScript';
+import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { routing } from '@/libs/I18nRouting';
 import '@/styles/global.css';
 
@@ -53,16 +55,18 @@ export default async function RootLayout(props: {
   const chatwootToken = process.env.CHATWOOT_WEBSITE_TOKEN;
 
   return (
-    <html lang={locale} dir={dir} className={inter.variable}>
-      <body className="font-sans antialiased">
-        <NextIntlClientProvider>
-          <PostHogProvider>
-            <GoogleAnalytics />
-            {props.children}
-            <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
-          </PostHogProvider>
-
-        </NextIntlClientProvider>
+    <html lang={locale} dir={dir} className={inter.variable} suppressHydrationWarning>
+      <body className="bg-white font-sans text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100">
+        <ThemeInitScript />
+        <ThemeProvider>
+          <NextIntlClientProvider>
+            <PostHogProvider>
+              <GoogleAnalytics />
+              {props.children}
+              <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
+            </PostHogProvider>
+          </NextIntlClientProvider>
+        </ThemeProvider>
       </body>
     </html>
   );

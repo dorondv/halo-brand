@@ -25,7 +25,7 @@ export default async function InboxPage() {
   const isRTL = locale === 'he';
 
   return (
-    <div className="flex h-full w-full flex-col" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="flex h-full min-h-screen w-full flex-col bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
       <div className="flex-1 overflow-hidden">
         <UnifiedInbox locale={locale} />
       </div>

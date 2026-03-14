@@ -2,6 +2,8 @@
 
 import Image from 'next/image';
 import { useState } from 'react';
+import { useTheme } from '@/components/theme/theme-context';
+import { useHasMounted } from '@/components/theme/useHasMounted';
 
 type LogoProps = {
   className?: string;
@@ -10,7 +12,13 @@ type LogoProps = {
 };
 
 export function Logo({ className = '', width = 32, height = 32 }: LogoProps) {
-  const [imgSrc, setImgSrc] = useState('/assets/images/logo.svg');
+  const mounted = useHasMounted();
+  const { isDark } = useTheme();
+  const [useFallback, setUseFallback] = useState(false);
+
+  // Use light logo until mounted to avoid hydration mismatch (server has no theme)
+  const logoSrc = mounted && isDark ? '/assets/images/logo-inverted.svg' : '/assets/images/logo.svg';
+  const src = useFallback ? '/logo.png' : logoSrc;
 
   return (
     <div
@@ -18,18 +26,13 @@ export function Logo({ className = '', width = 32, height = 32 }: LogoProps) {
       style={{ width: `${width}px`, height: `${height}px` }}
     >
       <Image
-        src={imgSrc}
+        src={src}
         alt="Branda Logo"
         width={width}
         height={height}
         className="h-full w-full object-contain drop-shadow-sm"
         priority
-        onError={() => {
-          // Fallback to /logo.png if the first path doesn't work
-          if (imgSrc !== '/logo.png') {
-            setImgSrc('/logo.png');
-          }
-        }}
+        onError={() => setUseFallback(true)}
       />
     </div>
   );
