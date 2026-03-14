@@ -2231,14 +2231,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         // Calculate engagement
         const engagement = likes + comments + shares;
 
-        // Calculate engagement rate
+        // Calculate engagement rate: use Meta/API value if available, else (clicks+views+likes+comments+shares)/impressions
         const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
           ? Number(analytics.engagementRate)
           : null;
-
+        const totalEngagementForRate = clicks + views + likes + comments + shares;
         const engagementRate = engagementRateFromAPI !== null
           ? engagementRateFromAPI
-          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+          : (impressions > 0 ? (totalEngagementForRate / impressions) * 100 : 0);
 
         const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
 
@@ -2368,9 +2368,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const metadata = postAnalytics ? ((postAnalytics.metadata as any) || {}) : {};
       const engagement = likes + comments + shares;
       const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
+      const clicksScoring = Number(metadata.clicks ?? 0);
+      const viewsScoring = Number(metadata.views ?? 0);
+      const totalEngagementForRateScoring = clicksScoring + viewsScoring + likes + comments + shares;
       const engagementRate = engagementRateFromMetadata !== null
         ? engagementRateFromMetadata
-        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+        : (impressions > 0 ? (totalEngagementForRateScoring / impressions) * 100 : 0);
 
       // Get platform
       let platform = 'unknown';
@@ -2467,13 +2470,34 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       };
 
       // Extract media URLs (shared across all platforms)
+      // Sources: metadata.media_urls, metadata.mediaItems, metadata.thumbnailUrl, post.image_url, analytics metadata
       const meta = (postData as any)?.metadata as any;
-      const rawMediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const rawMediaUrlsFromMeta = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const rawMediaUrlsFromItems: string[] = [];
+      if (meta?.mediaItems && Array.isArray(meta.mediaItems)) {
+        for (const item of meta.mediaItems) {
+          if (typeof item === 'object' && item !== null && 'url' in item) {
+            const url = String((item as any).url).trim();
+            if (url && !rawMediaUrlsFromItems.includes(url)) {
+              rawMediaUrlsFromItems.push(url);
+            }
+          } else if (typeof item === 'string' && item.trim()) {
+            if (!rawMediaUrlsFromItems.includes(item.trim())) {
+              rawMediaUrlsFromItems.push(item.trim());
+            }
+          }
+        }
+      }
+      const metaThumbnail = meta?.thumbnailUrl && typeof meta.thumbnailUrl === 'string' ? String(meta.thumbnailUrl).trim() : null;
+      const rawMediaUrls = [
+        ...rawMediaUrlsFromMeta.filter((url: any): url is string => Boolean(url && typeof url === 'string')),
+        ...rawMediaUrlsFromItems,
+        ...(metaThumbnail && !rawMediaUrlsFromItems.includes(metaThumbnail) ? [metaThumbnail] : []),
+      ];
       const mediaUrls = rawMediaUrls
-        .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
         .map((url: string) => String(url).trim())
         .filter((url: string) => url.length > 0);
-      const rawImageUrl = (postData as any)?.image_url;
+      const rawImageUrl = (postData as any)?.image_url ?? metaThumbnail;
       const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' ? String(rawImageUrl).trim() : null;
 
       const normalizedMediaUrls = mediaUrls
@@ -2626,9 +2650,35 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         const views = Number(analyticsMetadata.views ?? 0);
         const engagement = likes + comments + shares;
         const engagementRateFromMetadata = analyticsMetadata.engagementRate !== undefined ? Number(analyticsMetadata.engagementRate) : null;
+        // Use Meta's engagement rate if available, else: (clicks+views+likes+comments+shares) / impressions
+        const totalEngagementForRate = clicks + views + likes + comments + shares;
         const engagementRate = engagementRateFromMetadata !== null
           ? engagementRateFromMetadata
-          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+          : (impressions > 0 ? (totalEngagementForRate / impressions) * 100 : 0);
+
+        // Enrich media from platform-specific analytics metadata (thumbnailUrl, mediaItems)
+        let rowMediaUrls = finalMediaUrls;
+        const paMeta = platformAnalytics?.metadata as any;
+        if (paMeta && (paMeta.thumbnailUrl || (paMeta.mediaItems && Array.isArray(paMeta.mediaItems)))) {
+          const extraUrls: string[] = [];
+          if (paMeta.thumbnailUrl && typeof paMeta.thumbnailUrl === 'string') {
+            const t = String(paMeta.thumbnailUrl).trim();
+            if (t && !rowMediaUrls.includes(t)) {
+              extraUrls.push(t);
+            }
+          }
+          if (paMeta.mediaItems && Array.isArray(paMeta.mediaItems)) {
+            for (const it of paMeta.mediaItems) {
+              const u = typeof it === 'object' && it?.url ? String(it.url).trim() : (typeof it === 'string' ? it.trim() : '');
+              if (u && !rowMediaUrls.includes(u) && !extraUrls.includes(u)) {
+                extraUrls.push(u);
+              }
+            }
+          }
+          if (extraUrls.length > 0) {
+            rowMediaUrls = [...rowMediaUrls, ...extraUrls];
+          }
+        }
 
         expandedPostsFromDb.push({
           id: `${postId}-${platform}`, // Unique ID per platform
@@ -2645,7 +2695,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           date: platformAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
           postContent: (postData as any)?.content ?? '',
           platform,
-          mediaUrls: finalMediaUrls,
+          mediaUrls: rowMediaUrls,
           imageUrl: imageUrl && imageUrl.length > 0 ? imageUrl : undefined,
           platformPostUrl, // Platform-specific URL
         });

@@ -242,6 +242,13 @@ const baseConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
+      // Getlate CDN / API media
+      {
+        protocol: 'https',
+        hostname: '**.getlate.dev',
+        port: '',
+        pathname: '/**',
+      },
     ],
   },
 };

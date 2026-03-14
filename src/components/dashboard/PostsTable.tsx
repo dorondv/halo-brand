@@ -2,7 +2,7 @@
 
 import { format } from 'date-fns';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
-import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FileText, Play } from 'lucide-react';
+import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp, ExternalLink, FileText, ImageIcon, Play } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -39,6 +39,30 @@ type PostsTableProps = {
 };
 
 const EMPTY_POSTS: PostRow[] = [];
+
+/** Renders post media with fallback when image fails to load (e.g. expired Meta CDN URLs) */
+function PostMediaImage({ mediaUrl, alt }: { mediaUrl: string; alt: string }) {
+  const [hasError, setHasError] = React.useState(false);
+  const isInternal = mediaUrl.startsWith('/') || mediaUrl.includes('supabase.co') || mediaUrl.includes('getlate.dev');
+  if (hasError) {
+    return (
+      <div className="flex h-full w-full items-center justify-center bg-gray-200 dark:bg-gray-600">
+        <ImageIcon className="h-4 w-4 text-gray-500 sm:h-5 sm:w-5 dark:text-gray-400" />
+      </div>
+    );
+  }
+  return (
+    <Image
+      src={mediaUrl}
+      alt={alt}
+      fill
+      className="object-cover"
+      sizes="56px"
+      unoptimized={!isInternal}
+      onError={() => setHasError(true)}
+    />
+  );
+}
 
 const PlatformIcon = ({ platform, className }: { platform: string; className?: string }) => {
   const platformLower = platform.toLowerCase();
@@ -648,14 +672,10 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                                 </div>
                                               )
                                             : (
-                                                <Image
+                                                <PostMediaImage
                                                   key={mediaKey}
-                                                  src={mediaUrl}
+                                                  mediaUrl={mediaUrl}
                                                   alt={`Post media ${index + 1}`}
-                                                  fill
-                                                  className="object-cover"
-                                                  sizes="56px"
-                                                  unoptimized={!mediaUrl.startsWith('/') && !mediaUrl.includes('supabase.co') && !mediaUrl.includes('getlate.dev')}
                                                 />
                                               )}
                                         </div>
