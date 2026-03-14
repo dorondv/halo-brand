@@ -611,8 +611,6 @@
     "first_name_placeholder": "Digite o nome",
     "last_name": "Sobrenome",
     "last_name_placeholder": "Digite o sobrenome",
-    "id_number": "Número do Documento (Opcional)",
-    "id_number_placeholder": "Digite o número do documento",
     "preferences_title": "Preferências",
     "preferences_desc": "Configure as preferências do sistema",
     "country": "País",

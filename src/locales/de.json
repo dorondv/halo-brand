@@ -611,8 +611,6 @@
     "first_name_placeholder": "Vorname eingeben",
     "last_name": "Nachname",
     "last_name_placeholder": "Nachname eingeben",
-    "id_number": "Ausweisnummer (Optional)",
-    "id_number_placeholder": "Ausweisnummer eingeben",
     "preferences_title": "Einstellungen",
     "preferences_desc": "Konfigurieren Sie Ihre Systemeinstellungen",
     "country": "Land",

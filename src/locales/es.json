@@ -611,8 +611,6 @@
     "first_name_placeholder": "Ingresa nombre",
     "last_name": "Apellido",
     "last_name_placeholder": "Ingresa apellido",
-    "id_number": "Número de Identificación (Opcional)",
-    "id_number_placeholder": "Ingresa número de identificación",
     "preferences_title": "Preferencias",
     "preferences_desc": "Configura tus preferencias del sistema",
     "country": "País",

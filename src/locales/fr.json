@@ -611,8 +611,6 @@
     "first_name_placeholder": "Entrez le prénom",
     "last_name": "Nom de Famille",
     "last_name_placeholder": "Entrez le nom de famille",
-    "id_number": "Numéro d'Identification (Optionnel)",
-    "id_number_placeholder": "Entrez le numéro d'identification",
     "preferences_title": "Préférences",
     "preferences_desc": "Configurez vos préférences système",
     "country": "Pays",

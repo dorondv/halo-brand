@@ -19,7 +19,6 @@ export const users = pgTable('users', {
   name: text('name'),
   firstName: text('first_name'),
   lastName: text('last_name'),
-  idNumber: text('id_number'),
   avatarUrl: text('avatar_url'), // User avatar extracted from OAuth provider metadata or auth.users
   provider: varchar('provider', { length: 50 }), // 'email', 'google', 'facebook', 'twitter', 'github', 'linkedin', etc.
   isActive: boolean('is_active').default(true).notNull(),
