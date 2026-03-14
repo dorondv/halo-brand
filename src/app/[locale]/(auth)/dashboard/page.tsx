@@ -10,7 +10,6 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
-import DemographicsCharts from '@/components/dashboard/DemographicsCharts';
 import EngagementAreaChart from '@/components/dashboard/EngagementAreaChart';
 import EngagementRateChart from '@/components/dashboard/EngagementRateChart';
 import FollowersTrendChart from '@/components/dashboard/FollowersTrendChart';
@@ -21,7 +20,6 @@ import PostsTable from '@/components/dashboard/PostsTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   getCachedAccounts,
-  getCachedDemographics,
   getCachedPosts,
   syncAnalyticsInBackground,
 } from '@/libs/dashboard-cache';
@@ -167,7 +165,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     { posts: postsData, analytics: analyticsData },
     { posts: previousPostsData, analytics: previousAnalyticsData },
     _accountsData,
-    demographics,
     followerStatsData,
     getlateOverview, // Get overview data from Getlate API (totalPosts, publishedPosts, scheduledPosts)
     getlatePosts, // Get posts directly from Getlate API (exact structure)
@@ -175,7 +172,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     getCachedPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getCachedPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
     getCachedAccounts(supabase, userId, selectedBrandId),
-    getCachedDemographics(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getFollowerStatsFromGetlate(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom,
       toDate: rangeTo,
@@ -2006,9 +2002,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Use the base order directly (already correct for the locale)
   const platformData = platformDataBase;
 
-  // Demographics data from cached function (real data only, empty arrays if no data)
-  const { countries: countriesData, genders: gendersData, ages: agesData } = demographics;
-
   // Generate filtered posts table data from actual posts if available, otherwise use dummy data
   let postsTableData: Array<{
     id?: string;
@@ -2827,20 +2820,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             );
           })()}
 
-          {/* Row 5: Demographics Charts */}
-          {/* Order for LTR: Countries, Gender, Age */}
-          {/* Order for RTL: Age, Gender, Countries (reversed) */}
-          <DemographicsCharts
-            countries={countriesData}
-            genders={gendersData}
-            ages={agesData}
-            countriesTitle={t('chart_countries_mix')}
-            genderTitle={t('chart_gender_mix')}
-            ageTitle={t('chart_age_mix')}
-            isRTL={isRTL}
-          />
-
-          {/* Row 6: Posts Table */}
+          {/* Row 5: Posts Table */}
           {/* Pass selectedPlatform to sync PostsTable filter with dashboard filter */}
           <PostsTable posts={postsTableData} initialPlatformFilter={selectedPlatform} />
         </div>
