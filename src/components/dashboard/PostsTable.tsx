@@ -356,24 +356,24 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
   };
 
   return (
-    <Card className="rounded-lg border border-gray-200 bg-white shadow-md">
+    <Card className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
       <CardHeader>
         <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex-1">
-            <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+            <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
               <FileText className="h-5 w-5 text-pink-600" />
               {t('posts_details_title')}
             </CardTitle>
-            <p className="mt-2 text-sm text-gray-600">
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               {t('posts_details_description')}
             </p>
-            <p className="mt-1 text-xs text-gray-500">
+            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
               {t('posts_table_scroll_hint') || '← Scroll horizontally to see all metrics →'}
             </p>
           </div>
           {availablePlatforms.length > 0 && (
             <div className={cn('flex items-center gap-2', localeCode === 'he' && 'flex-row-reverse')}>
-              <label className={cn('text-sm font-medium text-gray-700 whitespace-nowrap', localeCode === 'he' && 'text-right')}>
+              <label className={cn('text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap', localeCode === 'he' && 'text-right')}>
                 {localeCode === 'he' ? 'פלטפורמה:' : 'Platform:'}
               </label>
               <Select value={selectedPlatform} onValueChange={handlePlatformFilterChange}>
@@ -397,17 +397,17 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
         <div className="relative">
           <div className="scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 -mx-6 overflow-x-auto px-6">
             <div className="inline-block min-w-full align-middle">
-              <table className="min-w-full divide-y divide-gray-200">
+              <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
                 <thead>
-                  <tr className="border-b border-gray-200">
-                    <th className="sticky left-0 z-10 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs">
+                  <tr className="border-b border-gray-200 dark:border-gray-700">
+                    <th className="sticky left-0 z-10 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs dark:bg-gray-800 dark:text-gray-300">
                       {t('posts_table_platform')}
                     </th>
-                    <th className="max-w-[200px] min-w-[150px] px-1.5 py-2 text-right text-[10px] font-medium text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs">
+                    <th className="max-w-[200px] min-w-[150px] px-1.5 py-2 text-right text-[10px] font-medium text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs dark:text-gray-300">
                       {t('posts_table_post')}
                     </th>
                     <th
-                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('date')}
                     >
                       <div className={`flex items-center gap-1 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -418,7 +418,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('impressions')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -430,7 +430,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('reach')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -442,7 +442,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('clicks')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -454,7 +454,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('views')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -466,7 +466,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('likes')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -478,7 +478,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('comments')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -490,7 +490,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-14 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('shares')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -502,7 +502,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('engagement')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -514,7 +514,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-20 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('engagementRate')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -526,7 +526,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                       </div>
                     </th>
                     <th
-                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs"
+                      className="w-16 cursor-pointer px-1.5 py-2 text-right text-[10px] font-medium whitespace-nowrap text-gray-700 hover:bg-gray-50 sm:px-2 sm:text-xs dark:text-gray-300 dark:hover:bg-gray-700"
                       onClick={() => handleSort('score')}
                     >
                       <div className={`flex items-center gap-0.5 ${localeCode === 'he' ? 'justify-start' : 'justify-end'}`}>
@@ -537,7 +537,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                         )}
                       </div>
                     </th>
-                    <th className="sticky right-0 z-10 w-12 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs">
+                    <th className="sticky right-0 z-10 w-12 bg-white px-1.5 py-2 text-center text-[10px] font-medium text-gray-700 sm:px-2 sm:text-xs dark:bg-gray-800 dark:text-gray-300">
                       {t('posts_table_link') || 'Link'}
                     </th>
                   </tr>
@@ -564,7 +564,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                           : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
 
                         return (
-                          <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50">
+                          <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50">
                             <td className="sticky left-0 z-10 bg-white px-1.5 py-2 sm:px-2">
                               <div className="flex items-center justify-center">
                                 <div className={`flex h-6 w-6 items-center justify-center rounded sm:h-8 sm:w-8 ${getPlatformBgColor(post.platform)}`}>
@@ -572,7 +572,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                 </div>
                               </div>
                             </td>
-                            <td className={`max-w-[200px] min-w-[150px] px-1.5 py-2 text-[10px] text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                            <td className={`max-w-[200px] min-w-[150px] px-1.5 py-2 text-[10px] text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs dark:text-gray-300 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
                               {/* Media Thumbnails - Show all media */}
                               {(() => {
                                 // Normalize and stabilize media URLs to prevent hydration mismatch
@@ -638,7 +638,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                       return (
                                         <div
                                           key={mediaKey}
-                                          className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100 sm:h-14 sm:w-14"
+                                          className="relative h-10 w-10 shrink-0 overflow-hidden rounded border border-gray-200 bg-gray-100 sm:h-14 sm:w-14 dark:border-gray-600 dark:bg-gray-700"
                                           title={mediaUrl}
                                         >
                                           {isVideo
@@ -663,7 +663,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                     })}
                                     {remainingCount > 0 && (
                                       <div
-                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-xs font-medium text-gray-600 sm:h-14 sm:w-14 sm:text-sm"
+                                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded border border-gray-300 bg-gray-50 text-xs font-medium text-gray-600 sm:h-14 sm:w-14 sm:text-sm dark:border-gray-600 dark:bg-gray-700 dark:text-gray-300"
                                         title={`${remainingCount} more media items`}
                                       >
                                         +
@@ -674,42 +674,42 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                 );
                               })()}
                               {/* Post Content */}
-                              <div className={`line-clamp-2 text-gray-700 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                              <div className={`line-clamp-2 text-gray-700 dark:text-gray-300 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
                                 {post.postContent}
                               </div>
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               <div>
                                 <div className="font-medium">{dateStr}</div>
-                                <div className="text-[9px] text-gray-500 sm:text-[10px]">{timeStr}</div>
-                                <div className="hidden text-[9px] text-gray-500 sm:block">{dayName}</div>
+                                <div className="text-[9px] text-gray-500 sm:text-[10px] dark:text-gray-400">{timeStr}</div>
+                                <div className="hidden text-[9px] text-gray-500 sm:block dark:text-gray-400">{dayName}</div>
                               </div>
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.impressions)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.reach)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.clicks)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.views)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.likes)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.comments)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.shares)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {new Intl.NumberFormat('he-IL', { notation: 'compact', maximumFractionDigits: 1 }).format(post.engagement)}
                             </td>
-                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs">
+                            <td className="px-1.5 py-2 text-right text-[10px] whitespace-nowrap text-gray-700 sm:px-2 sm:text-xs dark:text-gray-300">
                               {post.engagementRate.toFixed(1)}
                               %
                             </td>
@@ -747,7 +747,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
         </div>
         {/* Pagination Controls */}
         {totalPages > 1 && (
-          <div className={`mt-4 flex items-center justify-between border-t border-gray-200 pt-4 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
+          <div className={`mt-4 flex items-center justify-between border-t border-gray-200 pt-4 dark:border-gray-700 ${localeCode === 'he' ? 'flex-row-reverse' : ''}`}>
             <div className="flex items-center gap-2">
               <Button
                 variant="outline"
@@ -793,7 +793,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
               </Button>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">
+              <span className="text-sm text-gray-600 dark:text-gray-400">
                 {t('pagination_page') || 'Page'}
                 {' '}
                 {currentPage}

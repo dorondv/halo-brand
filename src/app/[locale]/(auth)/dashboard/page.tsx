@@ -2693,12 +2693,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   return (
     <DashboardWrapper>
-      <div className="min-h-screen w-full overflow-x-hidden bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen w-full overflow-x-hidden bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
         <div className="w-full space-y-8 overflow-x-hidden px-6">
           {/* Header */}
           <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <DateRangePicker />
@@ -2733,10 +2733,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           {/* Order for RTL: Followers Trend, Impressions, Engagement (reversed) */}
           {(() => {
             const chartCards1 = [
-              <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Heart className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_engagement')}
                   </CardTitle>
                 </CardHeader>
@@ -2744,10 +2744,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <EngagementAreaChart data={engagementSeries} />
                 </CardContent>
               </Card>,
-              <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Eye className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Eye className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_impressions')}
                   </CardTitle>
                 </CardHeader>
@@ -2755,10 +2755,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <ImpressionsAreaChart data={impressionsSeriesData} />
                 </CardContent>
               </Card>,
-              <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Users className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Users className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_followers_trend')}
                   </CardTitle>
                 </CardHeader>
@@ -2779,10 +2779,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           {/* Order for RTL: Engagement Rate, Posts by Platform, Net Follower Growth (reversed) */}
           {(() => {
             const chartCards2 = [
-              <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Users className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Users className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_net_follower_growth')}
                   </CardTitle>
                 </CardHeader>
@@ -2790,10 +2790,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <NetFollowerGrowthChart data={netGrowthSeries} />
                 </CardContent>
               </Card>,
-              <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <FileText className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <FileText className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_posts_by_platform')}
                   </CardTitle>
                 </CardHeader>
@@ -2801,10 +2801,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <PostsByPlatformChart data={filteredPostsByPlatform} />
                 </CardContent>
               </Card>,
-              <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Heart className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_engagement_rate')}
                   </CardTitle>
                 </CardHeader>

@@ -1,10 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { Clock, Globe, Lightbulb, Settings as SettingsIcon, Sun, User as UserIcon } from 'lucide-react';
+import { Clock, Globe, Lightbulb, Moon, Settings as SettingsIcon, Sun, User as UserIcon } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import AvatarUpload from '@/components/settings/AvatarUpload';
+import { useTheme } from '@/components/theme/theme-context';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -62,6 +63,7 @@ export default function SettingsPage() {
   const locale = useLocale();
   const isRTL = locale === 'he';
   const toast = useToast();
+  const { setTheme } = useTheme();
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [userProfile, setUserProfile] = useState({
@@ -162,6 +164,9 @@ export default function SettingsPage() {
         avatar_url: data.avatar_url || null,
       });
 
+      // Apply theme immediately so it takes effect across the site
+      setTheme(data.light_mode ? 'light' : 'dark');
+
       // Show success toast
       toast.showToast(t('save_success'), 'success');
     } catch (error) {
@@ -176,6 +181,9 @@ export default function SettingsPage() {
       ...prev,
       [field]: value,
     }));
+    if (field === 'light_mode') {
+      setTheme(value ? 'light' : 'dark');
+    }
   };
 
   if (isLoading) {
@@ -183,7 +191,7 @@ export default function SettingsPage() {
       <div className="flex min-h-screen items-center justify-center p-6" dir={isRTL ? 'rtl' : 'ltr'}>
         <div className="text-center">
           <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-b-2 border-pink-500"></div>
-          <p className="text-slate-500">{t('loading')}</p>
+          <p className="text-slate-500 dark:text-slate-400">{t('loading')}</p>
         </div>
       </div>
     );
@@ -197,13 +205,13 @@ export default function SettingsPage() {
             <h1 className={cn(
               'bg-clip-text text-4xl font-bold text-transparent',
               isRTL
-                ? 'bg-gradient-to-l from-slate-900 to-slate-600'
-                : 'bg-gradient-to-r from-slate-900 to-slate-600',
+                ? 'bg-gradient-to-l from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-300'
+                : 'bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-300',
             )}
             >
               {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+            <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
           </div>
         </motion.div>
 
@@ -304,27 +312,35 @@ export default function SettingsPage() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Light Mode Toggle */}
-              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4">
+              {/* Light/Dark Mode Toggle */}
+              <div className="flex items-center justify-between rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800">
                 <div className={cn('flex items-center gap-3', isRTL ? 'flex-row-reverse' : '')}>
-                  <Sun className="h-5 w-5 text-yellow-500" />
+                  {userProfile.light_mode
+                    ? (
+                        <Sun className="h-5 w-5 text-yellow-500" />
+                      )
+                    : (
+                        <Moon className="h-5 w-5 text-slate-500 dark:text-slate-400" />
+                      )}
                   <div>
-                    <Label htmlFor="lightMode" className="text-base font-medium text-slate-800">
-                      {t('light_mode')}
+                    <Label htmlFor="lightMode" className="text-base font-medium text-slate-800 dark:text-slate-200">
+                      {userProfile.light_mode ? t('light_mode') : t('dark_mode')}
                     </Label>
-                    <p className="text-sm text-slate-500">{t('light_mode_desc')}</p>
+                    <p className="text-sm text-slate-500 dark:text-slate-400">
+                      {userProfile.light_mode ? t('light_mode_desc') : t('dark_mode_desc')}
+                    </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => handleInputChange('light_mode', !userProfile.light_mode)}
                   className={cn(
-                    'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2',
-                    userProfile.light_mode ? 'bg-pink-500' : 'bg-gray-300',
+                    'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 dark:focus:ring-offset-gray-900',
+                    userProfile.light_mode ? 'bg-pink-500' : 'bg-gray-300 dark:bg-gray-600',
                   )}
                   role="switch"
                   aria-checked={userProfile.light_mode}
-                  aria-label={t('light_mode')}
+                  aria-label={userProfile.light_mode ? t('light_mode') : t('dark_mode')}
                 >
                   <span
                     className={cn(
@@ -335,9 +351,9 @@ export default function SettingsPage() {
                 </button>
               </div>
               {/* Tip Section */}
-              <div className={cn('flex items-start gap-3 rounded-lg bg-blue-50 border border-blue-200 p-4', isRTL ? 'flex-row-reverse' : '')}>
+              <div className={cn('flex items-start gap-3 rounded-lg bg-blue-50 border border-blue-200 p-4 dark:bg-blue-900/20 dark:border-blue-800', isRTL ? 'flex-row-reverse' : '')}>
                 <Lightbulb className="h-5 w-5 shrink-0 text-yellow-500" />
-                <p className="text-sm text-blue-700">
+                <p className="text-sm text-blue-700 dark:text-blue-300">
                   {t('save_tip')}
                 </p>
               </div>

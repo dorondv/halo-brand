@@ -520,6 +520,8 @@
     "appearance_desc": "Passen Sie das Erscheinungsbild des Systems nach Ihren Wünschen an",
     "light_mode": "Heller Modus",
     "light_mode_desc": "Helle und klare Oberfläche",
+    "dark_mode": "Dunkelmodus",
+    "dark_mode_desc": "Schonend für die Augen bei wenig Licht",
     "save_tip": "Tipp: Änderungen werden dauerhaft gespeichert und gelten für alle Ihre zukünftigen Anmeldungen",
     "save_success": "Einstellungen erfolgreich gespeichert",
     "save_error": "Fehler beim Speichern der Einstellungen"

@@ -1022,10 +1022,10 @@ export default function CalendarPage() {
           className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
           <div className={isRTL ? 'text-right' : 'text-left'}>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+            <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
           </div>
 
           <div className={cn('flex flex-wrap gap-4', isRTL ? 'flex-row-reverse' : '')}>

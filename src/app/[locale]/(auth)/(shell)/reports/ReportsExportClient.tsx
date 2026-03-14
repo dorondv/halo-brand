@@ -387,8 +387,8 @@ export function ReportsExportClient() {
     <div className={cn('space-y-6', isRTL && 'rtl')} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className={cn('space-y-2', isRTL && 'text-right')}>
-        <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
-        <p className="text-lg text-gray-600">{t('subtitle')}</p>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
+        <p className="text-lg text-gray-600 dark:text-gray-400">{t('subtitle')}</p>
       </div>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
@@ -408,18 +408,18 @@ export function ReportsExportClient() {
                   className={cn(
                     'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                     reportType === 'comprehensive'
-                      ? 'border-pink-500 bg-pink-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-pink-200',
+                      ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                     isRTL && 'text-right',
                   )}
                 >
                   <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                    <div className={cn('rounded-lg bg-pink-100 p-2', reportType === 'comprehensive' && 'bg-pink-500')}>
-                      <BarChart3 className={cn('h-5 w-5', reportType === 'comprehensive' ? 'text-white' : 'text-pink-600')} />
+                    <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', reportType === 'comprehensive' && 'bg-pink-500 dark:bg-pink-500')}>
+                      <BarChart3 className={cn('h-5 w-5', reportType === 'comprehensive' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{t('report_type_comprehensive')}</h3>
-                      <p className="mt-1 text-sm text-gray-600">{t('report_type_comprehensive_desc')}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('report_type_comprehensive')}</h3>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('report_type_comprehensive_desc')}</p>
                     </div>
                   </div>
                 </button>
@@ -431,18 +431,18 @@ export function ReportsExportClient() {
                   className={cn(
                     'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                     reportType === 'engagement'
-                      ? 'border-pink-500 bg-pink-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-pink-200',
+                      ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                     isRTL && 'text-right',
                   )}
                 >
                   <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                    <div className={cn('rounded-lg bg-pink-100 p-2', reportType === 'engagement' && 'bg-pink-500')}>
-                      <LineChart className={cn('h-5 w-5', reportType === 'engagement' ? 'text-white' : 'text-pink-600')} />
+                    <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', reportType === 'engagement' && 'bg-pink-500 dark:bg-pink-500')}>
+                      <LineChart className={cn('h-5 w-5', reportType === 'engagement' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{t('report_type_engagement')}</h3>
-                      <p className="mt-1 text-sm text-gray-600">{t('report_type_engagement_desc')}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('report_type_engagement')}</h3>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('report_type_engagement_desc')}</p>
                     </div>
                   </div>
                 </button>
@@ -454,18 +454,18 @@ export function ReportsExportClient() {
                   className={cn(
                     'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                     reportType === 'growth'
-                      ? 'border-pink-500 bg-pink-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-pink-200',
+                      ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                     isRTL && 'text-right',
                   )}
                 >
                   <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                    <div className={cn('rounded-lg bg-pink-100 p-2', reportType === 'growth' && 'bg-pink-500')}>
-                      <TrendingUp className={cn('h-5 w-5', reportType === 'growth' ? 'text-white' : 'text-pink-600')} />
+                    <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', reportType === 'growth' && 'bg-pink-500 dark:bg-pink-500')}>
+                      <TrendingUp className={cn('h-5 w-5', reportType === 'growth' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{t('report_type_growth')}</h3>
-                      <p className="mt-1 text-sm text-gray-600">{t('report_type_growth_desc')}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('report_type_growth')}</h3>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('report_type_growth_desc')}</p>
                     </div>
                   </div>
                 </button>
@@ -477,18 +477,18 @@ export function ReportsExportClient() {
                   className={cn(
                     'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                     reportType === 'posts'
-                      ? 'border-pink-500 bg-pink-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-pink-200',
+                      ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                      : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                     isRTL && 'text-right',
                   )}
                 >
                   <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                    <div className={cn('rounded-lg bg-pink-100 p-2', reportType === 'posts' && 'bg-pink-500')}>
-                      <FileText className={cn('h-5 w-5', reportType === 'posts' ? 'text-white' : 'text-pink-600')} />
+                    <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', reportType === 'posts' && 'bg-pink-500 dark:bg-pink-500')}>
+                      <FileText className={cn('h-5 w-5', reportType === 'posts' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                     </div>
                     <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{t('report_type_posts')}</h3>
-                      <p className="mt-1 text-sm text-gray-600">{t('report_type_posts_desc')}</p>
+                      <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('report_type_posts')}</h3>
+                      <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{t('report_type_posts_desc')}</p>
                     </div>
                   </div>
                 </button>
@@ -510,8 +510,8 @@ export function ReportsExportClient() {
                   )
                 : connectedPlatforms.size === 0
                   ? (
-                      <div className={cn('rounded-lg border border-gray-200 bg-gray-50 p-6 text-center', isRTL && 'text-right')}>
-                        <p className="text-sm text-gray-600">{t('no_connected_platforms')}</p>
+                      <div className={cn('rounded-lg border border-gray-200 dark:border-gray-600 bg-gray-50 dark:bg-gray-800 p-6 text-center', isRTL && 'text-right')}>
+                        <p className="text-sm text-gray-600 dark:text-gray-400">{t('no_connected_platforms')}</p>
                       </div>
                     )
                   : (
@@ -535,20 +535,20 @@ export function ReportsExportClient() {
                               className={cn(
                                 'group relative rounded-lg border-2 p-4 text-center transition-all hover:shadow-md',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50 shadow-md'
-                                  : 'border-gray-200 bg-white hover:border-pink-200',
+                                  ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                                  : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                                 !isConnected && 'opacity-50 cursor-not-allowed',
                               )}
                             >
                               <div className="flex flex-col items-center gap-2">
-                                <div className={cn('rounded-lg bg-gray-100 p-2', isSelected && 'bg-pink-500')}>
-                                  <Icon className={cn('h-6 w-6', isSelected ? 'text-white' : 'text-gray-600')} />
+                                <div className={cn('rounded-lg bg-gray-100 dark:bg-gray-700 p-2', isSelected && 'bg-pink-500 dark:bg-pink-500')}>
+                                  <Icon className={cn('h-6 w-6', isSelected ? 'text-white' : 'text-gray-600 dark:text-gray-200')} />
                                 </div>
                                 <div>
-                                  <h3 className="text-sm font-semibold text-gray-900">{config.name}</h3>
+                                  <h3 className="text-sm font-semibold text-gray-900 dark:text-gray-100">{config.name}</h3>
                                   <div className="mt-1 flex items-center justify-center gap-1">
                                     <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                    <p className="text-xs text-green-600">{t('platform_connected')}</p>
+                                    <p className="text-xs text-green-600 dark:text-green-400">{t('platform_connected')}</p>
                                   </div>
                                 </div>
                               </div>
@@ -606,7 +606,7 @@ export function ReportsExportClient() {
               {dateRangePreset === 'custom' && (
                 <div className={cn('grid grid-cols-1 gap-4 md:grid-cols-2', isRTL && 'flex-row-reverse')}>
                   <div className="space-y-2">
-                    <label htmlFor="date-from" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
+                    <label htmlFor="date-from" className={cn('block text-sm font-medium text-gray-700 dark:text-gray-300', isRTL && 'text-right')}>
                       {t('date_from')}
                     </label>
                     <div className="relative">
@@ -624,7 +624,7 @@ export function ReportsExportClient() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    <label htmlFor="date-to" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
+                    <label htmlFor="date-to" className={cn('block text-sm font-medium text-gray-700 dark:text-gray-300', isRTL && 'text-right')}>
                       {t('date_to')}
                     </label>
                     <div className="relative">
@@ -657,7 +657,7 @@ export function ReportsExportClient() {
             <CardContent className="space-y-6">
               {/* Report Name */}
               <div className="space-y-2">
-                <label htmlFor="report-name" className={cn('block text-sm font-medium text-gray-700', isRTL && 'text-right')}>
+                <label htmlFor="report-name" className={cn('block text-sm font-medium text-gray-700 dark:text-gray-300', isRTL && 'text-right')}>
                   {t('report_name_label')}
                 </label>
                 <Input
@@ -673,7 +673,7 @@ export function ReportsExportClient() {
 
               {/* Export Format */}
               <div className="space-y-3">
-                <h3 className={cn('text-sm font-medium text-gray-700', isRTL && 'text-right')}>{t('export_format_title')}</h3>
+                <h3 className={cn('text-sm font-medium text-gray-700 dark:text-gray-300', isRTL && 'text-right')}>{t('export_format_title')}</h3>
                 <div className="grid grid-cols-1 gap-3">
                   {/* PDF */}
                   <button
@@ -682,18 +682,18 @@ export function ReportsExportClient() {
                     className={cn(
                       'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                       exportFormat === 'pdf'
-                        ? 'border-pink-500 bg-pink-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-pink-200',
+                        ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                       isRTL && 'text-right',
                     )}
                   >
                     <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                      <div className={cn('rounded-lg bg-pink-100 p-2', exportFormat === 'pdf' && 'bg-pink-500')}>
-                        <FileText className={cn('h-5 w-5', exportFormat === 'pdf' ? 'text-white' : 'text-pink-600')} />
+                      <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', exportFormat === 'pdf' && 'bg-pink-500 dark:bg-pink-500')}>
+                        <FileText className={cn('h-5 w-5', exportFormat === 'pdf' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{t('format_pdf')}</h3>
-                        <p className="mt-1 text-xs text-gray-600">{t('format_pdf_desc')}</p>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('format_pdf')}</h3>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('format_pdf_desc')}</p>
                       </div>
                     </div>
                   </button>
@@ -705,18 +705,18 @@ export function ReportsExportClient() {
                     className={cn(
                       'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                       exportFormat === 'excel'
-                        ? 'border-pink-500 bg-pink-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-pink-200',
+                        ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                       isRTL && 'text-right',
                     )}
                   >
                     <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                      <div className={cn('rounded-lg bg-pink-100 p-2', exportFormat === 'excel' && 'bg-pink-500')}>
-                        <FileSpreadsheet className={cn('h-5 w-5', exportFormat === 'excel' ? 'text-white' : 'text-pink-600')} />
+                      <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', exportFormat === 'excel' && 'bg-pink-500 dark:bg-pink-500')}>
+                        <FileSpreadsheet className={cn('h-5 w-5', exportFormat === 'excel' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{t('format_excel')}</h3>
-                        <p className="mt-1 text-xs text-gray-600">{t('format_excel_desc')}</p>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('format_excel')}</h3>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('format_excel_desc')}</p>
                       </div>
                     </div>
                   </button>
@@ -728,18 +728,18 @@ export function ReportsExportClient() {
                     className={cn(
                       'group relative rounded-lg border-2 p-4 text-right transition-all hover:shadow-md',
                       exportFormat === 'csv'
-                        ? 'border-pink-500 bg-pink-50 shadow-md'
-                        : 'border-gray-200 bg-white hover:border-pink-200',
+                        ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30 shadow-md'
+                        : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-200 dark:hover:border-pink-700',
                       isRTL && 'text-right',
                     )}
                   >
                     <div className={cn('flex items-start gap-3', isRTL ? 'flex-row-reverse' : 'flex-row')}>
-                      <div className={cn('rounded-lg bg-pink-100 p-2', exportFormat === 'csv' && 'bg-pink-500')}>
-                        <Settings className={cn('h-5 w-5', exportFormat === 'csv' ? 'text-white' : 'text-pink-600')} />
+                      <div className={cn('rounded-lg bg-pink-100 dark:bg-gray-700 p-2', exportFormat === 'csv' && 'bg-pink-500 dark:bg-pink-500')}>
+                        <Settings className={cn('h-5 w-5', exportFormat === 'csv' ? 'text-white' : 'text-pink-600 dark:text-pink-400')} />
                       </div>
                       <div className="flex-1">
-                        <h3 className="font-semibold text-gray-900">{t('format_csv')}</h3>
-                        <p className="mt-1 text-xs text-gray-600">{t('format_csv_desc')}</p>
+                        <h3 className="font-semibold text-gray-900 dark:text-gray-100">{t('format_csv')}</h3>
+                        <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{t('format_csv_desc')}</p>
                       </div>
                     </div>
                   </button>
@@ -767,7 +767,7 @@ export function ReportsExportClient() {
                       </>
                     )}
               </Button>
-              <p className={cn('text-xs text-gray-500', isRTL && 'text-right')}>{t('select_at_least_one_platform')}</p>
+              <p className={cn('text-xs text-gray-500 dark:text-gray-400', isRTL && 'text-right')}>{t('select_at_least_one_platform')}</p>
             </CardContent>
           </Card>
 
@@ -779,20 +779,20 @@ export function ReportsExportClient() {
             <CardContent className="space-y-4">
               <div className={cn('space-y-3', isRTL && 'text-right')}>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">{t('preview_report_type')}</p>
-                  <p className="mt-1 text-sm text-gray-900">{getReportTypeLabel(reportType)}</p>
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('preview_report_type')}</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{getReportTypeLabel(reportType)}</p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">{t('preview_period')}</p>
-                  <p className="mt-1 text-sm text-gray-900">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('preview_period')}</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                     {isRTL
                       ? `${formatDateForDisplay(dateTo)}-${formatDateForDisplay(dateFrom)}`
                       : `${formatDateForDisplay(dateFrom)}-${formatDateForDisplay(dateTo)}`}
                   </p>
                 </div>
                 <div>
-                  <p className="text-sm font-medium text-gray-700">{t('preview_platforms')}</p>
-                  <p className="mt-1 text-sm text-gray-900">
+                  <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('preview_platforms')}</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">
                     {selectedPlatforms.size > 0
                       ? (
                           <span>
@@ -812,7 +812,7 @@ export function ReportsExportClient() {
                         return (
                           <span
                             key={platform}
-                            className="inline-flex items-center rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-800"
+                            className="inline-flex items-center rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-800 dark:bg-pink-900/40 dark:text-pink-200"
                           >
                             {config?.name || platform}
                           </span>
@@ -823,7 +823,7 @@ export function ReportsExportClient() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-700">{t('preview_format')}</p>
-                  <p className="mt-1 text-sm text-gray-900">{getFormatLabel(exportFormat)}</p>
+                  <p className="mt-1 text-sm text-gray-900 dark:text-gray-100">{getFormatLabel(exportFormat)}</p>
                 </div>
               </div>
             </CardContent>
