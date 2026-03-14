@@ -5,10 +5,6 @@ import { routing } from '@/libs/I18nRouting';
  * Per Vercel docs: VERCEL_URL is automatically set for all deployments.
  */
 export const getBaseUrl = () => {
-  if (process.env.NEXT_PUBLIC_APP_URL) {
-    return process.env.NEXT_PUBLIC_APP_URL.replace(/\/$/, '');
-  }
-
   if (
     process.env.VERCEL_ENV === 'production'
     && process.env.VERCEL_PROJECT_PRODUCTION_URL
