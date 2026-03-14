@@ -195,9 +195,6 @@ export async function GET(request: NextRequest) {
         }
       } else {
         const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
-        const { socialAccounts: socialAccountsTable } = await import('@/models/Schema');
-        const { eq } = await import('drizzle-orm');
-        const { db } = await import('@/libs/DB');
 
         const subscription = await getUserSubscription(user.id);
         let maxSocialAccounts = 3;
@@ -217,20 +214,28 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Count existing accounts for this specific brand (limit is per brand)
-        const { and, sql } = await import('drizzle-orm');
-        const existingAccountsCountResult = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(socialAccountsTable)
-          .where(and(
-            eq(socialAccountsTable.userId, user.id),
-            eq(socialAccountsTable.brandId, brandId),
-          ));
+        // Count UNIQUE accounts for this brand (dedupe by getlate_account_id to avoid overcounting duplicates)
+        const { data: existingAccounts } = await supabase
+          .from('social_accounts')
+          .select('id, getlate_account_id, account_name')
+          .eq('user_id', user.id)
+          .eq('brand_id', brandId);
 
-        const currentAccountCount = existingAccountsCountResult[0]?.count || 0;
+        const uniqueKeys = new Set<string>();
+        for (const acc of existingAccounts || []) {
+          uniqueKeys.add(acc.getlate_account_id ?? acc.id);
+        }
+        const currentAccountCount = uniqueKeys.size;
 
         if (currentAccountCount >= maxSocialAccounts && !oauthReconnect) {
-          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. Skipping account creation for ${accountName}.`);
+          const rawRowCount = existingAccounts?.length ?? 0;
+          const duplicateInfo = rawRowCount > currentAccountCount
+            ? ` (${rawRowCount} rows in DB, ${rawRowCount - currentAccountCount} duplicates)`
+            : '';
+          console.warn(
+            `[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. `
+            + `Unique accounts: ${currentAccountCount}${duplicateInfo}. Skipping account creation for ${accountName}.`,
+          );
           continue;
         }
 
