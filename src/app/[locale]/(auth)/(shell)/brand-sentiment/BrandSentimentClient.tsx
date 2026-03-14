@@ -205,14 +205,14 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || (isRTL ? 'שגיאה בניתוח הסנטימנט. אנא נסה שוב.' : 'Error analyzing sentiment. Please try again.'));
+        throw new Error(errorData.error || t('error_analyzing'));
       }
 
       const result = await response.json();
       setAnalysisResult(result);
     } catch (e) {
       console.error('Analysis failed:', e);
-      setError(e instanceof Error ? e.message : (isRTL ? 'שגיאה בניתוח הסנטימנט. אנא נסה שוב.' : 'Error analyzing sentiment. Please try again.'));
+      setError(e instanceof Error ? e.message : t('error_analyzing'));
     } finally {
       setIsLoading(false);
     }
@@ -247,12 +247,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
         <div className="text-center">
           <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
           <h2 className="mb-2 text-xl font-semibold text-gray-600">
-            {isRTL ? 'בחר מותג' : 'Select a Brand'}
+            {t('select_brand')}
           </h2>
           <p className="text-gray-500">
-            {isRTL
-              ? 'אנא בחר מותג כדי להתחיל בניתוח סנטימנט.'
-              : 'Please select a brand to start sentiment analysis.'}
+            {t('select_brand_hint')}
           </p>
         </div>
       </div>
@@ -322,10 +320,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="text-blue-500" />
-                      {isRTL ? 'מגמת חיפושים - 30 יום אחרונים' : 'Search Trends - Last 30 Days'}
+                      {t('search_trends_30')}
                     </CardTitle>
                     <CardDescription>
-                      {isRTL ? 'נתוני חיפוש יומיים בגוגל' : 'Daily Google search data'}
+                      {isRTL ? 'נתוני חיפוש יומיים בגוגל' : t('daily_google_data')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
@@ -343,7 +341,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           stroke={axisColor}
                           fontSize={12}
                           label={{
-                            value: isRTL ? 'עניין בחיפוש' : 'Search Interest',
+                            value: t('search_interest'),
                             angle: -90,
                             position: 'insideLeft',
                           }}
@@ -356,7 +354,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                             color: isDark ? '#e5e7eb' : undefined,
                           }}
-                          formatter={value => [`${value}`, isRTL ? 'עוצמת חיפוש' : 'Search Volume']}
+                          formatter={value => [`${value}`, t('search_volume')]}
                         />
                         <Line
                           type="monotone"
@@ -378,10 +376,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="text-green-500" />
-                      {isRTL ? 'מגמת חיפושים - 12 חודשים אחרונים' : 'Search Trends - Last 12 Months'}
+                      {t('search_trends_12')}
                     </CardTitle>
                     <CardDescription>
-                      {isRTL ? 'נתוני חיפוש חודשיים בגוגל' : 'Monthly Google search data'}
+                      {isRTL ? 'נתוני חיפוש חודשיים בגוגל' : t('monthly_google_data')}
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
@@ -401,7 +399,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           stroke={axisColor}
                           fontSize={12}
                           label={{
-                            value: isRTL ? 'עניין בחיפוש' : 'Search Interest',
+                            value: t('search_interest'),
                             angle: -90,
                             position: 'insideLeft',
                           }}
@@ -414,7 +412,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                             color: isDark ? '#e5e7eb' : undefined,
                           }}
-                          formatter={value => [`${value}`, isRTL ? 'עוצמת חיפוש' : 'Search Volume']}
+                          formatter={value => [`${value}`, t('search_volume')]}
                         />
                         <Line
                           type="monotone"
@@ -435,7 +433,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
               <Card className="rounded-lg border border-gray-200 bg-white shadow-xl lg:col-span-1 dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle>{isRTL ? 'ציון סנטימנט כללי' : 'Overall Sentiment Score'}</CardTitle>
+                  <CardTitle>{t('overall_sentiment_score')}</CardTitle>
                 </CardHeader>
                 <CardContent className="flex flex-col items-center justify-center gap-4">
                   <div className="relative h-40 w-40">
@@ -472,7 +470,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
               <Card className="rounded-lg border border-gray-200 bg-white shadow-xl lg:col-span-2 dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle>{isRTL ? 'התפלגות הסנטימנט' : 'Sentiment Distribution'}</CardTitle>
+                  <CardTitle>{t('sentiment_distribution')}</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[250px]">
                   <ResponsiveContainer width="100%" height="100%">
@@ -533,7 +531,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                       )
                     : (
                         <p className="text-sm text-gray-500 italic">
-                          {isRTL ? 'אין נושאים חיוביים זמינים' : 'No positive topics available'}
+                          {t('no_positive_topics')}
                         </p>
                       )}
                 </CardContent>
@@ -556,7 +554,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                       )
                     : (
                         <p className="text-sm text-gray-500 italic">
-                          {isRTL ? 'אין נושאים שליליים זמינים' : 'No negative topics available'}
+                          {t('no_negative_topics')}
                         </p>
                       )}
                 </CardContent>
@@ -567,11 +565,11 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
             {analysisResult.report && (
               <Card className="glass-effect border-white/20 shadow-xl">
                 <CardHeader>
-                  <CardTitle>{isRTL ? 'דוח סנטימנט מותג' : 'Brand Sentiment Report'}</CardTitle>
+                  <CardTitle>{t('brand_sentiment_report')}</CardTitle>
                   <CardDescription>
                     {isRTL
                       ? 'סקירה מפורטת של התפיסה והסנטימנט של המותג באינטרנט'
-                      : 'Comprehensive overview of brand perception and sentiment online'}
+                      : t('comprehensive_overview')}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-6">
@@ -612,7 +610,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex-shrink-0 text-green-600 transition-colors hover:text-green-800"
-                                    title={isRTL ? 'פתח בקישור' : 'Open link'}
+                                    title={t('open_link')}
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </a>
@@ -650,7 +648,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                     target="_blank"
                                     rel="noopener noreferrer"
                                     className="flex-shrink-0 text-orange-600 transition-colors hover:text-orange-800"
-                                    title={isRTL ? 'פתח בקישור' : 'Open link'}
+                                    title={t('open_link')}
                                   >
                                     <ExternalLink className="h-4 w-4" />
                                   </a>
@@ -672,13 +670,13 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                       <div className="space-y-3">
                         {analysisResult.report.summary.positive && (
                           <div className="rounded-lg border border-green-200 bg-white p-4">
-                            <h4 className="mb-2 font-semibold text-green-800">{isRTL ? 'חיובי' : 'Positive'}</h4>
+                            <h4 className="mb-2 font-semibold text-green-800">{t('positive')}</h4>
                             <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.positive}</p>
                           </div>
                         )}
                         {analysisResult.report.summary.negative && (
                           <div className="rounded-lg border border-red-200 bg-white p-4">
-                            <h4 className="mb-2 font-semibold text-red-800">{isRTL ? 'שלילי / מעורב' : 'Negative / Mixed'}</h4>
+                            <h4 className="mb-2 font-semibold text-red-800">{t('negative_mixed')}</h4>
                             <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.negative}</p>
                           </div>
                         )}
@@ -707,10 +705,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           <thead>
                             <tr className="border-b border-gray-300">
                               <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
-                                {isRTL ? 'מקור' : 'Source'}
+                                {t('source')}
                               </th>
                               <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
-                                {isRTL ? 'סיכום סנטימנט' : 'Sentiment Summary'}
+                                {t('sentiment_summary')}
                               </th>
                             </tr>
                           </thead>

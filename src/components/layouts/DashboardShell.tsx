@@ -178,7 +178,7 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
               className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ${locale === 'he' ? 'gap-4' : 'gap-2'} ${pathname?.startsWith('/admin') ? 'bg-pink-50 font-semibold text-pink-600 dark:bg-pink-900/20 dark:text-pink-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
             >
               <Shield className="h-5 w-5 shrink-0" />
-              <span>Admin</span>
+              <span>{t('admin')}</span>
             </Link>
           )}
           <div className="pt-4">

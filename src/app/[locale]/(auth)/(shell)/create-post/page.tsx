@@ -143,19 +143,6 @@ const DEFAULT_PLATFORM_FORMATS: Record<Platform, Format[]> = {
   threads: ['feed', 'story'], // Text posts, images, videos (5 min max), thread sequences - NO REELS
 };
 
-const FORMAT_LABELS: Record<Format, string> = {
-  feed: 'Feed Post', // Main timeline posts (Instagram/Facebook/Threads)
-  story: 'Story', // 24-hour ephemeral content
-  reel: 'Reel', // Short-form video (Instagram only)
-  post: 'Post', // Main timeline posts (X/LinkedIn)
-  short: 'Short', // Short-form video (YouTube ≤3 min)
-  video: 'Video', // Regular video content
-  carousel: 'Carousel', // Multi-image/video posts
-  thread: 'Thread', // Multi-post sequences (Twitter/X)
-  pin: 'Pin', // Pinterest single image or video
-  link: 'Link Post', // Link posts (Reddit)
-};
-
 // Formats that require media to be uploaded
 const FORMAT_REQUIRES_MEDIA: Record<Format, boolean> = {
   feed: false, // Can be text-only
@@ -415,7 +402,7 @@ function PreviewCard({
                     {previewTitle && (
                       <p className="mb-2 text-xl font-bold text-white drop-shadow-lg">{previewTitle}</p>
                     )}
-                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || 'Your story'}</p>
+                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || t('preview_story_fallback')}</p>
                   </div>
                 )}
           </div>
@@ -464,7 +451,7 @@ function PreviewCard({
               : (
                   <div className="text-center text-white">
                     <Play className="mx-auto h-16 w-16" />
-                    <p className="mt-2 text-sm">{previewCaption || 'Your reel'}</p>
+                    <p className="mt-2 text-sm">{previewCaption || t('preview_reel_fallback')}</p>
                   </div>
                 )}
           </div>
@@ -481,7 +468,7 @@ function PreviewCard({
             </button>
             <button type="button" className="flex flex-col items-center gap-1">
               <Share2 className="h-6 w-6 text-white" />
-              <span className="text-xs text-white">Share</span>
+              <span className="text-xs text-white">{t('share')}</span>
             </button>
           </div>
 
@@ -674,7 +661,7 @@ function PreviewCard({
                     {previewTitle && (
                       <p className="mb-2 text-xl font-bold text-white drop-shadow-lg">{previewTitle}</p>
                     )}
-                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || 'Your story'}</p>
+                    <p className="text-lg font-medium text-white drop-shadow-lg">{previewCaption || t('preview_story_fallback')}</p>
                   </div>
                 )}
           </div>
@@ -722,15 +709,15 @@ function PreviewCard({
           <div className="flex items-center justify-around border-t border-slate-100 p-2">
             <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
               <ThumbsUp className="h-4 w-4" />
-              <span>Like</span>
+              <span>{t('like')}</span>
             </button>
             <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
               <MessageCircle className="h-4 w-4" />
-              <span>Comment</span>
+              <span>{t('comment')}</span>
             </button>
             <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
               <Share2 className="h-4 w-4" />
-              <span>Share</span>
+              <span>{t('share')}</span>
             </button>
           </div>
         </div>
@@ -749,7 +736,7 @@ function PreviewCard({
           <AvatarComponent platform={platform} accounts={accounts} size={48} />
           <div className="flex-1">
             <p className="font-semibold text-slate-900">{accountName}</p>
-            <p className="text-xs text-slate-500">Software Developer · 2h</p>
+            <p className="text-xs text-slate-500">{t('preview_meta')}</p>
           </div>
           <MoreHorizontal className="h-5 w-5 text-slate-400" />
         </div>
@@ -775,7 +762,7 @@ function PreviewCard({
         <div className="flex items-center justify-around border-t border-slate-100 p-2">
           <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
             <ThumbsUp className="h-4 w-4" />
-            <span>Like</span>
+            <span>{t('like')}</span>
           </button>
           <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
             <MessageCircle className="h-4 w-4" />
@@ -783,7 +770,7 @@ function PreviewCard({
           </button>
           <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
             <Share2 className="h-4 w-4" />
-            <span>Share</span>
+            <span>{t('share')}</span>
           </button>
         </div>
 
@@ -795,7 +782,7 @@ function PreviewCard({
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2">
                   <span className="text-sm font-semibold text-slate-900">{accountName}</span>
-                  <span className="text-xs text-slate-400">now</span>
+                  <span className="text-xs text-slate-400">{t('now')}</span>
                 </div>
                 <p className="text-sm break-all text-blue-600">{previewLink}</p>
               </div>
@@ -2570,7 +2557,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'פוסטים החודש' : 'Posts This Month'}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('posts_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.postsThisMonth}
                       {' '}
@@ -2579,7 +2566,7 @@ export default function CreatePostPage() {
                     </p>
                     {usage.postsThisMonth >= limits.maxPostsPerMonth && (
                       <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                        {t('upgrade_plan')}
                       </Link>
                     )}
                   </div>
@@ -2595,7 +2582,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'תוכן AI החודש' : 'AI Content This Month'}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('ai_content_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiGenerationsThisMonth}
                       {' '}
@@ -2604,7 +2591,7 @@ export default function CreatePostPage() {
                     </p>
                     {usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth && (
                       <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                        {t('upgrade_plan')}
                       </Link>
                     )}
                   </div>
@@ -2620,7 +2607,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{isRTL ? 'תמונות AI החודש' : 'AI Images This Month'}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('ai_images_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiImageGenerationsThisMonth}
                       {' '}
@@ -2629,7 +2616,7 @@ export default function CreatePostPage() {
                     </p>
                     {usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth && (
                       <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {isRTL ? 'שדרג תוכנית' : 'Upgrade Plan'}
+                        {t('upgrade_plan')}
                       </Link>
                     )}
                   </div>
@@ -2669,17 +2656,15 @@ export default function CreatePostPage() {
                         <Users className="h-12 w-12 text-pink-500 dark:text-pink-400" />
                       </div>
                       <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-gray-100">
-                        {isRTL ? 'אין חשבונות מחוברים' : 'No Connected Accounts'}
+                        {t('no_connected_accounts')}
                       </h2>
                       <p className="mb-6 max-w-md text-slate-600 dark:text-gray-300">
-                        {isRTL
-                          ? 'על מנת ליצור פוסטים, אנא עבור לדף החיבורים וחבר חשבון עבור המותג הזה.'
-                          : 'To create posts, please go to the connections page and connect an account for this brand.'}
+                        {t('no_connected_accounts_hint')}
                       </p>
                       <Link href="/connections">
                         <Button className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700">
                           <Users className="h-4 w-4" />
-                          {isRTL ? 'עבור לדף החיבורים' : 'Go to Connections Page'}
+                          {t('go_to_connections_page')}
                         </Button>
                       </Link>
                     </CardContent>
@@ -2753,7 +2738,7 @@ export default function CreatePostPage() {
                               <div className="flex items-center justify-between">
                                 <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-gray-100">
                                   <Users className="h-5 w-5 text-pink-500 dark:text-pink-400" />
-                                  {isRTL ? 'תוכן משותף לכל הפלטפורמות' : 'Shared Content for All Platforms'}
+                                  {t('shared_content_for_all_platforms')}
                                 </CardTitle>
                                 {selectedPlatforms.length > 1 && (
                                   <Button
@@ -2764,7 +2749,7 @@ export default function CreatePostPage() {
                                     className="gap-2 text-xs"
                                   >
                                     <Pencil className="h-3.5 w-3.5" />
-                                    {editMode === 'unified' ? (isRTL ? 'ערוך לפי פלטפורמה' : 'EDIT BY PLATFORM') : (isRTL ? 'ערוך יחד' : 'EDIT TOGETHER')}
+                                    {editMode === 'unified' ? t('edit_by_platform') : t('edit_together')}
                                   </Button>
                                 )}
                               </div>
@@ -2790,7 +2775,7 @@ export default function CreatePostPage() {
                                     )}
                                   >
                                     <Wand2 className="h-4 w-4" />
-                                    {isRTL ? 'צור באמצעות AI' : 'Create with AI'}
+                                    {t('create_with_ai')}
                                   </Button>
                                 </div>
 
@@ -2799,15 +2784,13 @@ export default function CreatePostPage() {
                                   <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
                                     <div className="space-y-2">
                                       <label className="block text-sm font-semibold text-pink-700">
-                                        {isRTL ? 'על מה הפוסט?' : 'What is the post about?'}
+                                        {t('ai_what_post_about')}
                                       </label>
                                       <div className="relative">
                                         <Textarea
                                           value={aiBrief || ''}
                                           onChange={e => setAiBrief(e.target.value)}
-                                          placeholder={isRTL
-                                            ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
-                                            : 'e.g., New product launch, professional tip, personal story...'}
+                                          placeholder={t('ai_brief_placeholder_long')}
                                           className={cn(
                                             'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 pr-16',
                                             (aiBrief || '').length > 1200 && 'border-red-300 focus:border-red-400',
@@ -2827,16 +2810,14 @@ export default function CreatePostPage() {
                                       </div>
                                       {(aiBrief || '').length > 1200 && (
                                         <p className="text-xs text-red-600">
-                                          {isRTL
-                                            ? 'התיאור ארוך מדי. אנא קיצר אותו ל-1200 תווים או פחות.'
-                                            : 'Brief is too long. Please shorten it to 1200 characters or less.'}
+                                          {t('ai_brief_too_long')}
                                         </p>
                                       )}
                                     </div>
 
                                     <div className="space-y-2">
                                       <label className="block text-sm font-semibold text-pink-700">
-                                        {isRTL ? 'שפה' : 'Language'}
+                                        {t('ai_language_label')}
                                       </label>
                                       <Select
                                         value={aiLanguage || 'en'}
@@ -2848,7 +2829,7 @@ export default function CreatePostPage() {
                                       >
                                         <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
                                           <SelectValue
-                                            placeholder={isRTL ? 'בחר שפה' : 'Select language'}
+                                            placeholder={t('ai_language_placeholder')}
                                             selectedLabel={aiLanguage === 'he' ? 'עברית' : aiLanguage === 'en' ? 'English' : undefined}
                                             options={[
                                               { value: 'en', name: 'English' },
@@ -2857,8 +2838,8 @@ export default function CreatePostPage() {
                                           />
                                         </SelectTrigger>
                                         <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                          <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
-                                          <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
+                                          <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
+                                          <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -2893,7 +2874,7 @@ export default function CreatePostPage() {
                                           : (
                                               <>
                                                 <Wand2 className="h-4 w-4" />
-                                                {isRTL ? 'צור תוכן' : 'Create Content'}
+                                                {t('create_content')}
                                               </>
                                             )}
                                       </Button>
@@ -2918,10 +2899,10 @@ export default function CreatePostPage() {
                                     return (
                                       <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
                                         <label className="text-sm font-semibold text-slate-900 dark:text-gray-100">
-                                          {isRTL ? 'סוג פוסט:' : 'Post Type:'}
+                                          {t('post_type_label')}
                                         </label>
                                         <span className="rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
-                                          {FORMAT_LABELS[formats[0] as Format]}
+                                          {t(`format_${formats[0]}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}
                                         </span>
                                       </div>
                                     );
@@ -2931,7 +2912,7 @@ export default function CreatePostPage() {
                                   return (
                                     <div className={cn('space-y-2', isRTL && 'text-right')}>
                                       <label className="block text-sm font-semibold text-slate-900 dark:text-gray-100">
-                                        {isRTL ? 'סוגי פוסט:' : 'Post Types:'}
+                                        {t('post_type_label')}
                                       </label>
                                       <div className={cn('flex flex-wrap gap-2', isRTL && 'flex-row-reverse')}>
                                         {platformFormatsList.map(({ platform, format }) => {
@@ -2951,7 +2932,7 @@ export default function CreatePostPage() {
                                               )}
                                               <span className="font-medium text-slate-700">{config.name}</span>
                                               <span className="text-pink-600">•</span>
-                                              <span className="text-pink-600">{FORMAT_LABELS[format as Format]}</span>
+                                              <span className="text-pink-600">{t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}</span>
                                             </div>
                                           );
                                         })}
@@ -2985,7 +2966,7 @@ export default function CreatePostPage() {
                                         });
                                       }
                                     }}
-                                    placeholder={isRTL ? 'מה בראש שלך? הקלד כאן והתוכן יועתק לכל הפלטפורמות הנבחרות...' : 'What\'s on your mind? Type here and content will be copied to all selected platforms...'}
+                                    placeholder={t('content_placeholder_full')}
                                     className={cn(
                                       'min-h-[250px] w-full resize-none border-slate-200 bg-white text-base leading-relaxed focus:border-pink-400 focus:ring-pink-400',
                                       isRTL && 'text-right',
@@ -3048,7 +3029,7 @@ export default function CreatePostPage() {
                                 <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
                                   <div className="space-y-2">
                                     <label className="block text-sm font-semibold text-pink-700">
-                                      {isRTL ? 'על מה הפוסט?' : 'What is the post about?'}
+                                      {t('ai_what_post_about')}
                                     </label>
                                     <div className="relative">
                                       <Textarea
@@ -3085,7 +3066,7 @@ export default function CreatePostPage() {
 
                                   <div className="space-y-2">
                                     <label className="block text-sm font-semibold text-pink-700">
-                                      {isRTL ? 'שפה' : 'Language'}
+                                      {t('ai_language_label')}
                                     </label>
                                     <Select
                                       value={aiLanguage || 'en'}
@@ -3097,7 +3078,7 @@ export default function CreatePostPage() {
                                     >
                                       <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
                                         <SelectValue
-                                          placeholder={isRTL ? 'בחר שפה' : 'Select language'}
+                                          placeholder={t('ai_language_placeholder')}
                                           selectedLabel={aiLanguage === 'he' ? 'עברית' : aiLanguage === 'en' ? 'English' : undefined}
                                           options={[
                                             { value: 'en', name: 'English' },
@@ -3106,8 +3087,8 @@ export default function CreatePostPage() {
                                         />
                                       </SelectTrigger>
                                       <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                        <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
-                                        <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
+                                        <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
+                                        <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
                                       </SelectContent>
                                     </Select>
                                   </div>
@@ -3142,7 +3123,7 @@ export default function CreatePostPage() {
                                         : (
                                             <>
                                               <Wand2 className="h-4 w-4" />
-                                              {isRTL ? 'צור תוכן' : 'Create Content'}
+                                              {t('create_content')}
                                             </>
                                           )}
                                     </Button>
@@ -3675,7 +3656,7 @@ export default function CreatePostPage() {
                                         </span>
                                         {isSelected && selectedFormats[0] && (
                                           <span className="hidden rounded-full bg-pink-500 px-2 py-0.5 text-[10px] font-medium text-white md:inline-flex">
-                                            {FORMAT_LABELS[selectedFormats[0] as Format]}
+                                            {t(`format_${selectedFormats[0]}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}
                                           </span>
                                         )}
                                       </TabsTrigger>
@@ -3699,7 +3680,7 @@ export default function CreatePostPage() {
                                         {isSelected && availableFormats.length > 0 && (
                                           <div className={cn('space-y-2', isRTL && 'text-right')}>
                                             <label className="block text-sm font-semibold text-slate-900 dark:text-gray-100">
-                                              {isRTL ? 'בחר סוג פוסט:' : 'Select Post Type:'}
+                                              {t('select_post_type')}
                                             </label>
                                             <Popover
                                               open={openPostTypePopovers[platform] || false}
@@ -3719,7 +3700,7 @@ export default function CreatePostPage() {
                                                     <ImageIcon className="h-4 w-4 text-slate-600" />
                                                     <span>
                                                       {selectedFormats.length > 0 && selectedFormats[0]
-                                                        ? FORMAT_LABELS[selectedFormats[0]]
+                                                        ? t(`format_${selectedFormats[0]}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')
                                                         : t('select_post_type_placeholder')}
                                                     </span>
                                                   </div>
@@ -3768,7 +3749,7 @@ export default function CreatePostPage() {
                                                         </div>
                                                         <div className="min-w-0 flex-1">
                                                           <div className="flex items-center gap-1">
-                                                            <span>{FORMAT_LABELS[format]}</span>
+                                                            <span>{t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}</span>
                                                             {isDisabled && (
                                                               <span className="text-xs text-slate-400">
                                                                 (
@@ -3835,7 +3816,7 @@ export default function CreatePostPage() {
                                                   )}
                                                 >
                                                   <Wand2 className="h-3.5 w-3.5" />
-                                                  {isRTL ? 'צור באמצעות AI' : 'Create with AI'}
+                                                  {t('create_with_ai')}
                                                 </Button>
                                               </div>
 
@@ -3929,7 +3910,7 @@ export default function CreatePostPage() {
                                               <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
                                                 <div className="space-y-2">
                                                   <label className="block text-sm font-semibold text-pink-700">
-                                                    {isRTL ? 'על מה הפוסט?' : 'What is the post about?'}
+                                                    {t('ai_what_post_about')}
                                                   </label>
                                                   <div className="relative">
                                                     <Textarea
@@ -3966,7 +3947,7 @@ export default function CreatePostPage() {
 
                                                 <div className="space-y-2">
                                                   <label className="block text-sm font-semibold text-pink-700">
-                                                    {isRTL ? 'שפה' : 'Language'}
+                                                    {t('ai_language_label')}
                                                   </label>
                                                   <Select
                                                     value={aiLanguageInput[platform] || aiLanguage || 'en'}
@@ -3978,7 +3959,7 @@ export default function CreatePostPage() {
                                                   >
                                                     <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
                                                       <SelectValue
-                                                        placeholder={isRTL ? 'בחר שפה' : 'Select language'}
+                                                        placeholder={t('ai_language_placeholder')}
                                                         selectedLabel={aiLanguageInput[platform] === 'he' ? 'עברית' : aiLanguageInput[platform] === 'en' ? 'English' : undefined}
                                                         options={[
                                                           { value: 'en', name: 'English' },
@@ -3987,8 +3968,8 @@ export default function CreatePostPage() {
                                                       />
                                                     </SelectTrigger>
                                                     <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                                      <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>English</SelectItem>
-                                                      <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>עברית (Hebrew)</SelectItem>
+                                                      <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
+                                                      <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
                                                     </SelectContent>
                                                   </Select>
                                                 </div>
@@ -4029,7 +4010,7 @@ export default function CreatePostPage() {
                                                       : (
                                                           <>
                                                             <Wand2 className="h-4 w-4" />
-                                                            {isRTL ? 'צור תוכן' : 'Create Content'}
+                                                            {t('create_content')}
                                                           </>
                                                         )}
                                                   </Button>
@@ -4339,7 +4320,7 @@ export default function CreatePostPage() {
                         <Card className="sticky top-6 border-0 shadow-lg">
                           <CardHeader className="flex flex-row items-center justify-between pb-3">
                             <CardTitle className="text-base font-semibold text-slate-900 dark:text-gray-100">
-                              {isRTL ? 'תצוגה מקדימה' : 'Preview'}
+                              {t('preview_header')}
                             </CardTitle>
                             <div className="flex items-center gap-2">
                               <Button
@@ -4441,16 +4422,14 @@ export default function CreatePostPage() {
                                 )
                               : (
                                   <div className="flex h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-                                    <p className="text-sm text-slate-500">{isRTL ? 'בחר פלטפורמה לתצוגה מקדימה' : 'Select a platform to preview'}</p>
+                                    <p className="text-sm text-slate-500">{t('select_platform_to_preview')}</p>
                                   </div>
                                 )}
                             <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
                               <div className="flex items-start gap-2">
                                 <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
                                 <span>
-                                  {isRTL
-                                    ? 'תצוגות מקדימות הן קירוב של איך שהפוסט שלך ייראה כשהוא יתפרסם. הפוסט הסופי עשוי להיראות מעט שונה.'
-                                    : 'Previews are an approximation of how your post will look when published. The final post may look slightly different.'}
+                                  {t('preview_disclaimer')}
                                 </span>
                               </div>
                             </div>
@@ -4672,7 +4651,7 @@ export default function CreatePostPage() {
                                         {format && (
                                           <div className="mb-2 flex gap-1">
                                             <span className="rounded-full bg-pink-100 px-2 py-0.5 text-xs font-medium text-pink-700">
-                                              {FORMAT_LABELS[format]}
+                                              {t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}
                                             </span>
                                           </div>
                                         )}

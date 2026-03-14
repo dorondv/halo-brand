@@ -323,7 +323,7 @@ export function ConversationList({
                                     hasUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'
                                   }`}
                                   >
-                                    {conversation.lastMessage || 'No message'}
+                                    {conversation.lastMessage || t('no_message')}
                                   </p>
                                 </div>
                               </div>
