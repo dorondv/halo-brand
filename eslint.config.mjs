@@ -29,6 +29,8 @@ export default antfu(
     // Ignored paths
     ignores: [
       'migrations/**/*',
+      'project-management-tool/**',
+      '**/*.md',
     ],
   },
   // --- Accessibility Rules ---

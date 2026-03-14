@@ -11,14 +11,14 @@ jobs:
   test-e2e:
     strategy:
       matrix:
-        node-version: [22.x]
+        node-version: [24.x]
         # See supported Node.js release schedule at https://nodejs.org/en/about/releases/
 
     # Only run when the deployment was successful
     if: github.event.deployment_status.state == 'success'
 
     name: Test E2E on Checkly
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
 
     steps:
