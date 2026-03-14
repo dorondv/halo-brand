@@ -69,7 +69,6 @@ export default function SettingsPage() {
   const [userProfile, setUserProfile] = useState({
     first_name: '',
     last_name: '',
-    id_number: '',
     country: 'il',
     language: 'he',
     timezone: 'Asia/Jerusalem',
@@ -91,7 +90,6 @@ export default function SettingsPage() {
       setUserProfile({
         first_name: data.first_name || '',
         last_name: data.last_name || '',
-        id_number: data.id_number || '',
         country: data.country || 'il',
         language: data.language || 'he',
         timezone: data.timezone || 'Asia/Jerusalem',
@@ -104,7 +102,6 @@ export default function SettingsPage() {
       setUserProfile({
         first_name: '',
         last_name: '',
-        id_number: '',
         country: 'il',
         language: 'he',
         timezone: 'Asia/Jerusalem',
@@ -137,7 +134,6 @@ export default function SettingsPage() {
         body: JSON.stringify({
           first_name: userProfile.first_name,
           last_name: userProfile.last_name,
-          id_number: userProfile.id_number,
           country: userProfile.country,
           language: userProfile.language,
           timezone: userProfile.timezone,
@@ -156,7 +152,6 @@ export default function SettingsPage() {
       setUserProfile({
         first_name: data.first_name || '',
         last_name: data.last_name || '',
-        id_number: data.id_number || '',
         country: data.country || 'il',
         language: data.language || 'he',
         timezone: data.timezone || 'Asia/Jerusalem',
@@ -273,18 +268,6 @@ export default function SettingsPage() {
                     dir={isRTL ? 'rtl' : 'ltr'}
                   />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="idNumber">{t('id_number')}</Label>
-                <Input
-                  id="idNumber"
-                  placeholder={t('id_number_placeholder')}
-                  value={userProfile.id_number}
-                  onChange={e => handleInputChange('id_number', e.target.value)}
-                  disabled={isLoading}
-                  dir={isRTL ? 'rtl' : 'ltr'}
-                />
               </div>
             </CardContent>
           </Card>

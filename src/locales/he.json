@@ -611,8 +611,6 @@
     "first_name_placeholder": "הכנס שם פרטי",
     "last_name": "שם משפחה",
     "last_name_placeholder": "הכנס שם משפחה",
-    "id_number": "תעודת זהות / דרכון",
-    "id_number_placeholder": "הכנס מספר תעודת זהות או דרכון",
     "preferences_title": "העדפות מערכת",
     "preferences_desc": "התאם את המערכת לצרכים שלך",
     "country": "מדינה",

@@ -611,8 +611,6 @@
     "first_name_placeholder": "Enter first name",
     "last_name": "Last Name",
     "last_name_placeholder": "Enter last name",
-    "id_number": "ID Number (Optional)",
-    "id_number_placeholder": "Enter ID number",
     "preferences_title": "Preferences",
     "preferences_desc": "Configure your system preferences",
     "country": "Country",
