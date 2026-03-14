@@ -2232,7 +2232,7 @@ export default function ConnectionsPage() {
 
         {/* Delete Brand Confirmation Dialog */}
         <Dialog open={!!brandToDelete} onOpenChange={open => !open && setBrandToDelete(null)}>
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('delete_brand_title')}</DialogTitle>
             </DialogHeader>
