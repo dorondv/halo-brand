@@ -1,5 +1,6 @@
 'use client';
 
+import { useTranslations } from 'next-intl';
 import React, { useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 import { usePathname } from '@/libs/I18nNavigation';
@@ -10,6 +11,7 @@ type AdminRouteProps = {
 
 export function AdminRoute({ children }: AdminRouteProps) {
   const toast = useToast();
+  const t = useTranslations('Admin');
   const pathname = usePathname();
   const [isAuthorized, setIsAuthorized] = useState<boolean | null>(null);
 
@@ -21,7 +23,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
 
         if (!response.ok) {
           window.location.href = '/dashboard';
-          toast.error('Authentication required');
+          toast.error(t('auth_required'));
           setIsAuthorized(false);
           return;
         }
@@ -30,7 +32,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
 
         if (!data.isAdmin) {
           window.location.href = '/dashboard';
-          toast.error('Admin access required');
+          toast.error(t('admin_access_required'));
           setIsAuthorized(false);
           return;
         }
@@ -44,7 +46,7 @@ export function AdminRoute({ children }: AdminRouteProps) {
     };
 
     checkAdminAccess();
-  }, [pathname, toast]);
+  }, [pathname, toast, t]);
 
   if (isAuthorized === null) {
     return (

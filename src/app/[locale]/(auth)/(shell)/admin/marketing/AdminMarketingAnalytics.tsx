@@ -1,6 +1,7 @@
 'use client';
 
 import { DollarSign, Download, Eye, Filter, ShoppingCart, Users } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 
@@ -27,6 +28,7 @@ type BreakdownItem = {
 };
 
 export function AdminMarketingAnalytics() {
+  const t = useTranslations('Admin');
   const toast = useToast();
   const [metrics, setMetrics] = useState<MarketingMetrics | null>(null);
   const [breakdown, setBreakdown] = useState<BreakdownItem[]>([]);
@@ -109,10 +111,10 @@ export function AdminMarketingAnalytics() {
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
 
-      toast.success('Export started');
+      toast.success(t('export_started'));
     } catch (error: any) {
       console.error('Error exporting:', error);
-      toast.error('Failed to export data');
+      toast.error(t('failed_export'));
     }
   };
 
@@ -161,7 +163,7 @@ export function AdminMarketingAnalytics() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Marketing Analytics</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{t('marketing_analytics_title')}</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Track UTM parameters, geo data, and conversion metrics
           </p>
@@ -179,7 +181,7 @@ export function AdminMarketingAnalytics() {
       <div className="rounded-lg border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
         <div className="mb-4 flex items-center gap-2">
           <Filter className="h-5 w-5 text-gray-500" />
-          <h2 className="font-semibold text-gray-900 dark:text-white">Filters</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-white">{t('filters')}</h2>
         </div>
         <div className="grid grid-cols-1 gap-4 md:grid-cols-5">
           <input
@@ -248,7 +250,7 @@ export function AdminMarketingAnalytics() {
       <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <div className="border-b border-gray-200 p-4 dark:border-gray-700">
           <div className="flex items-center justify-between">
-            <h2 className="font-semibold text-gray-900 dark:text-white">Breakdown</h2>
+            <h2 className="font-semibold text-gray-900 dark:text-white">{t('breakdown')}</h2>
             <div className="flex gap-2">
               <button
                 onClick={() => setGroupBy('utmSource')}
@@ -290,11 +292,11 @@ export function AdminMarketingAnalytics() {
                 <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">
                   {groupBy === 'utmSource' ? 'UTM Source' : groupBy === 'utmCampaign' ? 'UTM Campaign' : 'Country'}
                 </th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">Pageviews</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">Signups</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">Purchases</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">Revenue</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">Conv. Rate</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('pageviews')}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('signups')}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('purchases')}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('revenue')}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('conv_rate')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
@@ -343,18 +345,18 @@ export function AdminMarketingAnalytics() {
       {/* Users Table */}
       <div className="rounded-lg border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-800">
         <div className="border-b border-gray-200 p-4 dark:border-gray-700">
-          <h2 className="font-semibold text-gray-900 dark:text-white">Users</h2>
+          <h2 className="font-semibold text-gray-900 dark:text-white">{t('users')}</h2>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Email</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Registered</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">UTM Source</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Country</th>
-                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">LTV</th>
-                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">Status</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('email')}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('registered')}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('utm_source')}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('country')}</th>
+                <th className="px-4 py-3 text-right text-sm font-medium text-gray-700 dark:text-gray-300">{t('ltv')}</th>
+                <th className="px-4 py-3 text-left text-sm font-medium text-gray-700 dark:text-gray-300">{t('status')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-200 dark:divide-gray-700">

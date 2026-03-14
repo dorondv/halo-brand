@@ -725,7 +725,7 @@ export default function CalendarPage() {
                         )}
                         {isPastSlot && isEmptySlot && (
                           <div className="flex h-full items-center justify-center">
-                            <span className="text-xs text-slate-400">Past</span>
+                            <span className="text-xs text-slate-400">{t('past')}</span>
                           </div>
                         )}
                         {slotPosts.map(post => (

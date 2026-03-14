@@ -1,3 +1,4 @@
+import { getTranslations } from 'next-intl/server';
 import { redirect } from 'next/navigation';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
@@ -10,10 +11,11 @@ export default async function HomePage() {
   if (authError || !user) {
     redirect('/sign-in');
   }
+  const t = await getTranslations('Home');
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Home</h1>
-      <p className="text-gray-600">Welcome back</p>
+      <h1 className="text-2xl font-semibold">{t('title')}</h1>
+      <p className="text-gray-600">{t('welcome_back')}</p>
     </div>
   );
 }

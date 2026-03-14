@@ -42,6 +42,7 @@ function CommentThread({
   accountId,
   depth = 0,
 }: CommentThreadProps) {
+  const t = useTranslations('Inbox');
   const isOutgoing = message.isOutgoing;
   const messageDate = new Date(message.timestamp);
   const timeString = messageDate.toLocaleTimeString(intlLocale, {
@@ -127,7 +128,7 @@ function CommentThread({
           {/* Sender name */}
           {(message.senderName || (isOutgoing && conversation)) && (
             <p className={cn('mb-1 text-xs font-semibold', isRTL && 'text-right')} style={{ color: isOutgoing ? 'rgba(255, 255, 255, 0.9)' : '#6B7280' }}>
-              {isOutgoing ? (message.senderName || 'You') : message.senderName}
+              {isOutgoing ? (message.senderName || t('you')) : message.senderName}
             </p>
           )}
           <p className={cn('break-words whitespace-pre-wrap', isReply ? 'text-xs' : 'text-sm')}>{message.content}</p>
@@ -238,7 +239,7 @@ function CommentThread({
                     )
                   : (
                       <div className={cn('flex items-center justify-center rounded-full bg-pink-500', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
-                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>You</span>
+                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>{t('you')}</span>
                       </div>
                     )}
               </div>
@@ -793,7 +794,7 @@ export function ChatWindow({
             <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
               <MessageCircle className="h-4 w-4 text-pink-600" />
               <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
-                Replying to
+                {t('replying_to')}
                 {' '}
                 <span className="font-semibold">{replyingToMessage.senderName}</span>
               </span>
@@ -804,7 +805,7 @@ export function ChatWindow({
               size="icon"
               className="h-6 w-6 text-pink-600 hover:bg-pink-100"
               onClick={() => setReplyingToMessage(null)}
-              title="Cancel reply"
+              title={t('cancel_reply')}
             >
               <X className="h-4 w-4" />
             </Button>
