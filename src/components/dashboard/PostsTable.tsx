@@ -588,8 +588,8 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                           : `post-${post.date}-${post.platform}-${post.engagement}-${index}-${post.postContent.slice(0, 20).replace(/\s/g, '-')}`;
 
                         return (
-                          <tr key={uniqueKey} className="border-b border-gray-100 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50">
-                            <td className="sticky left-0 z-10 bg-white px-1.5 py-2 sm:px-2">
+                          <tr key={uniqueKey} className="group border-b border-gray-100 hover:bg-gray-50 dark:border-gray-700 dark:hover:bg-gray-700/50">
+                            <td className="sticky left-0 z-10 bg-white px-1.5 py-2 group-hover:bg-gray-50 sm:px-2 dark:bg-gray-800 dark:group-hover:bg-gray-700/50">
                               <div className="flex items-center justify-center">
                                 <div className={`flex h-6 w-6 items-center justify-center rounded sm:h-8 sm:w-8 ${getPlatformBgColor(post.platform)}`}>
                                   <PlatformIcon platform={post.platform} className="h-4 w-4 text-white sm:h-5 sm:w-5" />
@@ -642,11 +642,17 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                   return null;
                                 }
 
+                                // Remove duplicates (same media with different query params, etc.)
+                                // based on normalized URL so each media item appears only once.
+                                const uniqueUrlPairs = urlPairs.filter((pair, index, array) => (
+                                  array.findIndex(item => item.normalized === pair.normalized) === index
+                                ));
+
                                 // Show all media items in a grid layout
                                 // Limit to 4 items for display (show "+X more" if more exist)
                                 const maxDisplay = 4;
-                                const displayItems = urlPairs.slice(0, maxDisplay);
-                                const remainingCount = urlPairs.length - maxDisplay;
+                                const displayItems = uniqueUrlPairs.slice(0, maxDisplay);
+                                const remainingCount = uniqueUrlPairs.length - maxDisplay;
 
                                 return (
                                   <div className={`mb-1 flex flex-wrap items-center gap-1 sm:mb-2 sm:gap-1.5 ${localeCode === 'he' ? 'flex-row-reverse justify-start' : 'justify-start'}`}>
@@ -738,7 +744,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                 {Math.round(post.score)}
                               </span>
                             </td>
-                            <td className="sticky right-0 z-10 bg-white px-1.5 py-2 text-center sm:px-2">
+                            <td className="sticky right-0 z-10 bg-white px-1.5 py-2 text-center group-hover:bg-gray-50 sm:px-2 dark:bg-gray-800 dark:group-hover:bg-gray-700/50">
                               {post.platformPostUrl
                                 ? (
                                     <a

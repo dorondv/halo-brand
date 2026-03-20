@@ -322,7 +322,7 @@ body {
 }
 
 .dark .rdrWeekDays {
-  color: rgb(156 163 175);
+  color: rgb(209 213 219);
   border-bottom-color: rgb(75 85 99);
 }
 
@@ -335,7 +335,7 @@ body {
 }
 
 .dark .rdrDayPassive .rdrDayNumber span {
-  color: rgb(107 114 128) !important;
+  color: rgb(156 163 175) !important;
 }
 
 .dark .rdrDayHovered {
@@ -359,13 +359,22 @@ body {
 .dark .rdrNextButton {
   background-color: rgb(55 65 81);
   border-color: rgb(75 85 99);
-  color: rgb(209 213 219);
+  color: rgb(229 231 235);
 }
 
 .dark .rdrPprevButton:hover,
 .dark .rdrNextButton:hover {
   background-color: rgb(75 85 99);
   border-color: rgb(107 114 128);
+}
+
+/* Ensure date-navigation arrow icons are visible in dark mode */
+.dark .rdrPprevButton i {
+  border-color: transparent rgb(229 231 235) transparent transparent;
+}
+
+.dark .rdrNextButton i {
+  border-color: transparent transparent transparent rgb(229 231 235);
 }
 
 /* Glass effect for cards */
