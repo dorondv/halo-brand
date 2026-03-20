@@ -4,6 +4,32 @@ import { z } from 'zod';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+function extractFollowerCountFromPage(page: Record<string, unknown> | undefined): number | undefined {
+  if (!page) {
+    return undefined;
+  }
+
+  const candidates = [
+    page.followersCount,
+    page.followerCount,
+    page.followers,
+    page.fan_count,
+    page.fans,
+    page.likes,
+  ];
+
+  for (const value of candidates) {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    if (typeof value === 'string' && value.trim() && !Number.isNaN(Number(value))) {
+      return Number(value);
+    }
+  }
+
+  return undefined;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const accountId = request.nextUrl.searchParams.get('accountId');
@@ -241,6 +267,8 @@ export async function PUT(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
     const existingPlatformData = (socialAccount.platform_specific_data as Record<string, any>) || {};
+    let selectedPageMeta: Record<string, unknown> | undefined;
+    let selectedPageFollowerCount: number | undefined;
 
     // Resolve access token server-side (never rely on client supplied tokens)
     let resolvedAccessToken = pageAccessToken;
@@ -251,6 +279,8 @@ export async function PUT(request: NextRequest) {
           page => page.pageId === pageId || page.id === pageId,
         );
         resolvedAccessToken = matchingPage?.accessToken;
+        selectedPageMeta = matchingPage as unknown as Record<string, unknown> | undefined;
+        selectedPageFollowerCount = extractFollowerCountFromPage(selectedPageMeta);
       } catch {
         // swallow, we'll try raw accounts next
       }
@@ -278,6 +308,8 @@ export async function PUT(request: NextRequest) {
             || matchingPage?.page_access_token
             || matchingPage?.accessToken
             || matchingPage?.access_token;
+          selectedPageMeta = matchingPage as Record<string, unknown> | undefined;
+          selectedPageFollowerCount = extractFollowerCountFromPage(selectedPageMeta);
         }
       } catch {
         // ignore – selectFacebookPage may still succeed without explicit token
@@ -292,9 +324,15 @@ export async function PUT(request: NextRequest) {
 
     const updatedData = {
       ...existingPlatformData,
+      ...(typeof selectedPageFollowerCount === 'number'
+        ? { follower_count: selectedPageFollowerCount }
+        : {}),
       facebookPage: {
         id: pageId,
         name: pageName || existingPlatformData.facebookPage?.name || '',
+        ...(typeof selectedPageFollowerCount === 'number'
+          ? { follower_count: selectedPageFollowerCount }
+          : {}),
         updatedAt: new Date().toISOString(),
       },
     };
@@ -328,6 +366,7 @@ export async function PUT(request: NextRequest) {
         id: pageId,
         name: pageName,
       },
+      followerCount: selectedPageFollowerCount,
     });
   } catch (error) {
     console.error('[Getlate Facebook Pages] Error saving selection:', error);

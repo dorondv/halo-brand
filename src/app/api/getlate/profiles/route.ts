@@ -1,5 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
@@ -16,14 +17,8 @@ export async function GET(_request: NextRequest) {
       return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
 
-    // Get user record to fetch Getlate API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -72,14 +67,8 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 422 });
     }
 
-    // Get user record to fetch Getlate API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -245,10 +234,19 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const profileId = profile?.id || profile?._id;
+    if (!profileId || typeof profileId !== 'string') {
+      console.error('Profile missing ID:', profile);
+      return NextResponse.json(
+        { error: 'Profile created but missing ID' },
+        { status: 500 },
+      );
+    }
+
     // Link profile to brand
     const { error: updateError } = await supabase
       .from('brands')
-      .update({ getlate_profile_id: profile.id })
+      .update({ getlate_profile_id: profileId })
       .eq('id', brandId);
 
     if (updateError) {
@@ -259,19 +257,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure profile has an ID before returning
-    if (!profile || !profile.id) {
-      console.error('Profile missing ID:', profile);
-      return NextResponse.json(
-        { error: 'Profile created but missing ID' },
-        { status: 500 },
-      );
-    }
-
     // Return the profile with the brand ID for convenience
     return NextResponse.json({
       profile,
-      profileId: profile.id, // Include profile ID for easy access
+      profileId, // Include profile ID for easy access
       brandId, // Include brand ID for confirmation
     });
   } catch (error) {

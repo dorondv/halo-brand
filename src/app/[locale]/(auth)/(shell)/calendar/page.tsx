@@ -731,7 +731,7 @@ export default function CalendarPage() {
                         {slotPosts.map(post => (
                           <div
                             key={post.id || `post-${post.scheduled_time}-${post.content?.substring(0, 10) || 'unknown'}`}
-                            className="mb-1 cursor-pointer rounded bg-gradient-to-r from-pink-500 to-pink-600 p-1.5 text-xs text-white shadow-sm transition-all hover:shadow-md"
+                            className="mb-1 cursor-pointer rounded bg-linear-to-r from-pink-500 to-pink-600 p-1.5 text-xs text-white shadow-sm transition-all hover:shadow-md"
                             onClick={(e) => {
                               e.stopPropagation();
                               // Always allow viewing post details, even if in the past
@@ -1022,7 +1022,7 @@ export default function CalendarPage() {
           className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
           <div className={isRTL ? 'text-right' : 'text-left'}>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
+            <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
             <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
@@ -1386,7 +1386,7 @@ export default function CalendarPage() {
                           <Button
                             size="default"
                             disabled={!selectedDate || !!timeError}
-                            className="w-full bg-gradient-to-r from-pink-500 to-pink-600 py-2 text-white shadow-md hover:from-pink-600 hover:to-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
+                            className="w-full bg-linear-to-r from-pink-500 to-pink-600 py-2 text-white shadow-md hover:from-pink-600 hover:to-pink-700 hover:shadow-lg disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             <Plus className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
                             {t('schedule_post')}

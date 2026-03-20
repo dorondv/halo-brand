@@ -201,7 +201,7 @@ export default function SettingsPage() {
               'bg-clip-text text-4xl font-bold text-transparent',
               isRTL
                 ? 'bg-gradient-to-l from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-300'
-                : 'bg-gradient-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-300',
+                : 'bg-linear-to-r from-slate-900 to-slate-600 dark:from-slate-100 dark:to-slate-300',
             )}
             >
               {t('title')}
@@ -460,7 +460,7 @@ export default function SettingsPage() {
             <Button
               onClick={handleSaveSettings}
               disabled={isLoading || isSaving}
-              className="bg-gradient-to-r from-pink-500 to-pink-600 px-8 py-3 text-white hover:from-pink-600 hover:to-pink-700"
+              className="bg-linear-to-r from-pink-500 to-pink-600 px-8 py-3 text-white hover:from-pink-600 hover:to-pink-700"
             >
               {isSaving
                 ? (

@@ -1,7 +1,96 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+
+type SocialAccountRow = {
+  id: string;
+  user_id: string;
+  brand_id: string;
+  platform: string;
+  account_id: string;
+  getlate_account_id: string | null;
+  is_active: boolean;
+  platform_specific_data: Record<string, unknown> | null;
+  updated_at: string | null;
+  created_at: string | null;
+};
+
+type ExistingAccountRow = {
+  id: string;
+  platform_specific_data: Record<string, unknown> | null;
+  brand_id: string;
+  is_active: boolean;
+  getlate_account_id: string | null;
+};
+
+function buildAccountKey(account: Pick<SocialAccountRow, 'platform' | 'account_id' | 'getlate_account_id'>): string {
+  if (account.getlate_account_id) {
+    return `getlate:${account.getlate_account_id}`;
+  }
+  return `native:${String(account.platform || '').toLowerCase()}:${account.account_id || ''}`;
+}
+
+async function deduplicateBrandAccounts(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  brandId: string,
+) {
+  const { data: brandAccounts, error: loadError } = await supabase
+    .from('social_accounts')
+    .select('id,user_id,brand_id,platform,account_id,getlate_account_id,is_active,platform_specific_data,updated_at,created_at')
+    .eq('user_id', userId)
+    .eq('brand_id', brandId)
+    .order('updated_at', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (loadError || !brandAccounts) {
+    if (loadError) {
+      console.error('[Getlate Accounts Sync] Failed loading brand accounts for dedupe:', loadError);
+    }
+    return;
+  }
+
+  const grouped = new Map<string, SocialAccountRow[]>();
+  for (const account of brandAccounts as SocialAccountRow[]) {
+    const key = buildAccountKey(account);
+    const current = grouped.get(key) || [];
+    current.push(account);
+    grouped.set(key, current);
+  }
+
+  for (const rows of grouped.values()) {
+    if (rows.length <= 1) {
+      continue;
+    }
+
+    const canonical = rows[0];
+    if (!canonical) {
+      continue;
+    }
+    const duplicates = rows.slice(1);
+    for (const duplicate of duplicates) {
+      const duplicateMeta = (duplicate.platform_specific_data || {}) as Record<string, unknown>;
+      const { error: deactivateError } = await supabase
+        .from('social_accounts')
+        .update({
+          is_active: false,
+          platform_specific_data: {
+            ...duplicateMeta,
+            duplicate_of_account_id: canonical.id,
+            deduplicated_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', duplicate.id)
+        .eq('user_id', userId);
+
+      if (deactivateError) {
+        console.error(`[Getlate Accounts Sync] Failed deactivating duplicate account ${duplicate.id}:`, deactivateError);
+      }
+    }
+  }
+}
 
 /**
  * GET /api/getlate/accounts
@@ -24,14 +113,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 422 });
     }
 
-    // Get user record to fetch Getlate API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -59,6 +142,8 @@ export async function GET(request: NextRequest) {
         { status: 400 },
       );
     }
+
+    await deduplicateBrandAccounts(supabase, user.id, brandId);
 
     // Fetch accounts from Getlate
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
@@ -121,24 +206,30 @@ export async function GET(request: NextRequest) {
 
       // Check if account already exists
       // First try to find by getlate_account_id and brand_id
-      let { data: existingAccount } = await supabase
+      const { data: existingAccountsForBrand } = await supabase
         .from('social_accounts')
         .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
         .eq('getlate_account_id', accountId)
+        .eq('user_id', user.id)
         .eq('brand_id', brandId)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .limit(5);
+
+      let existingAccount: ExistingAccountRow | null = (existingAccountsForBrand?.[0] as ExistingAccountRow | undefined) ?? null;
 
       // If not found, try to find by getlate_account_id only (in case brand_id changed)
       if (!existingAccount) {
-        const { data: accountByGetlateId } = await supabase
+        const { data: accountsByGetlateId } = await supabase
           .from('social_accounts')
           .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
           .eq('getlate_account_id', accountId)
-          .maybeSingle();
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(5);
 
-        if (accountByGetlateId) {
+        if (accountsByGetlateId?.length) {
           // Account exists but with different brand_id - update it to current brand
-          existingAccount = accountByGetlateId;
+          existingAccount = (accountsByGetlateId[0] as ExistingAccountRow | undefined) ?? null;
         }
       }
 
@@ -284,7 +375,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ accounts: syncedAccounts });
+    await deduplicateBrandAccounts(supabase, user.id, brandId);
+
+    // Return current canonical state for this brand (not only rows touched in this sync).
+    const { data: currentAccounts, error: currentAccountsError } = await supabase
+      .from('social_accounts')
+      .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id,is_active,updated_at')
+      .eq('user_id', user.id)
+      .eq('brand_id', brandId)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false });
+
+    if (currentAccountsError) {
+      console.error('[Getlate Accounts Sync] Failed loading current canonical accounts:', currentAccountsError);
+      return NextResponse.json({ accounts: syncedAccounts });
+    }
+
+    const seen = new Set<string>();
+    const canonicalAccounts = [];
+    for (const account of currentAccounts || []) {
+      const key = buildAccountKey({
+        getlate_account_id: account.getlate_account_id,
+        platform: account.platform,
+        account_id: account.account_id,
+      });
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      canonicalAccounts.push(account);
+    }
+
+    return NextResponse.json({ accounts: canonicalAccounts });
   } catch (error) {
     console.error('[Getlate Accounts Sync] Error:', error);
     return NextResponse.json(

@@ -1,6 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { Env } from '@/libs/Env';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
@@ -32,14 +33,8 @@ export async function POST(request: NextRequest) {
 
     const { platform, brandId, redirectUrl } = parse.data;
 
-    // Get user record to fetch API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -110,12 +105,20 @@ export async function POST(request: NextRequest) {
     const finalRedirectUrl = redirectUrl || defaultRedirectUrl;
 
     // Validate redirect URL is a proper URL
+    let parsedRedirectUrl: URL;
     try {
-      // eslint-disable-next-line no-new
-      new URL(finalRedirectUrl);
+      parsedRedirectUrl = new URL(finalRedirectUrl);
     } catch {
       return NextResponse.json(
         { error: 'Invalid redirect URL format' },
+        { status: 400 },
+      );
+    }
+
+    const appOrigin = new URL(origin);
+    if (parsedRedirectUrl.origin !== appOrigin.origin) {
+      return NextResponse.json(
+        { error: 'Redirect URL must match app origin' },
         { status: 400 },
       );
     }

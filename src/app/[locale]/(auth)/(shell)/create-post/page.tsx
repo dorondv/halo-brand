@@ -2662,7 +2662,7 @@ export default function CreatePostPage() {
                         {t('no_connected_accounts_hint')}
                       </p>
                       <Link href="/connections">
-                        <Button className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700">
+                        <Button className="gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700">
                           <Users className="h-4 w-4" />
                           {t('go_to_connections_page')}
                         </Button>
@@ -2862,7 +2862,7 @@ export default function CreatePostPage() {
                                           setShowAiPanel(prev => ({ ...prev, base: false }));
                                         }}
                                         disabled={isGeneratingAll || !aiBrief?.trim()}
-                                        className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                        className="gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                       >
                                         {isGeneratingAll
                                           ? (
@@ -3111,7 +3111,7 @@ export default function CreatePostPage() {
                                         setShowAiPanel(prev => ({ ...prev, base: false }));
                                       }}
                                       disabled={isGeneratingAll || !aiBrief?.trim()}
-                                      className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                      className="gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                     >
                                       {isGeneratingAll
                                         ? (
@@ -3348,7 +3348,7 @@ export default function CreatePostPage() {
                                           }
                                         }}
                                         disabled={isGeneratingMedia.base || !aiMediaPrompt.base?.trim()}
-                                        className="w-full gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                        className="w-full gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                       >
                                         {isGeneratingMedia.base
                                           ? (
@@ -3998,7 +3998,7 @@ export default function CreatePostPage() {
                                                       setShowAiPanel(prev => ({ ...prev, [platform]: false }));
                                                     }}
                                                     disabled={isGeneratingAll || !aiBriefInput[platform]?.trim()}
-                                                    className="gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                                    className="gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                                   >
                                                     {isGeneratingAll
                                                       ? (
@@ -4127,7 +4127,7 @@ export default function CreatePostPage() {
                                                       type="button"
                                                       onClick={() => void handleGenerateAIMedia(platform)}
                                                       disabled={isGeneratingMedia[platform] || !aiMediaPrompt[platform]?.trim()}
-                                                      className="w-full gap-2 bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                                                      className="w-full gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                                                     >
                                                       {isGeneratingMedia[platform]
                                                         ? (

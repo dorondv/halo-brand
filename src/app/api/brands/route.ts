@@ -1,9 +1,32 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { Env } from '@/libs/Env';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+
+function extractGetlateProfileId(profile: unknown): string | null {
+  if (!profile || typeof profile !== 'object') {
+    return null;
+  }
+
+  const profileRecord = profile as Record<string, unknown>;
+  const id = profileRecord._id || profileRecord.id;
+  return typeof id === 'string' && id.trim() ? id : null;
+}
+
+function isDuplicateProfileNameError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('already exists')
+    || message.includes('duplicate')
+    || message.includes('profile exists');
+}
+
+function buildUniqueProfileName(baseName: string): string {
+  const timestamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  return `${baseName} (${timestamp})`;
+}
 
 /**
  * DELETE /api/brands
@@ -74,12 +97,7 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get user record to fetch API key
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
+    const userRecord = await ensureUserRecord(supabase, user);
 
     // Delete Getlate profile if it exists
     if (brandRecord.getlate_profile_id && userRecord?.getlate_api_key) {
@@ -249,14 +267,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user record to fetch API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -289,57 +301,31 @@ export async function POST(request: NextRequest) {
 
     // Always create a new Getlate profile for each brand
     let getlateProfileId: string | null = null;
+    let profileWarning: string | null = null;
 
     if (userRecord.getlate_api_key) {
       try {
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
-
-        // Always create a new profile with the brand name
-        const newProfile = await getlateClient.createProfile(name);
-
-        // Getlate API may return _id or id, handle both formats
-        // Also check if the response is nested
-        const extractedProfileId = (newProfile as any)?._id
-          || (newProfile as any)?.id
-          || newProfile?.id
-          || newProfile?._id;
-
-        if (!extractedProfileId) {
-          console.error('[Brand Creation] Created profile but missing ID. Full response:', JSON.stringify(newProfile, null, 2));
-          // Try to fetch profiles again to see if it was created
-          try {
-            const profilesAfterCreate = await getlateClient.getProfiles();
-            let allProfilesAfter: any[] = [];
-            if (Array.isArray(profilesAfterCreate)) {
-              allProfilesAfter = profilesAfterCreate;
-            } else if (profilesAfterCreate && typeof profilesAfterCreate === 'object') {
-              allProfilesAfter = (profilesAfterCreate as any)?.profiles
-                || (profilesAfterCreate as any)?.data
-                || (profilesAfterCreate as any)?.results
-                || [];
-            }
-
-            // Find the profile we just created by name (most recent match)
-            const createdProfile = allProfilesAfter
-              .filter((p: any) => p && (p.name === name || p.name?.includes(name)))
-              .sort((a: any, b: any) => {
-                // Sort by created_at if available, otherwise by _id (newer IDs might be later)
-                const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-                const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-                return bTime - aTime; // Most recent first
-              })[0];
-
-            if (createdProfile) {
-              getlateProfileId = createdProfile._id || createdProfile.id;
-            } else {
-              throw new Error('Created Getlate profile but could not find it in profiles list');
-            }
-          } catch (fetchError) {
-            console.error('[Brand Creation] Error fetching profiles after creation:', fetchError);
-            throw new Error('Created Getlate profile but response missing ID and could not verify creation');
+        const tryCreateProfile = async (profileName: string) => {
+          const createdProfile = await getlateClient.createProfile(profileName);
+          const createdProfileId = extractGetlateProfileId(createdProfile);
+          if (!createdProfileId) {
+            throw new Error(`Getlate profile created without valid id for name "${profileName}"`);
           }
-        } else {
-          getlateProfileId = extractedProfileId;
+          return createdProfileId;
+        };
+
+        // Always try the exact brand name first.
+        try {
+          getlateProfileId = await tryCreateProfile(name);
+        } catch (createError) {
+          if (!isDuplicateProfileNameError(createError)) {
+            throw createError;
+          }
+
+          // Brand/profile name already exists in Getlate - create a unique new one and use it.
+          const uniqueProfileName = buildUniqueProfileName(name);
+          getlateProfileId = await tryCreateProfile(uniqueProfileName);
         }
       } catch (error) {
         console.error('[Brand Creation] Error creating Getlate profile:', error);
@@ -349,6 +335,13 @@ export async function POST(request: NextRequest) {
             message: error.message,
             stack: error.stack,
           });
+          if (error.message.toLowerCase().includes('profile limit reached')) {
+            profileWarning = 'Brand created, but Getlate profile was not created because your Getlate profile limit has been reached.';
+          } else {
+            profileWarning = 'Brand created, but Getlate profile could not be created.';
+          }
+        } else {
+          profileWarning = 'Brand created, but Getlate profile could not be created.';
         }
         // Continue without Getlate profile - brand will be created without it
         // User can link it later via the connections page
@@ -433,7 +426,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ brand });
+    return NextResponse.json({ brand, warning: profileWarning });
   } catch (error) {
     console.error('Error creating brand:', error);
     return NextResponse.json(

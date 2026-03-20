@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/components/ui/toast';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
@@ -42,6 +43,7 @@ export function BrandSelector() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { selectedBrandId, setSelectedBrandId } = useBrand();
+  const { showToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isUpdatingUrlRef = useRef(false);
@@ -303,7 +305,7 @@ export function BrandSelector() {
         throw new Error(error.error || 'Failed to create brand. Please try again.');
       }
 
-      const { brand: data } = await brandResponse.json();
+      const { brand: data, warning } = await brandResponse.json();
 
       // Refresh brands list
       await fetchBrands();
@@ -315,6 +317,16 @@ export function BrandSelector() {
       setIsModalOpen(false);
       setBrandName('');
       setBrandLogoFile(null);
+      if (warning) {
+        showToast(String(warning), 'error');
+      } else if (!data.getlate_profile_id) {
+        showToast(
+          isRTL
+            ? 'המותג נוצר, אך פרופיל החיבור לרשתות לא נוצר. בדוק את הגדרות האינטגרציה או את מגבלת הפרופילים.'
+            : 'Brand created, but social connection profile was not created. Check integration settings or profile limits.',
+          'error',
+        );
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error creating brand:', errorMessage);
