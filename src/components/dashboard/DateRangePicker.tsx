@@ -26,6 +26,7 @@ export function DateRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startTransition] = React.useTransition();
   const t = useTranslations('DashboardPage');
   const localeCode = useLocale();
   const isRTL = localeCode === 'he';
@@ -123,8 +124,14 @@ export function DateRangePicker() {
 
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-    router.refresh();
+    const currentQuery = searchParams.toString();
+    if (queryString === currentQuery) {
+      return;
+    }
+
+    startTransition(() => {
+      router.push(url, { scroll: false });
+    });
   };
 
   const handleRangeSelect = (range: DateRangeOption) => {
