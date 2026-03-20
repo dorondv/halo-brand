@@ -1,6 +1,6 @@
 'use client';
 
-import { CheckCircle, Download, Edit2, Loader2, Save, X } from 'lucide-react';
+import { CheckCircle, Download, Edit2, Loader2, Save, Trash2, X } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -42,6 +42,7 @@ export function AdminUsers() {
   const [editingRole, setEditingRole] = useState<string | null>(null);
   const [newRole, setNewRole] = useState<string>('');
   const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -241,6 +242,35 @@ export function AdminUsers() {
       toast.error(error.message || 'Failed to update role');
     } finally {
       setIsUpdatingRole(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    // eslint-disable-next-line no-alert
+    const confirmed = confirm(`Delete user ${user.email}? This will remove their dashboard data.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingUserId(user.id);
+      const params = new URLSearchParams({ userId: user.id });
+      const response = await fetch(`/api/admin/users?${params}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete user');
+      }
+
+      toast.success(`User ${user.email} deleted successfully`);
+      await fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
     }
   };
 
@@ -591,6 +621,21 @@ export function AdminUsers() {
                           Revoke
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={deletingUserId === user.id}
+                        className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                        title="Delete User"
+                      >
+                        {deletingUserId === user.id
+                          ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            )
+                          : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

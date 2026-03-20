@@ -165,7 +165,7 @@ export function PricingClient() {
                         {t('annual')}
                       </span>
                       {isAnnual && (
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
+                        <Badge className="bg-linear-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
                           {t('save_percent', { percent: '20' })}
                         </Badge>
                       )}
@@ -208,7 +208,7 @@ export function PricingClient() {
                         {t('annual')}
                       </span>
                       {isAnnual && (
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
+                        <Badge className="bg-linear-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
                           {t('save_percent', { percent: '20' })}
                         </Badge>
                       )}
@@ -253,7 +253,7 @@ export function PricingClient() {
                 >
                   {isPopular && (
                     <div className="absolute -top-4 left-1/2 z-10 -translate-x-1/2">
-                      <Badge className="bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
+                      <Badge className="bg-linear-to-r from-pink-500 to-pink-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
                         {t(`plan_${planKey}.popular_badge` as any)}
                       </Badge>
                     </div>
@@ -334,7 +334,7 @@ export function PricingClient() {
                       className={cn(
                         'group mt-auto w-full flex items-center justify-center gap-2',
                         'h-12 sm:h-14 text-base sm:text-lg font-semibold',
-                        'bg-gradient-to-r from-pink-500 to-pink-600',
+                        'bg-linear-to-r from-pink-500 to-pink-600',
                         'hover:from-pink-600 hover:to-pink-700',
                         'shadow-lg hover:shadow-xl',
                         'transition-all duration-200',

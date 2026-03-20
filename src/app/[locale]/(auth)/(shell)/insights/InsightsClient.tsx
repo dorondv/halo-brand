@@ -310,7 +310,7 @@ export function InsightsClient() {
           className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center"
         >
           <div>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
+            <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
             <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
@@ -319,7 +319,7 @@ export function InsightsClient() {
           <Button
             onClick={generateInsights}
             disabled={isGeneratingInsights}
-            className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+            className="bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
           >
             {isGeneratingInsights
               ? (
@@ -453,7 +453,7 @@ export function InsightsClient() {
                       <Button
                         onClick={generateInsights}
                         disabled={isGeneratingInsights}
-                        className="bg-gradient-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
+                        className="bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
                       >
                         {isGeneratingInsights
                           ? (

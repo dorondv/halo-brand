@@ -8,14 +8,13 @@ import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
-import { createSupabaseServerClient } from '@/libs/Supabase';
+import { getUserSafe } from '@/libs/Supabase';
 
 export default async function MarketingPage() {
   const t = await getTranslations('Marketing');
   const locale = await getLocale();
   const isRTL = locale === 'he';
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getUserSafe();
   const features = [
     {
       icon: Calendar,
@@ -74,7 +73,7 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
+                            'rounded-lg bg-linear-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2 flex-row-reverse',
                             'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
@@ -99,7 +98,7 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
+                            'rounded-lg bg-linear-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2',
                             'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
@@ -124,7 +123,7 @@ export default async function MarketingPage() {
               <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl dark:text-white">
                 {t('hero_line1')}
                 {' '}
-                <span className="bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent">
+                <span className="bg-linear-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent">
                   {t('hero_line2_highlight')}
                 </span>
                 {' '}

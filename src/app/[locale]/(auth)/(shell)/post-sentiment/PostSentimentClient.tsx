@@ -475,7 +475,7 @@ export function PostSentimentClient() {
     <div className="min-h-screen p-6">
       <div className="mx-auto max-w-7xl space-y-8">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
+          <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
             {t('title')}
           </h1>
           <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>

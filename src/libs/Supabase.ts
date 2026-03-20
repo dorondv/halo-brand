@@ -4,11 +4,26 @@ import { cookies } from 'next/headers';
 type CookieStore = Awaited<ReturnType<typeof cookies>>;
 
 /** Auth error codes that indicate stale/invalid session - clear cookies and treat as signed out */
-const STALE_SESSION_CODES = ['refresh_token_not_found', 'refresh_token_revoked'];
+const STALE_SESSION_CODES = [
+  'refresh_token_not_found',
+  'refresh_token_revoked',
+  'invalid_grant',
+  'invalid_refresh_token',
+];
 
 function isStaleSessionError(error: unknown): boolean {
   const err = error as { code?: string; message?: string };
-  return err?.code ? STALE_SESSION_CODES.includes(err.code) : false;
+  if (err?.code && STALE_SESSION_CODES.includes(err.code)) {
+    return true;
+  }
+
+  const message = (err?.message || '').toLowerCase();
+  return (
+    message.includes('refresh token not found')
+    || message.includes('invalid refresh token')
+    || message.includes('refresh_token_not_found')
+    || message.includes('refresh token revoked')
+  );
 }
 
 /** Serializable stub for auth errors - avoids passing raw Error (can break JSON.parse) */
@@ -95,8 +110,10 @@ export async function createSupabaseServerClient(cookieStore?: CookieStore) {
         },
       },
       auth: {
-        autoRefreshToken: true,
-        persistSession: true,
+        // Server-side clients should not run background refresh/persistence logic.
+        // They should only read/write session via request/response cookies.
+        autoRefreshToken: false,
+        persistSession: false,
         detectSessionInUrl: false,
       },
     },
