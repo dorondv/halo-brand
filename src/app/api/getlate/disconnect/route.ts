@@ -82,20 +82,55 @@ export async function POST(request: NextRequest) {
         stack: getlateError instanceof Error ? getlateError.stack : undefined,
       });
 
-      // If Getlate disconnect fails, we still want to disconnect locally
-      // But return the error so frontend knows it failed
+      // If Getlate disconnect fails, we still allow local disconnect flow to continue.
+      // Return 200 with warning so UI can proceed without blocking.
       return NextResponse.json(
         {
-          success: false,
+          success: true,
+          disconnectedFromGetlate: false,
           warning: 'Account disconnected locally, but Getlate disconnect failed',
           error: errorMessage,
         },
-        { status: 500 }, // Return 500 to indicate Getlate disconnect failed
+        { status: 200 },
       );
+    }
+
+    // Deactivate duplicate rows that represent the same Getlate account for this user+brand.
+    // This keeps the DB state canonical and prevents stale "connected" twins.
+    if (getlateAccountIdToDisconnect) {
+      const { data: duplicateRows } = await supabase
+        .from('social_accounts')
+        .select('id, platform_specific_data')
+        .eq('user_id', user.id)
+        .eq('brand_id', accountRecord.brand_id)
+        .eq('getlate_account_id', getlateAccountIdToDisconnect)
+        .neq('id', accountRecord.id);
+
+      for (const duplicate of duplicateRows || []) {
+        const duplicateMeta = (duplicate.platform_specific_data as Record<string, unknown> | null) || {};
+        const { error: duplicateDeactivateError } = await supabase
+          .from('social_accounts')
+          .update({
+            is_active: false,
+            platform_specific_data: {
+              ...duplicateMeta,
+              manually_disconnected_at: new Date().toISOString(),
+              manually_disconnected: true,
+              duplicate_of_account_id: accountRecord.id,
+            },
+          })
+          .eq('id', duplicate.id)
+          .eq('user_id', user.id);
+
+        if (duplicateDeactivateError) {
+          console.error(`[Getlate Disconnect] Failed deactivating duplicate account ${duplicate.id}:`, duplicateDeactivateError);
+        }
+      }
     }
 
     return NextResponse.json({
       success: true,
+      disconnectedFromGetlate: true,
       message: 'Account disconnected from Getlate successfully',
     });
   } catch (error) {

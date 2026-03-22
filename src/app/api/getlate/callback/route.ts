@@ -1,6 +1,22 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { AppConfig } from '@/utils/AppConfig';
+
+function normalizeLocale(value: string | null): string {
+  if (value && AppConfig.locales.includes(value)) {
+    return value;
+  }
+  return AppConfig.defaultLocale;
+}
+
+function localizedPath(path: string, locale: string): string {
+  if (locale === AppConfig.defaultLocale) {
+    return path;
+  }
+  return `/${locale}${path}`;
+}
 
 /**
  * GET /api/getlate/callback
@@ -11,9 +27,14 @@ export async function GET(request: NextRequest) {
     const supabase = await createSupabaseServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
+    const origin = request.nextUrl.origin
+      || request.headers.get('origin')
+      || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
+      || 'http://localhost:3000';
+
     if (authError || !user) {
       const redirectUrl = new URL(request.url);
-      redirectUrl.pathname = '/sign-in';
+      redirectUrl.pathname = localizedPath('/sign-in', AppConfig.defaultLocale);
       redirectUrl.search = '?error=unauthorized';
       return NextResponse.redirect(redirectUrl);
     }
@@ -82,6 +103,7 @@ export async function GET(request: NextRequest) {
     const userProfile = extractParam('userProfile');
     const connectToken = extractParam('connect_token');
     const organizations = extractParam('organizations'); // LinkedIn organizations (URL-encoded JSON)
+    const locale = normalizeLocale(extractParam('locale'));
 
     // Handle OAuth errors and cancellations
     // Check for error parameter first (Getlate returns error on failure)
@@ -89,12 +111,7 @@ export async function GET(request: NextRequest) {
       console.error('OAuth error from Getlate:', error, 'platform:', platform, 'brandId:', brandId);
 
       // Build redirect URL with proper origin
-      const origin = request.nextUrl.origin
-        || request.headers.get('origin')
-        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-        || 'http://localhost:3000';
-
-      const redirectUrl = new URL('/connections', origin);
+      const redirectUrl = new URL(localizedPath('/connections', locale), origin);
 
       // Check if it's a cancellation (common OAuth cancellation error codes)
       const isCancelled = error === 'access_denied'
@@ -125,12 +142,7 @@ export async function GET(request: NextRequest) {
     // Headless mode redirects directly to our app with OAuth data
     // We need to redirect to connections page with headless mode parameters
     if (step) {
-      const origin = request.nextUrl.origin
-        || request.headers.get('origin')
-        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-        || 'http://localhost:3000';
-
-      const redirectUrl = new URL('/connections', origin);
+      const redirectUrl = new URL(localizedPath('/connections', locale), origin);
 
       // Pass all headless mode parameters to the connections page
       redirectUrl.searchParams.set('headless', 'true');
@@ -166,12 +178,7 @@ export async function GET(request: NextRequest) {
       console.error('Missing required parameters:', { connected, profileId, username, error, platform, brandId });
 
       // Build redirect URL with proper origin
-      const origin = request.nextUrl.origin
-        || request.headers.get('origin')
-        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-        || 'http://localhost:3000';
-
-      const redirectUrl = new URL('/connections', origin);
+      const redirectUrl = new URL(localizedPath('/connections', locale), origin);
       redirectUrl.searchParams.set('error', 'missing_parameters');
       redirectUrl.searchParams.set('connected', connected || 'none');
       redirectUrl.searchParams.set('profileId', profileId || 'none');
@@ -184,20 +191,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Get user record to fetch API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord || !userRecord.getlate_api_key) {
-      const origin = request.nextUrl.origin
-        || request.headers.get('origin')
-        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-        || 'http://localhost:3000';
-
-      const redirectUrl = new URL('/connections', origin);
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord || !userRecord.getlate_api_key) {
+      const redirectUrl = new URL(localizedPath('/connections', locale), origin);
       redirectUrl.searchParams.set('error', 'integration_not_configured');
       if (brandId) {
         redirectUrl.searchParams.set('brandId', brandId);
@@ -264,12 +260,7 @@ export async function GET(request: NextRequest) {
     // If no brands were found to sync, that's also an error
     if (brandsToSync.length === 0) {
       console.error('No brands found to sync for profileId:', profileId, 'brandId:', brandId);
-      const origin = request.nextUrl.origin
-        || request.headers.get('origin')
-        || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-        || 'http://localhost:3000';
-
-      const redirectUrl = new URL('/connections', origin);
+      const redirectUrl = new URL(localizedPath('/connections', locale), origin);
       redirectUrl.searchParams.set('error', 'brand_not_found');
       if (brandId) {
         redirectUrl.searchParams.set('brandId', brandId);
@@ -279,12 +270,7 @@ export async function GET(request: NextRequest) {
 
     // Redirect to connections page with success message
     // Include brandId and sync status in redirect
-    const origin = request.nextUrl.origin
-      || request.headers.get('origin')
-      || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
-      || 'http://localhost:3000';
-
-    const redirectUrl = new URL('/connections', origin);
+    const redirectUrl = new URL(localizedPath('/connections', locale), origin);
     redirectUrl.searchParams.set('connected', connected);
     if (username) {
       redirectUrl.searchParams.set('username', username);
@@ -296,12 +282,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.redirect(redirectUrl);
   } catch (error) {
     console.error('Error handling OAuth callback:', error);
+    const locale = AppConfig.defaultLocale;
     const origin = request.nextUrl.origin
       || request.headers.get('origin')
       || request.headers.get('referer')?.split('/').slice(0, 3).join('/')
       || 'http://localhost:3000';
 
-    const redirectUrl = new URL('/connections', origin);
+    const redirectUrl = new URL(localizedPath('/connections', locale), origin);
     redirectUrl.searchParams.set('error', 'callback_failed');
     return NextResponse.redirect(redirectUrl);
   }

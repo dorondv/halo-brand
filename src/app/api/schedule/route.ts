@@ -29,18 +29,29 @@ export async function POST(request: Request) {
   // Get post and account details
   const { data: postData } = await supabase
     .from('posts')
-    .select('id, brand_id, getlate_post_id, content, image_url')
+    .select('id, user_id, brand_id, getlate_post_id, content, image_url')
     .eq('id', postId)
     .single();
 
   const { data: accountData } = await supabase
     .from('social_accounts')
-    .select('id, brand_id, getlate_account_id, platform')
+    .select('id, user_id, brand_id, getlate_account_id, platform')
     .eq('id', socialAccountId)
     .single();
 
   if (!postData || !accountData) {
     return NextResponse.json({ error: 'Post or account not found' }, { status: 404 });
+  }
+
+  if (postData.user_id !== user.id || accountData.user_id !== user.id) {
+    return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+  }
+
+  if (!postData.brand_id || !accountData.brand_id || postData.brand_id !== accountData.brand_id) {
+    return NextResponse.json(
+      { error: 'Post and account must belong to the same brand' },
+      { status: 422 },
+    );
   }
 
   // If using Getlate and post/account are linked to Getlate
@@ -96,7 +107,7 @@ export async function POST(request: Request) {
   ]).select();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to schedule post' }, { status: 500 });
   }
   return NextResponse.json({ data }, { status: 201 });
 }

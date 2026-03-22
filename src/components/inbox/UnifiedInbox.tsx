@@ -203,7 +203,7 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
   };
 
   return (
-    <div className={cn('flex h-full w-full overflow-hidden bg-white', isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full w-full overflow-hidden bg-white dark:bg-gray-900', isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
       {isRTL
         ? (
             <>
@@ -236,8 +236,8 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                     />
                   )
                 : (
-                    <div className={cn('flex h-full flex-1 items-center justify-center bg-white', 'border-l', 'border-gray-200')}>
-                      <p className={cn('text-gray-500', 'text-right')}>
+                    <div className={cn('flex h-full flex-1 items-center justify-center bg-white dark:bg-gray-900', 'border-l', 'border-gray-200 dark:border-gray-700')}>
+                      <p className={cn('text-gray-500 dark:text-gray-400', 'text-right')}>
                         {t('select_account')}
                       </p>
                     </div>
@@ -285,8 +285,8 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                     />
                   )
                 : (
-                    <div className={cn('flex h-full flex-1 items-center justify-center bg-white', 'border-r', 'border-gray-200')}>
-                      <p className="text-gray-500">
+                    <div className={cn('flex h-full flex-1 items-center justify-center bg-white dark:bg-gray-900', 'border-r', 'border-gray-200 dark:border-gray-700')}>
+                      <p className="text-gray-500 dark:text-gray-400">
                         {t('select_account')}
                       </p>
                     </div>

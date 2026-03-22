@@ -1,6 +1,7 @@
 'use client';
 
-import { CheckCircle, Download, Edit2, Loader2, Save, X } from 'lucide-react';
+import { CheckCircle, Download, Edit2, Loader2, Save, Trash2, X } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
@@ -27,6 +28,7 @@ type AdminUser = {
 
 export function AdminUsers() {
   const toast = useToast();
+  const t = useTranslations('Admin');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
@@ -37,6 +39,10 @@ export function AdminUsers() {
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [newPlanType, setNewPlanType] = useState<string>('');
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
+  const [editingRole, setEditingRole] = useState<string | null>(null);
+  const [newRole, setNewRole] = useState<string>('');
+  const [isUpdatingRole, setIsUpdatingRole] = useState(false);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -49,11 +55,11 @@ export function AdminUsers() {
       setUsers(data);
     } catch (error: any) {
       console.error('Error fetching users:', error);
-      toast.error('Failed to load users');
+      toast.error(t('failed_load_users'));
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, t]);
 
   useEffect(() => {
     void fetchUsers();
@@ -84,7 +90,7 @@ export function AdminUsers() {
       a.click();
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
-      toast.success('Users exported successfully');
+      toast.success(t('users_exported'));
     } catch (error: any) {
       console.error('Error exporting users:', error);
       toast.error('Failed to export users');
@@ -125,14 +131,14 @@ export function AdminUsers() {
       fetchUsers();
     } catch (error: any) {
       console.error('Error granting free access:', error);
-      toast.error('Failed to grant free access');
+      toast.error(t('failed_grant_free_access'));
       setIsGrantingAccess(false);
     }
   };
 
   const handleRevokeFreeAccess = async (userId: string) => {
     // eslint-disable-next-line no-alert
-    if (!confirm('Are you sure you want to revoke free access?')) {
+    if (!confirm(t('confirm_revoke_free_access'))) {
       return;
     }
 
@@ -146,11 +152,11 @@ export function AdminUsers() {
         throw new Error('Failed to revoke free access');
       }
 
-      toast.success('Free access revoked');
+      toast.success(t('free_access_revoked'));
       fetchUsers();
     } catch (error: any) {
       console.error('Error revoking free access:', error);
-      toast.error('Failed to revoke free access');
+      toast.error(t('failed_revoke_free_access'));
     }
   };
 
@@ -196,6 +202,110 @@ export function AdminUsers() {
     } finally {
       setIsUpdatingPlan(false);
     }
+  };
+
+  const handleRoleEdit = (user: AdminUser) => {
+    setEditingRole(user.id);
+    setNewRole(user.role);
+  };
+
+  const handleRoleCancel = () => {
+    setEditingRole(null);
+    setNewRole('');
+  };
+
+  const handleRoleUpdate = async (userId: string) => {
+    if (!newRole || isUpdatingRole) {
+      return;
+    }
+
+    try {
+      setIsUpdatingRole(true);
+      const params = new URLSearchParams({ userId });
+      const response = await fetch(`/api/admin/users/role?${params}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role: newRole }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to update role');
+      }
+
+      toast.success('Role updated successfully');
+      setEditingRole(null);
+      setNewRole('');
+      fetchUsers();
+    } catch (error: any) {
+      console.error('Error updating role:', error);
+      toast.error(error.message || 'Failed to update role');
+    } finally {
+      setIsUpdatingRole(false);
+    }
+  };
+
+  const handleDeleteUser = async (user: AdminUser) => {
+    // eslint-disable-next-line no-alert
+    const confirmed = confirm(`Delete user ${user.email}? This will remove their dashboard data.`);
+    if (!confirmed) {
+      return;
+    }
+
+    try {
+      setDeletingUserId(user.id);
+      const params = new URLSearchParams({ userId: user.id });
+      const response = await fetch(`/api/admin/users?${params}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || 'Failed to delete user');
+      }
+
+      toast.success(`User ${user.email} deleted successfully`);
+      await fetchUsers();
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      toast.error(error.message || 'Failed to delete user');
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
+  const getRoleBadge = (role: string) => {
+    const badges: Record<string, { color: string; bg: string; label: string }> = {
+      admin: {
+        color: 'text-red-700 dark:text-red-400',
+        bg: 'bg-red-100 dark:bg-red-900/30',
+        label: 'Admin',
+      },
+      manager: {
+        color: 'text-blue-700 dark:text-blue-400',
+        bg: 'bg-blue-100 dark:bg-blue-900/30',
+        label: 'Manager',
+      },
+      contributor: {
+        color: 'text-green-700 dark:text-green-400',
+        bg: 'bg-green-100 dark:bg-green-900/30',
+        label: 'Contributor',
+      },
+    };
+
+    const badge = badges[role] || {
+      color: 'text-gray-700 dark:text-gray-400',
+      bg: 'bg-gray-100 dark:bg-gray-900/30',
+      label: role,
+    };
+
+    return (
+      <span
+        className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${badge.color} ${badge.bg}`}
+      >
+        {badge.label}
+      </span>
+    );
   };
 
   const getStatusBadge = (status: string) => {
@@ -255,7 +365,7 @@ export function AdminUsers() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">User Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('users_title')}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Manage users, subscriptions, and access permissions
           </p>
@@ -279,6 +389,9 @@ export function AdminUsers() {
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   User
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                  Role
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Registration
@@ -313,6 +426,60 @@ export function AdminUsers() {
                       </div>
                       <div className="text-sm text-gray-500 dark:text-gray-400">{user.email}</div>
                     </div>
+                  </td>
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    {editingRole === user.id
+                      ? (
+                          <div className="flex items-center gap-2">
+                            <Select
+                              value={newRole}
+                              onValueChange={setNewRole}
+                            >
+                              <SelectTrigger className="h-8 w-32" disabled={isUpdatingRole}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="contributor">Contributor</SelectItem>
+                                <SelectItem value="manager">Manager</SelectItem>
+                                <SelectItem value="admin">Admin</SelectItem>
+                              </SelectContent>
+                            </Select>
+                            <button
+                              onClick={() => handleRoleUpdate(user.id)}
+                              disabled={isUpdatingRole}
+                              className="text-green-600 hover:text-green-900 disabled:opacity-50 dark:text-green-400 dark:hover:text-green-300"
+                              title="Save"
+                            >
+                              {isUpdatingRole
+                                ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  )
+                                : (
+                                    <Save className="h-4 w-4" />
+                                  )}
+                            </button>
+                            <button
+                              onClick={handleRoleCancel}
+                              disabled={isUpdatingRole}
+                              className="text-gray-600 hover:text-gray-900 disabled:opacity-50 dark:text-gray-400 dark:hover:text-gray-300"
+                              title="Cancel"
+                            >
+                              <X className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )
+                      : (
+                          <div className="flex items-center gap-2">
+                            {getRoleBadge(user.role)}
+                            <button
+                              onClick={() => handleRoleEdit(user)}
+                              className="text-blue-600 transition-opacity hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
+                              title="Edit Role"
+                            >
+                              <Edit2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        )}
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
                     {new Date(user.registrationDate).toLocaleDateString()}
@@ -454,6 +621,21 @@ export function AdminUsers() {
                           Revoke
                         </button>
                       )}
+                      <button
+                        onClick={() => handleDeleteUser(user)}
+                        disabled={deletingUserId === user.id}
+                        className="inline-flex items-center gap-1 text-red-600 hover:text-red-900 disabled:cursor-not-allowed disabled:opacity-50 dark:text-red-400 dark:hover:text-red-300"
+                        title="Delete User"
+                      >
+                        {deletingUserId === user.id
+                          ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            )
+                          : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
+                        Delete
+                      </button>
                     </div>
                   </td>
                 </tr>

@@ -15,8 +15,8 @@ export function SignOutButton() {
       <button
         type="submit"
         className={cn(
-          'flex w-full items-center rounded-lg px-4 py-3 text-gray-700',
-          'transition-colors duration-200 hover:bg-gray-100 cursor-pointer',
+          'flex w-full cursor-pointer items-center rounded-lg px-4 py-3 text-gray-700 dark:text-gray-300',
+          'transition-colors duration-200 hover:bg-gray-100 dark:hover:bg-gray-800',
           isRTL ? 'gap-4' : 'gap-2',
         )}
       >

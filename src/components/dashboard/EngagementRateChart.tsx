@@ -10,12 +10,17 @@ import {
   XAxis,
   YAxis,
 } from 'recharts';
+import { useTheme } from '@/components/theme/theme-context';
 
 type DataPoint = { date: string; rate: number };
 
+const AXIS_LIGHT = '#6b7280';
+const AXIS_DARK = '#9ca3af';
 const EMPTY_DATA: DataPoint[] = [];
 
 function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
+  const { isDark } = useTheme();
+  const axisColor = isDark ? AXIS_DARK : AXIS_LIGHT;
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),
@@ -26,9 +31,9 @@ function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-          <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+          <XAxis dataKey="date" stroke={axisColor} fontSize={12} />
           <YAxis
-            stroke="#6b7280"
+            stroke={axisColor}
             fontSize={12}
             tickMargin={10}
             width={70}
@@ -38,9 +43,10 @@ function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              border: '1px solid #fce7f3',
+              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+              border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
               borderRadius: '12px',
+              color: isDark ? '#e5e7eb' : undefined,
             }}
             formatter={value => [`${Number(value).toFixed(1)}%`, '']}
           />

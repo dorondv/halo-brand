@@ -475,10 +475,10 @@ export function PostSentimentClient() {
     <div className="min-h-screen p-6">
       <div className="mx-auto max-w-7xl space-y-8">
         <motion.div initial={{ opacity: 0, y: -20 }} animate={{ opacity: 1, y: 0 }}>
-          <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
+          <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
             {t('title')}
           </h1>
-          <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+          <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
           {/* Disclaimer about platform support */}
           <div className={`mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm text-amber-800 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
             <AlertCircle className={`h-5 w-5 flex-shrink-0 ${isRTL ? 'ml-2' : 'mr-2'}`} />
@@ -539,7 +539,7 @@ export function PostSentimentClient() {
                 <div className="max-h-96 space-y-3 overflow-y-auto">
                   {filteredPosts.length === 0
                     ? (
-                        <p className="py-4 text-center text-gray-500">{t('no_posts')}</p>
+                        <p className="py-4 text-center text-gray-500 dark:text-gray-400">{t('no_posts')}</p>
                       )
                     : (
                         filteredPosts.map((post) => {
@@ -575,7 +575,7 @@ export function PostSentimentClient() {
                                   <Icon className={`h-4 w-4 ${config.color}`} />
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                  <p className="mb-1 line-clamp-2 text-sm font-medium text-gray-900">
+                                  <p className="mb-1 line-clamp-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {post.content}
                                   </p>
                                   <p className="text-xs text-gray-500">
@@ -880,7 +880,7 @@ export function PostSentimentClient() {
                                                         )}
                                                 </Badge>
                                               </div>
-                                              <p className="text-gray-800">
+                                              <p className="text-gray-800 dark:text-gray-200">
                                                 {comment.text}
                                               </p>
                                             </div>
@@ -905,7 +905,7 @@ export function PostSentimentClient() {
                                 {(analysis.recommendations || []).map(rec => (
                                   <li key={rec} className="flex items-start gap-2">
                                     <div className="mt-2 h-2 w-2 flex-shrink-0 rounded-full bg-pink-500"></div>
-                                    <p className="text-gray-700">{rec}</p>
+                                    <p className="text-gray-700 dark:text-gray-200">{rec}</p>
                                   </li>
                                 ))}
                               </ul>

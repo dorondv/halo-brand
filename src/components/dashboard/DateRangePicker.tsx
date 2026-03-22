@@ -26,6 +26,7 @@ export function DateRangePicker() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const [, startTransition] = React.useTransition();
   const t = useTranslations('DashboardPage');
   const localeCode = useLocale();
   const isRTL = localeCode === 'he';
@@ -123,8 +124,14 @@ export function DateRangePicker() {
 
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
-    router.push(url, { scroll: false });
-    router.refresh();
+    const currentQuery = searchParams.toString();
+    if (queryString === currentQuery) {
+      return;
+    }
+
+    startTransition(() => {
+      router.push(url, { scroll: false });
+    });
   };
 
   const handleRangeSelect = (range: DateRangeOption) => {
@@ -207,7 +214,7 @@ export function DateRangePicker() {
             <Button
               variant="outline"
               className={cn(
-                'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+                'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
                 isRTL ? 'flex-row-reverse' : '',
               )}
               onClick={() => {
@@ -219,13 +226,13 @@ export function DateRangePicker() {
               }}
             >
               <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                <span className="text-gray-700">{formatDateRange(dateRange)}</span>
-                <CalendarIcon className="h-4 w-4 text-gray-500" />
+                <span className="text-gray-700 dark:text-gray-200">{formatDateRange(dateRange)}</span>
+                <CalendarIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </div>
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className={cn('w-auto p-0 border-pink-200', isRTL ? 'mr-0' : 'ml-0')}
+            className={cn('w-auto p-0 border-pink-200 dark:border-gray-700 dark:bg-gray-800', isRTL ? 'mr-0' : 'ml-0')}
             align={isRTL ? 'end' : 'start'}
             onInteractOutside={(e) => {
               // Prevent closing when clicking on calendar dates or navigation
@@ -249,8 +256,8 @@ export function DateRangePicker() {
                         key={range.value}
                         variant="ghost"
                         className={cn(
-                          'w-full justify-start mb-1 hover:bg-pink-50',
-                          currentRange === range.value && 'bg-pink-50 text-pink-600',
+                          'w-full justify-start mb-1 hover:bg-pink-50 dark:hover:bg-gray-700',
+                          currentRange === range.value && 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
                           isRTL && 'text-right',
                         )}
                         onClick={() => handleRangeSelect(range.value as DateRangeOption)}
@@ -262,7 +269,7 @@ export function DateRangePicker() {
                 )
               : (
                   <div className="p-2">
-                    <div className="mb-2 border-b border-pink-200 pb-2">
+                    <div className="mb-2 border-b border-pink-200 pb-2 dark:border-gray-600">
                       <Button
                         variant="ghost"
                         size="sm"
@@ -271,7 +278,7 @@ export function DateRangePicker() {
                           setShowRangeOptions(true);
                         }}
                         className={cn(
-                          'w-full text-pink-600 hover:bg-pink-50',
+                          'w-full text-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:hover:bg-gray-700',
                           isRTL ? 'flex-row-reverse' : '',
                         )}
                       >
@@ -302,14 +309,14 @@ export function DateRangePicker() {
         <Button
           variant="outline"
           className={cn(
-            'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+            'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
             isRTL ? 'flex-row-reverse' : '',
           )}
           disabled
         >
           <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="text-gray-700">{formatDateRange(dateRange)}</span>
-            <CalendarIcon className="h-4 w-4 text-gray-500" />
+            <span className="text-gray-700 dark:text-gray-200">{formatDateRange(dateRange)}</span>
+            <CalendarIcon className="h-4 w-4 text-gray-500 dark:text-gray-400" />
           </div>
         </Button>
       );
@@ -321,20 +328,20 @@ export function DateRangePicker() {
             <Button
               variant="outline"
               className={cn(
-                'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+                'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
                 isRTL ? 'flex-row-reverse' : '',
               )}
             >
               <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                <span className="text-gray-700">
+                <span className="text-gray-700 dark:text-gray-200">
                   {granularityOptions.find(g => g.value === currentGranularity)?.label}
                 </span>
-                <ChevronDown className="h-4 w-4 text-gray-500" />
+                <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
               </div>
             </Button>
           </PopoverTrigger>
           <PopoverContent
-            className={cn('w-auto p-2', isRTL ? 'mr-0' : 'ml-0')}
+            className={cn('w-auto p-2 dark:bg-gray-800 dark:border-gray-700', isRTL ? 'mr-0' : 'ml-0')}
             align={isRTL ? 'end' : 'start'}
           >
             {granularityOptions.map(option => (
@@ -342,8 +349,8 @@ export function DateRangePicker() {
                 key={option.value}
                 type="button"
                 className={cn(
-                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50',
-                  currentGranularity === option.value && 'bg-pink-50 text-pink-600',
+                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50 dark:hover:bg-gray-700 dark:text-gray-200',
+                  currentGranularity === option.value && 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
                   isRTL && 'text-right',
                 )}
                 onClick={() => handleGranularitySelect(option.value as GranularityOption)}
@@ -358,21 +365,21 @@ export function DateRangePicker() {
         <Button
           variant="outline"
           className={cn(
-            'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50',
+            'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
             isRTL ? 'flex-row-reverse' : '',
           )}
           disabled
         >
           <div className={`flex items-center gap-2 ${isRTL ? 'flex-row-reverse' : ''}`}>
-            <span className="text-gray-700">
+            <span className="text-gray-700 dark:text-gray-200">
               {granularityOptions.find(g => g.value === currentGranularity)?.label}
             </span>
-            <ChevronDown className="h-4 w-4 text-gray-500" />
+            <ChevronDown className="h-4 w-4 text-gray-500 dark:text-gray-400" />
           </div>
         </Button>
       );
 
-  const label = <span className="text-sm text-gray-700">{t('date_range_display_by')}</span>;
+  const label = <span className="text-sm text-gray-700 dark:text-gray-300">{t('date_range_display_by')}</span>;
 
   return (
     <div className={`flex items-center gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>

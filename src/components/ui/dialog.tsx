@@ -90,7 +90,7 @@ export function DialogContent({ children, className, ...props }: React.HTMLAttri
   return (
     <div
       className={cn(
-        'relative w-full rounded-lg bg-white p-6 shadow-xl mx-auto',
+        'relative w-full rounded-lg bg-white dark:bg-gray-800 dark:border dark:border-gray-700 p-6 shadow-xl mx-auto',
         className,
       )}
       // Use pointer down to avoid triggering eslint jsx-a11y/click-events-have-key-events
@@ -112,7 +112,7 @@ export function DialogHeader({ children, className, ...props }: React.HTMLAttrib
 
 export function DialogTitle({ children, className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h2 className={cn('text-lg font-semibold text-gray-900', className)} {...props}>
+    <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-gray-100', className)} {...props}>
       {children}
     </h2>
   );
@@ -120,7 +120,7 @@ export function DialogTitle({ children, className, ...props }: React.HTMLAttribu
 
 export function DialogDescription({ children, className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('text-sm text-gray-500 mt-1', className)} {...props}>
+    <p className={cn('text-sm text-gray-500 dark:text-gray-400 mt-1', className)} {...props}>
       {children}
     </p>
   );
@@ -137,7 +137,7 @@ export function DialogClose({ className, ...props }: React.ButtonHTMLAttributes<
       type="button"
       onClick={() => ctx.onOpenChange(false)}
       className={cn(
-        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500',
+        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-600 dark:text-gray-400',
         className,
       )}
       {...props}

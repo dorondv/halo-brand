@@ -2,12 +2,18 @@
 
 import { format } from 'date-fns';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { useTheme } from '@/components/theme/theme-context';
 
 type DataPoint = { date: string; engagement: number };
 
 const EMPTY_DATA: DataPoint[] = [];
 
+const AXIS_LIGHT = '#6b7280';
+const AXIS_DARK = '#9ca3af';
+
 function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
+  const { isDark } = useTheme();
+  const axisColor = isDark ? AXIS_DARK : AXIS_LIGHT;
   const formattedData = data.map(d => ({
     ...d,
     date: format(new Date(d.date), 'MMM. dd'),
@@ -23,10 +29,10 @@ function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
               <stop offset="95%" stopColor="#FF0083" stopOpacity={0.1} />
             </linearGradient>
           </defs>
-          <CartesianGrid strokeDasharray="3 3" strokeOpacity={0.2} />
-          <XAxis dataKey="date" stroke="#6b7280" fontSize={12} />
+          <CartesianGrid stroke={axisColor} strokeDasharray="3 3" strokeOpacity={isDark ? 0.4 : 0.2} />
+          <XAxis dataKey="date" stroke={axisColor} fontSize={12} />
           <YAxis
-            stroke="#6b7280"
+            stroke={axisColor}
             fontSize={12}
             tickMargin={10}
             width={70}
@@ -36,9 +42,10 @@ function EngagementAreaChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
           />
           <Tooltip
             contentStyle={{
-              backgroundColor: 'rgba(255, 255, 255, 0.9)',
-              border: '1px solid #fce7f3',
+              backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+              border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
               borderRadius: '12px',
+              color: isDark ? '#e5e7eb' : undefined,
             }}
             formatter={value => [new Intl.NumberFormat('he-IL').format(Number(value)), '']}
           />

@@ -10,7 +10,6 @@ import { getLocale, getTranslations } from 'next-intl/server';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { DateRangePicker } from '@/components/dashboard/DateRangePicker';
-import DemographicsCharts from '@/components/dashboard/DemographicsCharts';
 import EngagementAreaChart from '@/components/dashboard/EngagementAreaChart';
 import EngagementRateChart from '@/components/dashboard/EngagementRateChart';
 import FollowersTrendChart from '@/components/dashboard/FollowersTrendChart';
@@ -21,7 +20,6 @@ import PostsTable from '@/components/dashboard/PostsTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
   getCachedAccounts,
-  getCachedDemographics,
   getCachedPosts,
   syncAnalyticsInBackground,
 } from '@/libs/dashboard-cache';
@@ -167,7 +165,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     { posts: postsData, analytics: analyticsData },
     { posts: previousPostsData, analytics: previousAnalyticsData },
     _accountsData,
-    demographics,
     followerStatsData,
     getlateOverview, // Get overview data from Getlate API (totalPosts, publishedPosts, scheduledPosts)
     getlatePosts, // Get posts directly from Getlate API (exact structure)
@@ -175,7 +172,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     getCachedPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getCachedPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
     getCachedAccounts(supabase, userId, selectedBrandId),
-    getCachedDemographics(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getFollowerStatsFromGetlate(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom,
       toDate: rangeTo,
@@ -2006,9 +2002,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Use the base order directly (already correct for the locale)
   const platformData = platformDataBase;
 
-  // Demographics data from cached function (real data only, empty arrays if no data)
-  const { countries: countriesData, genders: gendersData, ages: agesData } = demographics;
-
   // Generate filtered posts table data from actual posts if available, otherwise use dummy data
   let postsTableData: Array<{
     id?: string;
@@ -2238,14 +2231,14 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         // Calculate engagement
         const engagement = likes + comments + shares;
 
-        // Calculate engagement rate
+        // Calculate engagement rate: use Meta/API value if available, else (clicks+views+likes+comments+shares)/impressions
         const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
           ? Number(analytics.engagementRate)
           : null;
-
+        const totalEngagementForRate = clicks + views + likes + comments + shares;
         const engagementRate = engagementRateFromAPI !== null
           ? engagementRateFromAPI
-          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+          : (impressions > 0 ? (totalEngagementForRate / impressions) * 100 : 0);
 
         const roundedEngagementRate = Math.round(engagementRate * 100) / 100;
 
@@ -2375,9 +2368,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const metadata = postAnalytics ? ((postAnalytics.metadata as any) || {}) : {};
       const engagement = likes + comments + shares;
       const engagementRateFromMetadata = metadata.engagementRate !== undefined ? Number(metadata.engagementRate) : null;
+      const clicksScoring = Number(metadata.clicks ?? 0);
+      const viewsScoring = Number(metadata.views ?? 0);
+      const totalEngagementForRateScoring = clicksScoring + viewsScoring + likes + comments + shares;
       const engagementRate = engagementRateFromMetadata !== null
         ? engagementRateFromMetadata
-        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+        : (impressions > 0 ? (totalEngagementForRateScoring / impressions) * 100 : 0);
 
       // Get platform
       let platform = 'unknown';
@@ -2474,13 +2470,34 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       };
 
       // Extract media URLs (shared across all platforms)
+      // Sources: metadata.media_urls, metadata.mediaItems, metadata.thumbnailUrl, post.image_url, analytics metadata
       const meta = (postData as any)?.metadata as any;
-      const rawMediaUrls = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const rawMediaUrlsFromMeta = meta?.media_urls && Array.isArray(meta.media_urls) ? meta.media_urls : [];
+      const rawMediaUrlsFromItems: string[] = [];
+      if (meta?.mediaItems && Array.isArray(meta.mediaItems)) {
+        for (const item of meta.mediaItems) {
+          if (typeof item === 'object' && item !== null && 'url' in item) {
+            const url = String((item as any).url).trim();
+            if (url && !rawMediaUrlsFromItems.includes(url)) {
+              rawMediaUrlsFromItems.push(url);
+            }
+          } else if (typeof item === 'string' && item.trim()) {
+            if (!rawMediaUrlsFromItems.includes(item.trim())) {
+              rawMediaUrlsFromItems.push(item.trim());
+            }
+          }
+        }
+      }
+      const metaThumbnail = meta?.thumbnailUrl && typeof meta.thumbnailUrl === 'string' ? String(meta.thumbnailUrl).trim() : null;
+      const rawMediaUrls = [
+        ...rawMediaUrlsFromMeta.filter((url: any): url is string => Boolean(url && typeof url === 'string')),
+        ...rawMediaUrlsFromItems,
+        ...(metaThumbnail && !rawMediaUrlsFromItems.includes(metaThumbnail) ? [metaThumbnail] : []),
+      ];
       const mediaUrls = rawMediaUrls
-        .filter((url: any): url is string => Boolean(url && typeof url === 'string'))
         .map((url: string) => String(url).trim())
         .filter((url: string) => url.length > 0);
-      const rawImageUrl = (postData as any)?.image_url;
+      const rawImageUrl = (postData as any)?.image_url ?? metaThumbnail;
       const imageUrl = rawImageUrl && typeof rawImageUrl === 'string' ? String(rawImageUrl).trim() : null;
 
       const normalizedMediaUrls = mediaUrls
@@ -2633,9 +2650,35 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         const views = Number(analyticsMetadata.views ?? 0);
         const engagement = likes + comments + shares;
         const engagementRateFromMetadata = analyticsMetadata.engagementRate !== undefined ? Number(analyticsMetadata.engagementRate) : null;
+        // Use Meta's engagement rate if available, else: (clicks+views+likes+comments+shares) / impressions
+        const totalEngagementForRate = clicks + views + likes + comments + shares;
         const engagementRate = engagementRateFromMetadata !== null
           ? engagementRateFromMetadata
-          : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+          : (impressions > 0 ? (totalEngagementForRate / impressions) * 100 : 0);
+
+        // Enrich media from platform-specific analytics metadata (thumbnailUrl, mediaItems)
+        let rowMediaUrls = finalMediaUrls;
+        const paMeta = platformAnalytics?.metadata as any;
+        if (paMeta && (paMeta.thumbnailUrl || (paMeta.mediaItems && Array.isArray(paMeta.mediaItems)))) {
+          const extraUrls: string[] = [];
+          if (paMeta.thumbnailUrl && typeof paMeta.thumbnailUrl === 'string') {
+            const t = String(paMeta.thumbnailUrl).trim();
+            if (t && !rowMediaUrls.includes(t)) {
+              extraUrls.push(t);
+            }
+          }
+          if (paMeta.mediaItems && Array.isArray(paMeta.mediaItems)) {
+            for (const it of paMeta.mediaItems) {
+              const u = typeof it === 'object' && it?.url ? String(it.url).trim() : (typeof it === 'string' ? it.trim() : '');
+              if (u && !rowMediaUrls.includes(u) && !extraUrls.includes(u)) {
+                extraUrls.push(u);
+              }
+            }
+          }
+          if (extraUrls.length > 0) {
+            rowMediaUrls = [...rowMediaUrls, ...extraUrls];
+          }
+        }
 
         expandedPostsFromDb.push({
           id: `${postId}-${platform}`, // Unique ID per platform
@@ -2652,7 +2695,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           date: platformAnalytics?.date ?? (postData as any)?.created_at ?? new Date().toISOString(),
           postContent: (postData as any)?.content ?? '',
           platform,
-          mediaUrls: finalMediaUrls,
+          mediaUrls: rowMediaUrls,
           imageUrl: imageUrl && imageUrl.length > 0 ? imageUrl : undefined,
           platformPostUrl, // Platform-specific URL
         });
@@ -2700,12 +2743,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   return (
     <DashboardWrapper>
-      <div className="min-h-screen w-full overflow-x-hidden bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+      <div className="min-h-screen w-full overflow-x-hidden bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
         <div className="w-full space-y-8 overflow-x-hidden px-6">
           {/* Header */}
           <div className="flex flex-col items-start justify-between gap-6 md:flex-row md:items-center">
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">{t('title')}</h1>
+              <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('title')}</h1>
             </div>
             <div className="flex flex-wrap items-center gap-4">
               <DateRangePicker />
@@ -2740,10 +2783,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           {/* Order for RTL: Followers Trend, Impressions, Engagement (reversed) */}
           {(() => {
             const chartCards1 = [
-              <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="engagement" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Heart className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_engagement')}
                   </CardTitle>
                 </CardHeader>
@@ -2751,10 +2794,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <EngagementAreaChart data={engagementSeries} />
                 </CardContent>
               </Card>,
-              <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="impressions" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Eye className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Eye className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_impressions')}
                   </CardTitle>
                 </CardHeader>
@@ -2762,10 +2805,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <ImpressionsAreaChart data={impressionsSeriesData} />
                 </CardContent>
               </Card>,
-              <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="followers" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Users className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Users className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_followers_trend')}
                   </CardTitle>
                 </CardHeader>
@@ -2786,10 +2829,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           {/* Order for RTL: Engagement Rate, Posts by Platform, Net Follower Growth (reversed) */}
           {(() => {
             const chartCards2 = [
-              <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="net-growth" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Users className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Users className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_net_follower_growth')}
                   </CardTitle>
                 </CardHeader>
@@ -2797,10 +2840,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <NetFollowerGrowthChart data={netGrowthSeries} />
                 </CardContent>
               </Card>,
-              <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="posts-platform" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <FileText className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <FileText className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_posts_by_platform')}
                   </CardTitle>
                 </CardHeader>
@@ -2808,10 +2851,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
                   <PostsByPlatformChart data={filteredPostsByPlatform} />
                 </CardContent>
               </Card>,
-              <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md">
+              <Card key="engagement-rate" className="rounded-lg border border-gray-200 bg-white shadow-md dark:border-gray-700 dark:bg-gray-800">
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2 text-base text-gray-800">
-                    <Heart className="h-5 w-5 text-pink-600" />
+                  <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
+                    <Heart className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                     {t('chart_engagement_rate')}
                   </CardTitle>
                 </CardHeader>
@@ -2827,20 +2870,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
             );
           })()}
 
-          {/* Row 5: Demographics Charts */}
-          {/* Order for LTR: Countries, Gender, Age */}
-          {/* Order for RTL: Age, Gender, Countries (reversed) */}
-          <DemographicsCharts
-            countries={countriesData}
-            genders={gendersData}
-            ages={agesData}
-            countriesTitle={t('chart_countries_mix')}
-            genderTitle={t('chart_gender_mix')}
-            ageTitle={t('chart_age_mix')}
-            isRTL={isRTL}
-          />
-
-          {/* Row 6: Posts Table */}
+          {/* Row 5: Posts Table */}
           {/* Pass selectedPlatform to sync PostsTable filter with dashboard filter */}
           <PostsTable posts={postsTableData} initialPlatformFilter={selectedPlatform} />
         </div>

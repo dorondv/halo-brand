@@ -4,17 +4,17 @@ import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { TrackingInit } from '@/components/marketing/TrackingInit';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
-import { createSupabaseServerClient } from '@/libs/Supabase';
+import { getUserSafe } from '@/libs/Supabase';
 
 export default async function MarketingPage() {
   const t = await getTranslations('Marketing');
   const locale = await getLocale();
   const isRTL = locale === 'he';
-  const supabase = await createSupabaseServerClient();
-  const { data: { user } } = await supabase.auth.getUser();
+  const { user } = await getUserSafe();
   const features = [
     {
       icon: Calendar,
@@ -39,7 +39,7 @@ export default async function MarketingPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-gradient-to-br from-pink-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800" dir={isRTL ? 'rtl' : 'ltr'}>
       <TrackingInit />
       {/* Header */}
       <header className="container mx-auto px-6 py-6">
@@ -52,10 +52,11 @@ export default async function MarketingPage() {
           <div className={cn('flex items-center gap-4', isRTL ? 'flex-row-reverse' : '')}>
             {!user && (
               <>
+                <ThemeToggle />
                 <LocaleSwitcher />
                 <Link
                   href="/sign-in"
-                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-pink-600 focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+                  className="inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium whitespace-nowrap text-gray-600 transition-colors hover:text-pink-600 focus-visible:ring-2 focus-visible:ring-pink-500 focus-visible:ring-offset-2 focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50 dark:text-gray-300 dark:hover:text-pink-400 dark:focus-visible:ring-offset-gray-900"
                 >
                   {t('already_registered')}
                 </Link>
@@ -63,6 +64,7 @@ export default async function MarketingPage() {
             )}
             {user && (
               <>
+                <ThemeToggle />
                 {isRTL
                   ? (
                     // Hebrew RTL: DOM order Dashboard -> Greeting -> LocaleSwitcher
@@ -71,7 +73,7 @@ export default async function MarketingPage() {
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
+                            'rounded-lg bg-linear-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2 flex-row-reverse',
                             'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
@@ -79,7 +81,7 @@ export default async function MarketingPage() {
                           {t('go_to_dashboard')}
                           <ArrowLeft className="h-4 w-4" />
                         </Link>
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
                           {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <LocaleSwitcher />
@@ -90,13 +92,13 @@ export default async function MarketingPage() {
                     // Visual order LocaleSwitcher (left) -> Greeting -> Dashboard button (right)
                       <>
                         <LocaleSwitcher />
-                        <span className="text-sm text-gray-600">
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
                           {t('greeting', { email: user.email ?? '' })}
                         </span>
                         <Link
                           href="/dashboard"
                           className={cn(
-                            'rounded-lg bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-2',
+                            'rounded-lg bg-linear-to-r from-pink-500 to-pink-600 px-4 py-2',
                             'text-white font-medium flex items-center gap-2',
                             'hover:from-pink-600 hover:to-pink-600 transition-all',
                           )}
@@ -118,16 +120,16 @@ export default async function MarketingPage() {
           {/* Marketing Content - Visual left in LTR, visual right in RTL */}
           <div className={cn('space-y-8', isRTL ? 'text-right' : 'text-left')}>
             <div className="space-y-4">
-              <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl">
+              <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl dark:text-white">
                 {t('hero_line1')}
                 {' '}
-                <span className="bg-gradient-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent">
+                <span className="bg-linear-to-r from-pink-500 to-pink-600 bg-clip-text text-transparent">
                   {t('hero_line2_highlight')}
                 </span>
                 {' '}
                 {t('hero_line3')}
               </h1>
-              <p className="text-lg text-gray-700">
+              <p className="text-lg text-gray-700 dark:text-gray-300">
                 {t('hero_subtitle')}
               </p>
             </div>
@@ -137,14 +139,14 @@ export default async function MarketingPage() {
               {features.map(feature => (
                 <div
                   key={feature.title}
-                  className="flex items-start gap-3 rounded-xl border border-pink-100 bg-white/50 p-4"
+                  className="flex items-start gap-3 rounded-xl border border-pink-100 bg-white/50 p-4 dark:border-gray-700 dark:bg-gray-800/50"
                 >
-                  <div className="rounded-lg bg-pink-100 p-2">
-                    <feature.icon className="h-5 w-5 text-pink-600" />
+                  <div className="rounded-lg bg-pink-100 p-2 dark:bg-pink-900/40">
+                    <feature.icon className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                   </div>
                   <div className={isRTL ? 'text-right' : 'text-left'}>
-                    <h3 className="font-semibold text-gray-800">{feature.title}</h3>
-                    <p className="text-sm text-gray-600">{feature.description}</p>
+                    <h3 className="font-semibold text-gray-800 dark:text-gray-200">{feature.title}</h3>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{feature.description}</p>
                   </div>
                 </div>
               ))}
@@ -153,16 +155,16 @@ export default async function MarketingPage() {
             {/* Statistics */}
             <div className={`flex items-center gap-8 pt-4 ${isRTL ? 'flex-row-reverse justify-end' : 'justify-start'}`}>
               <div>
-                <div className="text-3xl font-bold text-gray-800">1000+</div>
-                <div className="text-sm text-gray-600">{t('stat_active_users')}</div>
+                <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">1000+</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{t('stat_active_users')}</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-gray-800">50K+</div>
-                <div className="text-sm text-gray-600">{t('stat_managed_posts')}</div>
+                <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">50K+</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{t('stat_managed_posts')}</div>
               </div>
               <div>
-                <div className="text-3xl font-bold text-gray-800">98%</div>
-                <div className="text-sm text-gray-600">{t('stat_satisfaction')}</div>
+                <div className="text-3xl font-bold text-gray-800 dark:text-gray-100">98%</div>
+                <div className="text-sm text-gray-600 dark:text-gray-400">{t('stat_satisfaction')}</div>
               </div>
             </div>
           </div>
@@ -170,12 +172,12 @@ export default async function MarketingPage() {
           {/* Sign Up Form - Visual right in LTR, visual left in RTL */}
           <div>
             {!user && (
-              <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
+              <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl dark:border dark:border-gray-700 dark:bg-gray-800/90">
                 <CardHeader className="pb-4 text-center">
-                  <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
+                  <CardTitle className="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
                     {t('signup_title')}
                   </CardTitle>
-                  <p className="text-base text-gray-700">
+                  <p className="text-base text-gray-700 dark:text-gray-300">
                     {t('signup_subtitle')}
                   </p>
                 </CardHeader>
@@ -217,7 +219,7 @@ export default async function MarketingPage() {
       </div>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 text-center text-gray-600">
+      <footer className="container mx-auto px-6 py-8 text-center text-gray-600 dark:text-gray-400">
         <p>{t('footer_copyright', { year: new Date().getFullYear() })}</p>
       </footer>
     </div>

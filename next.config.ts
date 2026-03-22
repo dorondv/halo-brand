@@ -17,6 +17,14 @@ const baseConfig: NextConfig = {
   },
   experimental: {
     turbopackFileSystemCacheForDev: true,
+    optimizePackageImports: [
+      'lucide-react',
+      'recharts',
+      '@radix-ui/react-avatar',
+      '@radix-ui/react-checkbox',
+      '@radix-ui/react-popover',
+      '@radix-ui/react-tabs',
+    ],
   },
   // Externalize server packages to avoid version conflicts
   serverExternalPackages: ['require-in-the-middle', 'chartjs-node-canvas', 'canvas'],
@@ -231,6 +239,13 @@ const baseConfig: NextConfig = {
       {
         protocol: 'https',
         hostname: '**.threads.net',
+        port: '',
+        pathname: '/**',
+      },
+      // Getlate CDN / API media
+      {
+        protocol: 'https',
+        hostname: '**.getlate.dev',
         port: '',
         pathname: '/**',
       },

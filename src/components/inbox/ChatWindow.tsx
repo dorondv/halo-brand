@@ -42,6 +42,7 @@ function CommentThread({
   accountId,
   depth = 0,
 }: CommentThreadProps) {
+  const t = useTranslations('Inbox');
   const isOutgoing = message.isOutgoing;
   const messageDate = new Date(message.timestamp);
   const timeString = messageDate.toLocaleTimeString(intlLocale, {
@@ -53,7 +54,7 @@ function CommentThread({
   return (
     <div className={cn(
       'space-y-2',
-      isReply && (isRTL ? 'pr-6 pl-0 border-r-2 border-gray-300' : 'pl-6 border-l-2 border-gray-300'),
+      isReply && (isRTL ? 'pr-6 pl-0 border-r-2 border-gray-300 dark:border-gray-600' : 'pl-6 border-l-2 border-gray-300 dark:border-gray-600'),
     )}
     >
       <motion.div
@@ -120,14 +121,14 @@ function CommentThread({
                 ? 'rounded-bl-sm bg-pink-500 text-white'
                 : 'rounded-br-sm bg-pink-500 text-white'
               : isRTL
-                ? 'rounded-br-sm bg-gray-100 text-gray-900'
-                : 'rounded-bl-sm bg-gray-100 text-gray-900',
+                ? 'rounded-br-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                : 'rounded-bl-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100',
           )}
         >
           {/* Sender name */}
           {(message.senderName || (isOutgoing && conversation)) && (
             <p className={cn('mb-1 text-xs font-semibold', isRTL && 'text-right')} style={{ color: isOutgoing ? 'rgba(255, 255, 255, 0.9)' : '#6B7280' }}>
-              {isOutgoing ? (message.senderName || 'You') : message.senderName}
+              {isOutgoing ? (message.senderName || t('you')) : message.senderName}
             </p>
           )}
           <p className={cn('break-words whitespace-pre-wrap', isReply ? 'text-xs' : 'text-sm')}>{message.content}</p>
@@ -135,7 +136,7 @@ function CommentThread({
             <p
               className={cn(
                 isReply ? 'text-xs' : 'text-xs',
-                isOutgoing ? 'text-blue-100' : 'text-gray-500',
+                isOutgoing ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400',
               )}
             >
               {timeString}
@@ -151,8 +152,8 @@ function CommentThread({
                   className={cn(
                     'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
                     messageLikes[message.id]?.liked
-                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
-                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                      ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/70'
+                      : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600',
                     isRTL && 'flex-row-reverse',
                   )}
                   title={messageLikes[message.id]?.liked ? 'Unlike' : 'Like'}
@@ -176,8 +177,8 @@ function CommentThread({
                   className={cn(
                     'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
                     replyingToMessage?.id === message.id
-                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
-                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                      ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/70'
+                      : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600',
                     isRTL && 'flex-row-reverse',
                   )}
                   title="Reply"
@@ -238,7 +239,7 @@ function CommentThread({
                     )
                   : (
                       <div className={cn('flex items-center justify-center rounded-full bg-pink-500', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
-                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>You</span>
+                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>{t('you')}</span>
                       </div>
                     )}
               </div>
@@ -642,12 +643,12 @@ export function ChatWindow({
 
   if (!conversation) {
     return (
-      <div className="flex h-full flex-1 items-center justify-center bg-gray-50">
+      <div className="flex h-full flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8 text-gray-400"
+              className="h-8 w-8 text-gray-400 dark:text-gray-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -660,16 +661,16 @@ export function ChatWindow({
               />
             </svg>
           </div>
-          <p className={cn('text-gray-500', isRTL && 'text-right')}>{t('select_comment')}</p>
+          <p className={cn('text-gray-500 dark:text-gray-400', isRTL && 'text-right')}>{t('select_comment')}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="flex h-full flex-1 flex-col bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Comment Header */}
-      <div className={cn('flex items-center justify-between border-b border-gray-200 px-6 py-4', isRTL && 'flex-row-reverse')}>
+      <div className={cn('flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4', isRTL && 'flex-row-reverse')}>
         <div className={cn('flex items-center gap-3', isRTL && 'flex-row-reverse')}>
           {conversation.contactAvatar
             ? (
@@ -706,8 +707,8 @@ export function ChatWindow({
                 </div>
               )}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{conversation.contactName}</h2>
-            <p className={cn('text-sm text-gray-500 capitalize', isRTL && 'text-right')}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{conversation.contactName}</h2>
+            <p className={cn('text-sm text-gray-500 dark:text-gray-400 capitalize', isRTL && 'text-right')}>
               {conversation.type === 'chat' ? t('private_message') : t('comment')}
               {' '}
               •
@@ -719,7 +720,7 @@ export function ChatWindow({
 
       {/* Post Context (for comments) */}
       {conversation.type === 'comment' && conversation.postContent && (
-        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex gap-3">
             {conversation.postImageUrl && (
               <Image
@@ -731,8 +732,8 @@ export function ChatWindow({
               />
             )}
             <div className="flex-1">
-              <p className="line-clamp-2 text-sm text-gray-900">{conversation.postContent}</p>
-              <p className="mt-1 text-xs text-gray-500">
+              <p className="line-clamp-2 text-sm text-gray-900 dark:text-gray-100">{conversation.postContent}</p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {formatDateForDisplay(conversation.lastMessageTime, { locale, format: 'short' })}
               </p>
             </div>
@@ -786,14 +787,14 @@ export function ChatWindow({
       </div>
 
       {/* Message Input */}
-      <div className="border-t border-gray-200 bg-white px-6 py-4">
+      <div className="border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
         {/* Reply indicator */}
         {replyingToMessage && conversation?.type === 'comment' && (
           <div className={cn('mb-2 flex items-center justify-between rounded-lg bg-pink-50 border border-pink-200 px-3 py-2', isRTL && 'flex-row-reverse')}>
             <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
               <MessageCircle className="h-4 w-4 text-pink-600" />
               <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
-                Replying to
+                {t('replying_to')}
                 {' '}
                 <span className="font-semibold">{replyingToMessage.senderName}</span>
               </span>
@@ -804,7 +805,7 @@ export function ChatWindow({
               size="icon"
               className="h-6 w-6 text-pink-600 hover:bg-pink-100"
               onClick={() => setReplyingToMessage(null)}
-              title="Cancel reply"
+              title={t('cancel_reply')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -873,7 +874,7 @@ export function ChatWindow({
                 value={newMessage}
                 onChange={e => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                className={cn('min-h-[60px] resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:bg-white focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
+                className={cn('min-h-[60px] resize-none bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
                 disabled={isSending}
                 dir={isRTL ? 'rtl' : 'ltr'}
               />

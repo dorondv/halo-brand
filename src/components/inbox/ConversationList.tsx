@@ -99,9 +99,9 @@ export function ConversationList({
   });
 
   return (
-    <div className={cn('flex h-full flex-1 flex-col bg-white', isRTL ? 'border-l' : 'border-r', 'border-gray-200')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full flex-1 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-6 py-4">
+      <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
         {/* Selected Conversation Name and Type */}
         {selectedConversation
           ? (
@@ -142,11 +142,11 @@ export function ConversationList({
                         </div>
                       )}
                   <div className="min-w-0 flex-1">
-                    <h1 className="truncate text-xl font-semibold text-gray-900">
+                    <h1 className="truncate text-xl font-semibold text-gray-900 dark:text-gray-100">
                       {selectedConversation.contactName}
                     </h1>
                     <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                      <span className="text-sm text-gray-600">
+                      <span className="text-sm text-gray-600 dark:text-gray-400">
                         {selectedConversation.type === 'chat' ? t('private_message') : t('comment')}
                       </span>
                       {(() => {
@@ -164,7 +164,7 @@ export function ConversationList({
                 <h1 className="mb-1 text-xl font-semibold text-gray-900">
                   {accountName}
                 </h1>
-                <span className="text-sm text-gray-600">{t('title')}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">{t('title')}</span>
               </div>
             )}
 
@@ -176,7 +176,7 @@ export function ConversationList({
             placeholder={t('search_conversation')}
             value={searchTerm}
             onChange={e => onSearchChange(e.target.value)}
-            className={cn('h-10 w-full bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:bg-white focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pr-9' : 'pl-9')}
+            className={cn('h-10 w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pr-9' : 'pl-9')}
             dir={isRTL ? 'rtl' : 'ltr'}
           />
         </div>
@@ -198,7 +198,7 @@ export function ConversationList({
                 className={`h-8 px-4 text-sm ${
                   filter === filterOption
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
-                    : 'text-gray-700 hover:bg-gray-100'
+                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'
                 }`}
                 onClick={() => onFilterChange(filterOption)}
               >
@@ -224,12 +224,12 @@ export function ConversationList({
             ? (
                 <div className="flex h-full items-center justify-center p-4">
                   <div className={cn('text-center', isRTL && 'text-right')}>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
                       {searchTerm
                         ? t('no_comments_found')
                         : t('no_comments_yet')}
                     </p>
-                    <p className="mt-2 text-xs text-gray-400">
+                    <p className="mt-2 text-xs text-gray-400 dark:text-gray-500">
                       {t('permissions_hint')}
                     </p>
                   </div>
@@ -240,8 +240,8 @@ export function ConversationList({
                   {sortedDates.map(dateKey => (
                     <div key={dateKey} className="mb-6">
                       {/* Date Header */}
-                      <div className="bg-gray-50 px-6 py-2">
-                        <p className={cn('text-xs font-medium text-gray-500', isRTL && 'text-right')}>{dateKey}</p>
+                      <div className="bg-gray-50 px-6 py-2 dark:bg-gray-800">
+                        <p className={cn('text-xs font-medium text-gray-500 dark:text-gray-400', isRTL && 'text-right')}>{dateKey}</p>
                       </div>
 
                       {/* Conversations for this date */}
@@ -266,7 +266,7 @@ export function ConversationList({
                               tabIndex={0}
                               className={cn(
                                 'group cursor-pointer px-6 py-4 transition-colors',
-                                isSelected ? 'bg-pink-50 text-pink-900' : 'hover:bg-gray-50',
+                                isSelected ? 'bg-pink-50 dark:bg-pink-900/30 text-pink-900 dark:text-pink-100' : 'hover:bg-gray-50 dark:hover:bg-gray-800',
                                 isRTL
                                   ? isSelected ? 'border-r-4 border-r-pink-500' : 'border-r-4 border-r-transparent'
                                   : isSelected ? 'border-l-4 border-l-pink-500' : 'border-l-4 border-l-transparent',
@@ -313,17 +313,17 @@ export function ConversationList({
                                 {/* Content */}
                                 <div className="min-w-0 flex-1">
                                   <div className={cn('flex items-start justify-between gap-2 mb-1', isRTL && 'flex-row-reverse')}>
-                                    <p className={cn('truncate text-sm font-semibold', isSelected ? 'text-pink-900' : 'text-gray-900')}>
+                                    <p className={cn('truncate text-sm font-semibold', isSelected ? 'text-pink-900 dark:text-pink-100' : 'text-gray-900 dark:text-gray-100')}>
                                       {conversation.contactName}
                                     </p>
                                     {/* Platform Icon */}
                                     <PlatformIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
                                   </div>
                                   <p className={`line-clamp-2 text-sm ${
-                                    hasUnread ? 'font-medium text-gray-900' : 'text-gray-600'
+                                    hasUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'
                                   }`}
                                   >
-                                    {conversation.lastMessage || 'No message'}
+                                    {conversation.lastMessage || t('no_message')}
                                   </p>
                                 </div>
                               </div>

@@ -72,6 +72,7 @@ export function SignInForm() {
             'w-full h-12 rounded-md border-2 border-gray-300 bg-white px-4 py-2',
             'text-gray-700 font-medium flex items-center justify-center gap-3',
             'hover:bg-gray-50 hover:border-gray-400 transition-all',
+            'dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             isRTL ? 'flex-row-reverse' : '',
           )}
@@ -88,6 +89,7 @@ export function SignInForm() {
             'w-full h-12 rounded-md border-2 border-gray-300 bg-white px-4 py-2',
             'text-gray-700 font-medium flex items-center justify-center gap-3',
             'hover:bg-gray-50 hover:border-gray-400 transition-all',
+            'dark:border-gray-600 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600',
             'disabled:opacity-50 disabled:cursor-not-allowed',
             isRTL ? 'flex-row-reverse' : '',
           )}
@@ -100,22 +102,22 @@ export function SignInForm() {
       {/* Divider */}
       <div className="relative">
         <div className="absolute inset-0 flex items-center">
-          <div className="w-full border-t border-gray-300" />
+          <div className="w-full border-t border-gray-300 dark:border-gray-600" />
         </div>
         <div className="relative flex justify-center text-sm">
-          <span className="bg-white px-2 text-gray-500">{t('oauth_divider')}</span>
+          <span className="bg-white px-2 text-gray-500 dark:bg-gray-800 dark:text-gray-400">{t('oauth_divider')}</span>
         </div>
       </div>
 
       {/* Email/Password Form */}
       <form action={action} className="space-y-5">
         {oauthError && (
-          <div className="rounded-md border border-red-200 bg-red-50 p-3">
-            <p className="text-sm text-red-600">{oauthError}</p>
+          <div className="rounded-md border border-red-200 bg-red-50 p-3 dark:border-red-800 dark:bg-red-900/30">
+            <p className="text-sm text-red-600 dark:text-red-400">{oauthError}</p>
           </div>
         )}
         <div className="space-y-2">
-          <Label htmlFor="email" className="text-sm font-medium text-gray-900">
+          <Label htmlFor="email" className="text-sm font-medium text-gray-900 dark:text-gray-200">
             {t('email_label')}
           </Label>
           <Input
@@ -128,7 +130,7 @@ export function SignInForm() {
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="password" className="text-sm font-medium text-gray-900">
+          <Label htmlFor="password" className="text-sm font-medium text-gray-900 dark:text-gray-200">
             {t('password_label')}
           </Label>
           <Input
@@ -140,7 +142,7 @@ export function SignInForm() {
             className="h-12 rounded-md border-gray-300"
           />
         </div>
-        {state?.error && <p className="text-sm text-red-500">{state.error}</p>}
+        {state?.error && <p className="text-sm text-red-500 dark:text-red-400">{state.error}</p>}
         <button
           type="submit"
           disabled={isPending}

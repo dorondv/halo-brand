@@ -1,6 +1,7 @@
 'use client';
 
 import { Edit, Gift, Plus, Trash2 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 
@@ -19,6 +20,7 @@ type Coupon = {
 
 export function AdminCoupons() {
   const { showToast, success, error: showError } = useToast();
+  const t = useTranslations('Admin');
   const [coupons, setCoupons] = useState<Coupon[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -157,7 +159,7 @@ export function AdminCoupons() {
         throw new Error('Failed to deactivate coupon');
       }
 
-      success('Coupon deactivated');
+      success(t('coupon_deactivated'));
       fetchCoupons();
     } catch (error: any) {
       console.error('Error deleting coupon:', error);
@@ -190,7 +192,7 @@ export function AdminCoupons() {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Trial Coupons</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('coupons_title')}</h1>
           <p className="mt-2 text-gray-600 dark:text-gray-400">
             Create and manage trial coupon codes
           </p>
