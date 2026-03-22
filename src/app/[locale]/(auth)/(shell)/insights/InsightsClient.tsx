@@ -249,10 +249,10 @@ export function InsightsClient() {
   }, [selectedBrandId, dateRange.startDate, dateRange.endDate]);
 
   useEffect(() => {
-    if (selectedBrandId) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      loadData();
-    }
+    // Always load: selectedBrandId is null for "All Brands" and when no brand is stored.
+    // loadData() only applies brand_id when selectedBrandId is set.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    loadData();
   }, [selectedBrandId, loadData]);
 
   const generateInsights = async () => {
