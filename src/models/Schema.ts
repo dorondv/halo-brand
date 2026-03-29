@@ -2,6 +2,7 @@ import { relations } from 'drizzle-orm';
 import {
   boolean,
   doublePrecision,
+  index,
   integer,
   jsonb,
   pgTable,
@@ -91,7 +92,9 @@ export const socialAccounts = pgTable('social_accounts', {
     .$onUpdate(() => new Date())
     .notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => ([
+  index('social_accounts_user_active_idx').on(table.userId, table.isActive),
+]));
 
 // Posts table
 export const posts = pgTable('posts', {
@@ -110,7 +113,10 @@ export const posts = pgTable('posts', {
     .$onUpdate(() => new Date())
     .notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => ([
+  index('posts_user_status_idx').on(table.userId, table.status),
+  index('posts_brand_idx').on(table.brandId),
+]));
 
 // Scheduled posts table
 export const scheduledPosts = pgTable('scheduled_posts', {
@@ -127,7 +133,9 @@ export const scheduledPosts = pgTable('scheduled_posts', {
     .$onUpdate(() => new Date())
     .notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => ([
+  index('scheduled_posts_post_idx').on(table.postId),
+]));
 
 // Post analytics table
 export const postAnalytics = pgTable('post_analytics', {
@@ -144,7 +152,9 @@ export const postAnalytics = pgTable('post_analytics', {
     .$onUpdate(() => new Date())
     .notNull(),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => ([
+  index('post_analytics_post_date_idx').on(table.postId, table.date),
+]));
 
 // Coupon table (defined before subscriptions to avoid forward reference)
 export const coupons = pgTable('coupons', {
@@ -274,7 +284,9 @@ export const marketingEvents = pgTable('marketing_events', {
   currency: varchar('currency', { length: 10 }),
   revenueTotal: doublePrecision('revenue_total'),
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
-});
+}, (table) => ([
+  index('marketing_events_type_created_idx').on(table.eventType, table.createdAt),
+]));
 
 // Relations
 export const subscriptionsRelations = relations(subscriptions, ({ one, many }) => ({
@@ -300,12 +312,73 @@ export const couponsRelations = relations(coupons, ({ many }) => ({
   subscriptions: many(subscriptions),
 }));
 
-export const subscriptionPlansRelations = relations(subscriptionPlans, ({ many }) => ({
-  subscriptions: many(subscriptions),
+export const usersRelations = relations(users, ({ one, many }) => ({
+  settings: one(settings, {
+    fields: [users.id],
+    references: [settings.userId],
+  }),
+  brands: many(brands),
+  socialAccounts: many(socialAccounts),
+  posts: many(posts),
+  marketingEvents: many(marketingEvents),
 }));
 
-export const usersRelations = relations(users, ({ many }) => ({
-  marketingEvents: many(marketingEvents),
+export const brandsRelations = relations(brands, ({ one, many }) => ({
+  user: one(users, {
+    fields: [brands.userId],
+    references: [users.id],
+  }),
+  socialAccounts: many(socialAccounts),
+  posts: many(posts),
+}));
+
+export const socialAccountsRelations = relations(socialAccounts, ({ one }) => ({
+  user: one(users, {
+    fields: [socialAccounts.userId],
+    references: [users.id],
+  }),
+  brand: one(brands, {
+    fields: [socialAccounts.brandId],
+    references: [brands.id],
+  }),
+}));
+
+export const postsRelations = relations(posts, ({ one, many }) => ({
+  user: one(users, {
+    fields: [posts.userId],
+    references: [users.id],
+  }),
+  brand: one(brands, {
+    fields: [posts.brandId],
+    references: [brands.id],
+  }),
+  scheduledPosts: many(scheduledPosts),
+  analytics: many(postAnalytics),
+}));
+
+export const scheduledPostsRelations = relations(scheduledPosts, ({ one }) => ({
+  post: one(posts, {
+    fields: [scheduledPosts.postId],
+    references: [posts.id],
+  }),
+  socialAccount: one(socialAccounts, {
+    fields: [scheduledPosts.socialAccountId],
+    references: [socialAccounts.id],
+  }),
+}));
+
+export const postAnalyticsRelations = relations(postAnalytics, ({ one }) => ({
+  post: one(posts, {
+    fields: [postAnalytics.postId],
+    references: [posts.id],
+  }),
+}));
+
+export const settingsRelations = relations(settings, ({ one }) => ({
+  user: one(users, {
+    fields: [settings.userId],
+    references: [users.id],
+  }),
 }));
 
 export const marketingEventsRelations = relations(marketingEvents, ({ one }) => ({

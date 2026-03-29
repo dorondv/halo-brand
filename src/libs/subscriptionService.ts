@@ -2,6 +2,7 @@ import type { InferSelectModel } from 'drizzle-orm';
 import { eq } from 'drizzle-orm';
 import { billingHistory, subscriptionPlans, subscriptions } from '@/models/Schema';
 import { db } from './DB';
+import type { PayPalSubscriptionDetails } from './paypalService';
 import { getPayPalPlanId, getSubscriptionDetails } from './paypalService';
 
 export type PlanType = 'basic' | 'pro' | 'business' | 'free' | 'trial';
@@ -22,7 +23,7 @@ export function calculateTrialEndDate(days: number = 7): Date {
 /**
  * Extract trial end date from PayPal subscription details
  */
-export function extractTrialEndDateFromPayPal(paypalSubscriptionDetails: any): Date | null {
+export function extractTrialEndDateFromPayPal(paypalSubscriptionDetails: PayPalSubscriptionDetails | null): Date | null {
   if (!paypalSubscriptionDetails) {
     return null;
   }
@@ -204,14 +205,15 @@ export async function linkPayPalSubscription(
   billingCycle: 'monthly' | 'annual' = 'monthly',
 ) {
   // Fetch subscription details from PayPal to get trial period info
-  let paypalSubscriptionDetails: any = null;
+  let paypalSubscriptionDetails: PayPalSubscriptionDetails | null = null;
   let trialEndDate: Date | null = null;
 
   try {
     paypalSubscriptionDetails = await getSubscriptionDetails(paypalSubscriptionId);
     trialEndDate = extractTrialEndDateFromPayPal(paypalSubscriptionDetails);
-  } catch (error: any) {
-    console.warn('Could not fetch PayPal subscription details for trial period:', error.message);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.warn('Could not fetch PayPal subscription details for trial period:', message);
   }
 
   // Check if user already has a subscription
@@ -232,7 +234,7 @@ export async function linkPayPalSubscription(
   if (existingSubscription && existingSubscription.planType !== planType) {
     console.warn(`🔄 Changing user ${userId} subscription from ${existingSubscription.planType} to ${planType}`);
 
-    const subscriptionData: any = {
+    const subscriptionData: Partial<InferSelectModel<typeof subscriptions>> = {
       planType,
       billingCycle,
       status: (trialEndDate && new Date() < trialEndDate ? 'trialing' : 'active') as SubscriptionStatus,
@@ -262,7 +264,7 @@ export async function linkPayPalSubscription(
     finalTrialEndDate = calculateTrialEndDate(5); // 5 days trial for new users
   }
 
-  const subscriptionData: any = {
+  const subscriptionData: Partial<InferSelectModel<typeof subscriptions>> = {
     planType,
     billingCycle,
     status: (finalTrialEndDate && new Date() < finalTrialEndDate ? 'trialing' : 'active') as SubscriptionStatus,

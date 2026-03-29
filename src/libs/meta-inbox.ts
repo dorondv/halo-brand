@@ -60,7 +60,7 @@ export type Message = {
   replies?: Message[]; // Nested replies
 };
 
-export type MetaApiError = {
+type MetaApiError = {
   error: {
     message: string;
     type: string;

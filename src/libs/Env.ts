@@ -19,6 +19,7 @@ export const Env = createEnv({
     PAYPAL_GOLD_PLAN_MONTHLY: z.string().optional(), // PayPal Gold Plan Monthly ID
     PAYPAL_GOLD_PLAN_ANNUAL: z.string().optional(), // PayPal Gold Plan Annual ID
     SOCIAL_VAULT: z.string().min(1).optional(), // SocialVault API key for fetching comments
+    PAYPAL_WEBHOOK_ID: z.string().min(1).optional(), // PayPal Webhook ID for signature verification
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().optional(),
@@ -50,6 +51,7 @@ export const Env = createEnv({
     PAYPAL_GOLD_PLAN_MONTHLY: process.env.PAYPAL_GOLD_PLAN_MONTHLY,
     PAYPAL_GOLD_PLAN_ANNUAL: process.env.PAYPAL_GOLD_PLAN_ANNUAL,
     SOCIAL_VAULT: process.env.SOCIAL_VAULT,
+    PAYPAL_WEBHOOK_ID: process.env.PAYPAL_WEBHOOK_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,

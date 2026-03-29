@@ -1,13 +1,23 @@
-import type { User } from '@supabase/supabase-js';
+import type { SupabaseClient, User } from '@supabase/supabase-js';
+
+/**
+ * User record shape returned by ensureUserRecord.
+ * Note: `getlate_api_key` is managed directly via Supabase (not in Drizzle schema)
+ * but many API routes depend on it for Getlate integration.
+ */
+interface UserRecord {
+  id: string;
+  getlate_api_key: string | null;
+}
 
 /**
  * Ensure a row exists in public.users for the authenticated auth user.
  * This handles environments where the auth.users -> public.users trigger is missing.
  */
 export async function ensureUserRecord(
-  supabase: any,
+  supabase: SupabaseClient,
   authUser: User,
-): Promise<{ id: string; getlate_api_key: string | null } | null> {
+): Promise<UserRecord | null> {
   const { data: existingUser } = await supabase
     .from('users')
     .select('id, getlate_api_key')
@@ -35,18 +45,12 @@ export async function ensureUserRecord(
         is_active: true,
       },
     ])
-    .select('id')
+    .select('id, getlate_api_key')
     .single();
 
   if (insertError || !insertedUser) {
     return null;
   }
 
-  const { data: createdUser } = await supabase
-    .from('users')
-    .select('id, getlate_api_key')
-    .eq('id', authUser.id)
-    .maybeSingle();
-
-  return createdUser || { id: insertedUser.id, getlate_api_key: null };
+  return insertedUser;
 }
