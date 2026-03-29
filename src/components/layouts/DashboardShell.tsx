@@ -212,7 +212,7 @@ export function DashboardShell({ children }: Props) {
                                   fill
                                   className="object-cover"
                                   sizes="40px"
-                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
+                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
                                   onError={() => setAvatarError(true)}
                                 />
                               </div>
@@ -245,7 +245,7 @@ export function DashboardShell({ children }: Props) {
                                   fill
                                   className="object-cover"
                                   sizes="40px"
-                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co')}
+                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
                                   onError={() => setAvatarError(true)}
                                 />
                               </div>

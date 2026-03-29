@@ -5,6 +5,7 @@ import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { Env } from '@/libs/Env';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { isAllowedOptionalBrandLogoUrl } from '@/libs/supabaseStorageUrl';
 
 function extractGetlateProfileId(profile: unknown): string | null {
   if (!profile || typeof profile !== 'object') {
@@ -227,6 +228,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, description, logo_url } = parse.data;
+
+    if (!isAllowedOptionalBrandLogoUrl(logo_url ?? null)) {
+      return NextResponse.json(
+        { error: 'Brand logo must be uploaded to Supabase Storage before saving.' },
+        { status: 422 },
+      );
+    }
 
     const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
     const { brands: brandsTable } = await import('@/models/Schema');

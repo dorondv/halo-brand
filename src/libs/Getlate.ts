@@ -532,11 +532,11 @@ export class GetlateClient {
   }
 
   /**
-   * Upload media files to Getlate
-   * Supports both small files (multipart) and large files (client-upload flow)
-   * For large files (>4MB), use the client-upload flow with @vercel/blob
+   * Upload media files to Getlate.
+   * Callers must upload binaries to Supabase Storage first, then pass public (or signed) URLs as strings.
+   * Raw {@link File} uploads to Getlate are not supported — they bypass our canonical storage.
    *
-   * @param files - Array of file URLs or File objects to upload
+   * @param files - Supabase Storage URLs for post-media (or other hosted URLs for legacy callers)
    * @returns Array of uploaded media with URLs from Getlate
    */
   async uploadMedia(files: Array<File | string>): Promise<Array<{
@@ -585,42 +585,9 @@ export class GetlateClient {
           mimeType: type === 'video' ? 'video/mp4' : 'image/jpeg',
         });
       } else {
-        // It's a File object - upload directly via multipart
-        const formData = new FormData();
-        formData.append('files', file);
-
-        const url = `${this.baseUrl}/media`;
-        const response = await fetch(url, {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            // Don't set Content-Type - let browser set it with boundary for multipart
-          },
-          body: formData,
-        });
-
-        if (!response.ok) {
-          const errorData = await response.json().catch(() => ({
-            error: 'Unknown error',
-            message: `HTTP ${response.status}: ${response.statusText}`,
-          })) as GetlateError;
-
-          throw new Error(
-            errorData.message || errorData.error || `HTTP ${response.status}`,
-          );
-        }
-
-        const responseData = await response.json() as { files: Array<{
-          type: 'image' | 'video';
-          url: string;
-          filename: string;
-          size: number;
-          mimeType: string;
-        }>; };
-
-        if (responseData.files && Array.isArray(responseData.files)) {
-          uploadedFiles.push(...responseData.files);
-        }
+        throw new Error(
+          '[Getlate] uploadMedia(File) is not supported. Upload the file to Supabase Storage first, then pass the resulting URL as a string.',
+        );
       }
     }
 

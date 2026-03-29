@@ -292,6 +292,7 @@ function AvatarComponent({
         width={size}
         height={size}
         className="object-cover"
+        unoptimized={!avatarUrl.startsWith('/') && !avatarUrl.includes('supabase.co') && !avatarUrl.includes('getlate.dev')}
         onError={() => setImageError(true)}
       />
     </div>
@@ -382,7 +383,7 @@ function PreviewCard({
                   <>
                     {/* Image */}
                     <div className="absolute inset-0">
-                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
+                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     </div>
                     {/* Text overlay on image */}
                     {(previewTitle || previewCaption) && (
@@ -442,7 +443,7 @@ function PreviewCard({
             {previewMediaUrls[0]
               ? (
                   <div className="relative h-full w-full">
-                    <Image src={previewMediaUrls[0]} alt="Reel" fill className="object-cover" />
+                    <Image src={previewMediaUrls[0]} alt="Reel" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Play className="h-16 w-16 rounded-full bg-black/50 p-4 text-white" />
                     </div>
@@ -505,7 +506,7 @@ function PreviewCard({
           {/* Media */}
           {previewMediaUrls[0] && (
             <div className="relative aspect-square w-full bg-slate-100">
-              <Image src={previewMediaUrls[0]} alt="Post" fill className="object-cover" />
+              <Image src={previewMediaUrls[0]} alt="Post" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
             </div>
           )}
 
@@ -589,7 +590,7 @@ function PreviewCard({
               {previewMediaUrls[0] && (
                 <div className="mt-3 overflow-hidden rounded-2xl bg-slate-100">
                   <div className="relative aspect-video w-full">
-                    <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" />
+                    <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                   </div>
                 </div>
               )}
@@ -641,7 +642,7 @@ function PreviewCard({
                   <>
                     {/* Image */}
                     <div className="absolute inset-0">
-                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" />
+                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     </div>
                     {/* Text overlay on image */}
                     {(previewTitle || previewCaption) && (
@@ -699,7 +700,7 @@ function PreviewCard({
             {previewMediaUrls[0] && (
               <div className="mt-3 overflow-hidden rounded-lg bg-slate-100">
                 <div className="relative aspect-video w-full">
-                  <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" />
+                  <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                 </div>
               </div>
             )}
@@ -752,7 +753,7 @@ function PreviewCard({
           {previewMediaUrls[0] && (
             <div className="mt-3 overflow-hidden rounded-lg bg-slate-100">
               <div className="relative aspect-video w-full">
-                <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" />
+                <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
               </div>
             </div>
           )}
@@ -1220,13 +1221,9 @@ export default function CreatePostPage() {
         throw new Error('Not authenticated');
       }
 
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      // Storage RLS typically allows paths prefixed with auth.uid(); use auth user id even if
+      // public.users.id differed historically (e.g. legacy gen_random_uuid rows).
+      const userId = session.user.id;
       const newUrls: string[] = [];
       const newFiles: Array<{ url: string; type: 'image' | 'video' }> = [];
 
