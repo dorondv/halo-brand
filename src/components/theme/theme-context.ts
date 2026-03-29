@@ -4,7 +4,7 @@ import { createContext, use } from 'react';
 
 export type Theme = 'light' | 'dark';
 
-export type ThemeContextValue = {
+type ThemeContextValue = {
   theme: Theme;
   setTheme: (theme: Theme) => void;
   isDark: boolean;

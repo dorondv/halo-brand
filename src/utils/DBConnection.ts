@@ -32,6 +32,8 @@ export const createDbConnection = () => {
     keepAlive: true,
     keepAliveInitialDelayMillis: 10000,
     // Enable SSL for Supabase connections
+    // Note: rejectUnauthorized must be false for Supabase pooler (Supavisor/PgBouncer)
+    // which uses intermediate certs not in Node's default trust store
     ssl: isSupabase ? { rejectUnauthorized: false } : undefined,
     // Allow exit on idle to prevent hanging connections
     allowExitOnIdle: true,

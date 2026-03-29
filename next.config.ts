@@ -191,21 +191,19 @@ const baseConfig: NextConfig = {
       },
       {
         protocol: 'https',
+        hostname: 'scontent-*.xx.fbcdn.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'scontent.xx.fbcdn.net',
+        port: '',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
         hostname: '**.fbcdn.net',
-        port: '',
-        pathname: '/**',
-      },
-      // Twitter/X CDN
-      {
-        protocol: 'https',
-        hostname: 'pbs.twimg.com',
-        port: '',
-        pathname: '/**',
-      },
-      // LinkedIn CDN
-      {
-        protocol: 'https',
-        hostname: 'media.licdn.com',
         port: '',
         pathname: '/**',
       },

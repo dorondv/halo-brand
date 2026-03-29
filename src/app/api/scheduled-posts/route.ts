@@ -385,11 +385,18 @@ export async function GET(request: NextRequest) {
   // Deduplicate: if a post has getlate_post_id, prefer Getlate version (source of truth)
   // Create a map of getlate_post_id -> post to track Getlate posts
   const getlatePostIdMap = new Map<string, any>();
-  getlatePosts.forEach((post: any) => {
+  const processedGetlateIds = new Set<string>(); // Global set to handle profile sharing across brands
+
+  const uniqueGetlatePosts = getlatePosts.filter((post: any) => {
     const getlateId = post.post?.getlate_post_id;
     if (getlateId) {
+      if (processedGetlateIds.has(getlateId)) {
+        return false; // Already processed this Getlate post via another brand
+      }
+      processedGetlateIds.add(getlateId);
       getlatePostIdMap.set(getlateId, post);
     }
+    return true;
   });
 
   // Filter out database posts that have a corresponding Getlate post
@@ -402,21 +409,43 @@ export async function GET(request: NextRequest) {
     return true;
   });
 
-  // Merge filtered database posts with Getlate posts
-  let allPosts = [...filteredDbPosts, ...getlatePosts];
+  // Merge filtered database posts with unique Getlate posts
+  let allPosts = [...filteredDbPosts, ...uniqueGetlatePosts];
 
-  // Additional deduplication: remove duplicates based on post_id + scheduled_time combination
-  // This handles cases where the same post might appear multiple times with the same scheduled time
-  const seenPosts = new Map<string, boolean>();
+  // Additional robust deduplication:
+  // 1. By internal ID (legacy/fallback)
+  // 2. By content snippet + scheduled time (catches cross-source duplicates with different IDs)
+  const seenIds = new Set<string>();
+  const seenContentTime = new Set<string>();
+
   allPosts = allPosts.filter((post: any) => {
     const postId = post.post_id || post.post?.id;
     const scheduledTime = post.scheduled_for || post.scheduled_time;
-    const dedupeKey = `${postId}-${scheduledTime}`;
+    const contentHash = (post.post?.content || '').substring(0, 50).trim();
+    
+    // Normalize time to minutes to avoid slight millisecond differences
+    const timeDate = new Date(scheduledTime);
+    const normalizedTime = timeDate instanceof Date && !isNaN(timeDate.getTime()) 
+      ? timeDate.toISOString().substring(0, 16) // "2026-03-21T14:00"
+      : scheduledTime;
 
-    if (seenPosts.has(dedupeKey)) {
-      return false; // Duplicate, exclude it
+    const idKey = `${postId}`;
+    const contentTimeKey = `${contentHash}-${normalizedTime}`;
+
+    if (seenIds.has(idKey)) {
+      return false;
     }
-    seenPosts.set(dedupeKey, true);
+    
+    // If we've seen this exact content at the exact same time, it's a duplicate
+    // even if the IDs are different (e.g. from different sources)
+    if (contentHash && normalizedTime && seenContentTime.has(contentTimeKey)) {
+      return false;
+    }
+
+    seenIds.add(idKey);
+    if (contentHash && normalizedTime) {
+      seenContentTime.add(contentTimeKey);
+    }
     return true;
   });
 
