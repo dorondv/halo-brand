@@ -12,7 +12,7 @@ import {
   generateNetFollowerGrowthChart,
   generatePostsByPlatformChart,
 } from '@/lib/chart-generator-quickchart';
-import { getCachedAccounts, getCachedPosts } from '@/libs/dashboard-cache';
+import { getAccounts, getPosts } from '@/libs/dashboard-cache';
 import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlatePosts } from '@/libs/getlate-posts';
 import { createSupabaseServerClient } from '@/libs/Supabase';
@@ -147,7 +147,7 @@ export async function POST(request: NextRequest) {
       }
     } else {
       // Fall back to local database
-      const cachedData = await getCachedPosts(
+      const cachedData = await getPosts(
         supabase,
         userId,
         brandId || null,
@@ -158,7 +158,7 @@ export async function POST(request: NextRequest) {
       analytics = cachedData.analytics;
     }
 
-    const accounts = await getCachedAccounts(supabase, userId, brandId || null);
+    const accounts = await getAccounts(supabase, userId, brandId || null);
 
     // Normalize platform names for comparison (handle twitter/x, case-insensitive)
     const normalizePlatform = (platform: string): string => {

@@ -2,6 +2,7 @@
 
 import type { Range, RangeKeyDict } from 'react-date-range';
 import { endOfMonth, format, startOfMonth, startOfYear, subDays } from 'date-fns';
+import { clampDashboardDateRange, getDashboardDateBounds } from '@/libs/dashboardDateRangeLimits';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
 import { ArrowLeft, ArrowRight, CalendarIcon, ChevronDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -62,9 +63,10 @@ export function DateRangePicker() {
       }
       case 'custom':
         if (fromParam && toParam) {
+          const clamped = clampDashboardDateRange(new Date(fromParam), new Date(toParam), today);
           return {
-            startDate: new Date(fromParam),
-            endDate: new Date(toParam),
+            startDate: clamped.from,
+            endDate: clamped.to,
             key: 'selection',
           };
         }
@@ -79,6 +81,8 @@ export function DateRangePicker() {
   const [showRangeOptions, setShowRangeOptions] = React.useState(false);
   const [showGranularityOptions, setShowGranularityOptions] = React.useState(false);
   const [isMounted, setIsMounted] = React.useState(false);
+
+  const calendarBounds = getDashboardDateBounds();
 
   // Prevent hydration mismatch by only rendering Popovers after mount
   React.useEffect(() => {
@@ -147,16 +151,31 @@ export function DateRangePicker() {
   const handleCustomDateSelect = (rangesByKey: RangeKeyDict) => {
     const newRange = rangesByKey.selection;
     if (newRange && newRange.startDate) {
-      // Always update the state to show selection progress
-      setDateRange([newRange]);
+      let start = newRange.startDate;
+      let end = newRange.endDate ?? newRange.startDate;
+      if (start < calendarBounds.earliestStart) {
+        start = calendarBounds.earliestStart;
+      }
+      if (end > calendarBounds.todayEnd) {
+        end = calendarBounds.todayEnd;
+      }
+      const working: DateRange = { ...newRange, startDate: start, endDate: end, key: 'selection' };
+      setDateRange([working]);
 
-      // Only update URL and close when both dates are selected
-      if (newRange.endDate && newRange.startDate !== newRange.endDate) {
-        updateURL('custom', currentGranularity, newRange);
+      // Only update URL and close when range end differs from start (second click in calendar)
+      const ws = working.startDate;
+      const we = working.endDate;
+      if (we && ws && ws.getTime() !== we.getTime()) {
+        const clamped = clampDashboardDateRange(ws, we);
+        updateURL('custom', currentGranularity, {
+          ...working,
+          startDate: clamped.from,
+          endDate: clamped.to,
+        });
+        setDateRange([{ ...working, startDate: clamped.from, endDate: clamped.to }]);
         setShowCustomCalendar(false);
         setShowRangeOptions(false);
       }
-      // If only startDate is selected, keep the calendar open
     }
   };
 
@@ -298,6 +317,8 @@ export function DateRangePicker() {
                         weekStartsOn={isRTL ? 6 : 0} // Sunday is 0, Saturday is 6
                         showDateDisplay={false}
                         direction="horizontal"
+                        minDate={calendarBounds.earliestStart}
+                        maxDate={calendarBounds.todayEnd}
                       />
                     </div>
                   </div>

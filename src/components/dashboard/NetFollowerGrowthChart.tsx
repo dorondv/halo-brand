@@ -6,6 +6,8 @@ import { useTheme } from '@/components/theme/theme-context';
 
 type DataPoint = { date: string; growth: number };
 
+type ChartRow = DataPoint & { dateLabel: string };
+
 const AXIS_LIGHT = '#6b7280';
 const AXIS_DARK = '#9ca3af';
 const EMPTY_DATA: DataPoint[] = [];
@@ -13,9 +15,9 @@ const EMPTY_DATA: DataPoint[] = [];
 function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
   const { isDark } = useTheme();
   const axisColor = isDark ? AXIS_DARK : AXIS_LIGHT;
-  const formattedData = data.map(d => ({
+  const formattedData: ChartRow[] = data.map(d => ({
     ...d,
-    date: format(new Date(d.date), 'MMM. dd'),
+    dateLabel: format(new Date(d.date), 'MMM. dd'),
   }));
 
   return (
@@ -23,7 +25,7 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid stroke={axisColor} strokeDasharray="3 3" strokeOpacity={isDark ? 0.4 : 0.2} />
-          <XAxis dataKey="date" stroke={axisColor} fontSize={12} />
+          <XAxis dataKey="dateLabel" stroke={axisColor} fontSize={12} />
           <YAxis
             stroke={axisColor}
             fontSize={12}
@@ -44,8 +46,8 @@ function NetFollowerGrowthChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
             formatter={value => [new Intl.NumberFormat('he-IL').format(Number(value)), '']}
           />
           <Bar dataKey="growth" radius={[4, 4, 0, 0]}>
-            {formattedData.map(entry => (
-              <Cell key={`cell-${entry.date}-${entry.growth}`} fill="#FF0083" />
+            {formattedData.map((entry, index) => (
+              <Cell key={`cell-${entry.date}-${index}`} fill="#FF0083" />
             ))}
           </Bar>
         </BarChart>

@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { syncAnalyticsFromGetlate } from './analytics-sync';
 
 /**
- * Get user's posts with analytics (no caching - real-time data)
+ * Get user's posts with analytics (real-time data)
  */
-export async function getCachedPosts(
+export async function getPosts(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,
@@ -80,9 +80,9 @@ export async function getCachedPosts(
 }
 
 /**
- * Get user's social accounts (no caching - real-time data)
+ * Get user's social accounts (real-time data)
  */
-export async function getCachedAccounts(
+export async function getAccounts(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,
@@ -193,10 +193,10 @@ export async function syncAnalyticsInBackground(
 }
 
 /**
- * Get demographics data from analytics metadata (no caching - real-time data)
+ * Get demographics data from analytics metadata (real-time data)
  * Returns empty arrays if no data available
  */
-export async function getCachedDemographics(
+export async function getDemographics(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,
