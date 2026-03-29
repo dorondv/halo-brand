@@ -19,13 +19,14 @@ import PostsByPlatformChart from '@/components/dashboard/PostsByPlatformChart';
 import PostsTable from '@/components/dashboard/PostsTable';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import {
-  getCachedAccounts,
-  getCachedPosts,
+  getAccounts,
+  getPosts,
   syncAnalyticsInBackground,
 } from '@/libs/dashboard-cache';
 import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlateAnalyticsOverview } from '@/libs/getlate-overview';
 import { getGetlatePosts } from '@/libs/getlate-posts';
+import { clampDashboardDateRange } from '@/libs/dashboardDateRangeLimits';
 import { calculateScoresForPosts } from '@/libs/post-score-calculator';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
@@ -143,7 +144,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   };
 
-  const { from: rangeFrom, to: rangeTo } = calculateDateRange();
+  const rawDateRange = calculateDateRange();
+  const { from: rangeFrom, to: rangeTo } = clampDashboardDateRange(rawDateRange.from, rawDateRange.to);
 
   // Calculate previous period for comparison (same duration, shifted back)
   const calculatePreviousPeriod = () => {
@@ -169,9 +171,9 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     getlateOverview, // Get overview data from Getlate API (totalPosts, publishedPosts, scheduledPosts)
     getlatePosts, // Get posts directly from Getlate API (exact structure)
   ] = await Promise.all([
-    getCachedPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
-    getCachedPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
-    getCachedAccounts(supabase, userId, selectedBrandId),
+    getPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
+    getPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
+    getAccounts(supabase, userId, selectedBrandId),
     getFollowerStatsFromGetlate(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom,
       toDate: rangeTo,
