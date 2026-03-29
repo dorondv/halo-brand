@@ -229,14 +229,7 @@ export function BrandSelector() {
         return;
       }
 
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       let logoUrl: string | null = null;
 

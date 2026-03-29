@@ -117,7 +117,7 @@ export function ConversationList({
                             width={40}
                             height={40}
                             className="h-10 w-10 flex-shrink-0 rounded-full object-cover"
-                            unoptimized={selectedConversation.contactAvatar.includes('cdninstagram.com') || selectedConversation.contactAvatar.includes('fbsbx.com') || selectedConversation.contactAvatar.includes('fbcdn.net')}
+                            unoptimized={!selectedConversation.contactAvatar.startsWith('/') && !selectedConversation.contactAvatar.includes('supabase.co') && !selectedConversation.contactAvatar.includes('getlate.dev')}
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = 'none';
@@ -284,7 +284,7 @@ export function ConversationList({
                                             width={48}
                                             height={48}
                                             className="h-12 w-12 rounded-full object-cover"
-                                            unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                                            unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
                                             onError={(e) => {
                                               const target = e.target as HTMLImageElement;
                                               target.style.display = 'none';

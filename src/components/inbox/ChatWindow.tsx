@@ -85,7 +85,7 @@ function CommentThread({
                           width={isReply ? 24 : 32}
                           height={isReply ? 24 : 32}
                           className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
-                          unoptimized={message.senderAvatar.includes('cdninstagram.com') || message.senderAvatar.includes('fbsbx.com') || message.senderAvatar.includes('fbcdn.net')}
+                          unoptimized={!message.senderAvatar.startsWith('/') && !message.senderAvatar.includes('supabase.co') && !message.senderAvatar.includes('getlate.dev')}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
@@ -199,6 +199,7 @@ function CommentThread({
                       alt="Attachment"
                       width={200}
                       height={200}
+                      unoptimized={!att.url.startsWith('/') && !att.url.includes('supabase.co') && !att.url.includes('getlate.dev')}
                       className="h-auto max-w-full rounded-lg"
                     />
                   )}
@@ -234,7 +235,7 @@ function CommentThread({
                         width={isReply ? 24 : 32}
                         height={isReply ? 24 : 32}
                         className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
-                        unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                        unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
                       />
                     )
                   : (
@@ -423,13 +424,7 @@ export function ChatWindow({
         throw new Error('Not authenticated');
       }
 
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       for (const file of files) {
         const maxSize = 10 * 1024 * 1024; // 10MB
@@ -681,7 +676,7 @@ export function ChatWindow({
                     width={40}
                     height={40}
                     className="h-10 w-10 rounded-full object-cover"
-                    unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                    unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
                     onError={(e) => {
                       // Fallback to initials if image fails to load
                       const target = e.target as HTMLImageElement;
@@ -728,6 +723,7 @@ export function ChatWindow({
                 alt="Post"
                 width={60}
                 height={60}
+                unoptimized={!conversation.postImageUrl.startsWith('/') && !conversation.postImageUrl.includes('supabase.co') && !conversation.postImageUrl.includes('getlate.dev')}
                 className="h-15 w-15 rounded object-cover"
               />
             )}

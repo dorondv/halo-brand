@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { syncAnalyticsFromGetlate } from '@/libs/analytics-sync';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { collectPostPayloadMediaUrls, isAllowedOptionalPostMediaUrl } from '@/libs/supabaseStorageUrl';
 
 export async function GET() {
   const supabase = await createSupabaseServerClient();
@@ -54,6 +55,15 @@ export async function POST(request: Request) {
   }
 
   const payload = parse.data;
+
+  const postMediaUrls = collectPostPayloadMediaUrls(payload);
+  const invalidMediaUrl = postMediaUrls.find(u => !isAllowedOptionalPostMediaUrl(u));
+  if (invalidMediaUrl) {
+    return NextResponse.json(
+      { error: 'All post media must be uploaded to Supabase Storage (post-media) before creating a post.' },
+      { status: 422 },
+    );
+  }
 
   // If using Getlate, create post via Getlate API
   let getlatePostId: string | null = null;

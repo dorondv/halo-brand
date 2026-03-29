@@ -54,14 +54,7 @@ export default function AvatarUpload({ currentAvatarUrl, onAvatarUpdate, isRTL =
         throw new Error('Image size exceeds 5MB limit');
       }
 
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       // Delete old avatar if exists
       if (currentAvatarUrl && currentAvatarUrl.includes('/avatars/')) {

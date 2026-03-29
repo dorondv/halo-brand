@@ -110,7 +110,7 @@ export function AccountList({
                                   width={48}
                                   height={48}
                                   className="h-12 w-12 rounded-full object-cover"
-                                  unoptimized={account.avatarUrl.includes('cdninstagram.com') || account.avatarUrl.includes('fbsbx.com') || account.avatarUrl.includes('fbcdn.net')}
+                                  unoptimized={!account.avatarUrl.startsWith('/') && !account.avatarUrl.includes('supabase.co') && !account.avatarUrl.includes('getlate.dev')}
                                   onError={(e) => {
                                     // Fallback to initials if image fails to load
                                     const target = e.target as HTMLImageElement;
