@@ -2,7 +2,7 @@
   "name": "branda-social",
   "author": "Doron DV",
   "engines": {
-    "node": ">=20"
+    "node": ">=20.18.0 <23"
   },
   "scripts": {
     "dev:spotlight": "npx @spotlightjs/spotlight",
@@ -113,6 +113,7 @@
     "knip": "^5.86.0",
     "lefthook": "^2.1.4",
     "npm-run-all": "^4.1.5",
+    "playwright": "^1.58.2",
     "postcss": "^8.5.8",
     "postcss-load-config": "^6.0.1",
     "rimraf": "^6.1.3",
@@ -122,8 +123,7 @@
     "typescript": "^5.9.3",
     "vite-tsconfig-paths": "^5.1.4",
     "vitest": "^4.1.0",
-    "vitest-browser-react": "^2.1.0",
-    "playwright": "^1.58.2"
+    "vitest-browser-react": "^2.1.0"
   },
   "release": {
     "branches": [
