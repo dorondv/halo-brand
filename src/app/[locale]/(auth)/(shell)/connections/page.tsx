@@ -489,7 +489,7 @@ export default function ConnectionsPage() {
     if (!selectedBrandId || !selectedBrand?.getlate_profile_id) {
       if (!silent) {
         showToast(
-          t('sync_error_no_brand') || 'No brand selected or brand not linked to Getlate profile',
+          t('sync_error_no_brand') || 'No brand selected or brand not linked to a publishing profile',
           'error',
         );
       }
@@ -1093,7 +1093,7 @@ export default function ConnectionsPage() {
 
   const handleOpenFacebookPages = async (account: SocialAccount) => {
     if (!account.getlate_account_id) {
-      showToast(t('account_not_linked') || 'Account not linked to Getlate', 'error');
+      showToast(t('account_not_linked') || 'Account not linked to publishing', 'error');
       return;
     }
 
@@ -1196,7 +1196,7 @@ export default function ConnectionsPage() {
 
   const handleOpenLinkedInOrganizations = async (account: SocialAccount) => {
     if (!account.getlate_account_id) {
-      showToast(t('account_not_linked') || 'Account not linked to Getlate', 'error');
+      showToast(t('account_not_linked') || 'Account not linked to publishing', 'error');
       return;
     }
 

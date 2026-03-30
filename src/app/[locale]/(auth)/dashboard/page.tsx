@@ -23,10 +23,10 @@ import {
   getPosts,
   syncAnalyticsInBackground,
 } from '@/libs/dashboard-cache';
+import { clampDashboardDateRange } from '@/libs/dashboardDateRangeLimits';
 import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlateAnalyticsOverview } from '@/libs/getlate-overview';
 import { getGetlatePosts } from '@/libs/getlate-posts';
-import { clampDashboardDateRange } from '@/libs/dashboardDateRangeLimits';
 import { calculateScoresForPosts } from '@/libs/post-score-calculator';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { PlatformCards } from './DashboardClient';
@@ -2355,7 +2355,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       const analytics = latestAnalyticsByPost.get(postId);
       const postData = p || {
         id: postId,
-        content: (analytics?.metadata as any)?.content || 'Post from Getlate',
+        content: (analytics?.metadata as any)?.content || 'Post',
         created_at: analytics?.date || new Date().toISOString(),
         image_url: (analytics?.metadata as any)?.thumbnailUrl || null,
         metadata: analytics?.metadata || {},
@@ -2464,7 +2464,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       // If post doesn't exist in posts table, create a minimal post object from analytics
       const postData = p || {
         id: postId,
-        content: (analytics?.metadata as any)?.content || 'Post from Getlate',
+        content: (analytics?.metadata as any)?.content || 'Post',
         created_at: analytics?.date || new Date().toISOString(),
         image_url: (analytics?.metadata as any)?.thumbnailUrl || null,
         metadata: analytics?.metadata || {},
