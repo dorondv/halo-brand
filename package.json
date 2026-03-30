@@ -1,5 +1,6 @@
 {
   "name": "branda-social",
+  "packageManager": "pnpm@10.4.1",
   "author": "Doron DV",
   "engines": {
     "node": ">=20.18.0 <23"
