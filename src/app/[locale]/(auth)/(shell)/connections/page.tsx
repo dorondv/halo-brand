@@ -450,14 +450,19 @@ export default function ConnectionsPage() {
       const supabase = createSupabaseBrowserClient();
       const currentBrand = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;
 
-      // Atomic refresh path: sync first, then apply canonical synced accounts in one setState.
+      // Optional sync: refresh follower data from Getlate + DB. Do not replace UI with an empty list
+      // when the response has no rows (avoids a flash of "all disconnected" after DB already loaded).
       if (forceSync && !skipSync && currentBrand?.getlate_profile_id) {
         const syncResponse = await fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`);
         if (syncResponse.ok) {
           const syncData = await syncResponse.json().catch(() => ({ accounts: [] }));
           if (Array.isArray(syncData.accounts)) {
-            setAccounts(mapCanonicalAccounts(syncData.accounts));
-            return;
+            const mapped = mapCanonicalAccounts(syncData.accounts);
+            if (mapped.length > 0) {
+              setAccounts(mapped);
+              return;
+            }
+            // Fall through to DB load — empty sync result should not wipe previously loaded connections
           }
         }
       }
@@ -485,62 +490,21 @@ export default function ConnectionsPage() {
     }
   }, [selectedBrandId, brands, getCurrentUserId, mapCanonicalAccounts]);
 
-  const syncNow = useCallback(async (silent = false) => {
-    if (!selectedBrandId || !selectedBrand?.getlate_profile_id) {
-      if (!silent) {
-        showToast(
-          t('sync_error_no_brand') || 'No brand selected or brand not linked to a publishing profile',
-          'error',
-        );
-      }
-      return;
-    }
-
-    try {
-      await loadAccountsFromDB(false, true);
-
-      if (!silent) {
-        showToast(
-          t('sync_success_description') || 'Accounts synced successfully. Follower counts updated.',
-          'success',
-        );
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sync accounts';
-      console.error('[Connections] Sync error:', errorMessage);
-      // Only show error toast if not silent (silent mode for background sync)
-      if (!silent) {
-        showToast(errorMessage, 'error');
-      }
-    }
-  }, [selectedBrandId, selectedBrand, loadAccountsFromDB, showToast, t]);
-
   useEffect(() => {
     void loadBrands();
     return undefined;
   }, [loadBrands]);
 
-  // Track last synced brand to avoid redundant syncs
-  const lastSyncedBrandId = useRef<string | null>(null);
-
   useEffect(() => {
-    // Load accounts when selected brand changes - only when brand actually changes
+    // Load accounts from DB only. Do not auto-run a Getlate sync on every brand select — that was
+    // overwriting the UI when Getlate briefly reported isConnected=false. User can refresh/sync
+    // after OAuth or via explicit actions that call loadAccountsFromDB(..., true).
     if (selectedBrandId) {
-      // Load accounts from DB first (immediate, shows existing data)
       void loadAccountsFromDB(false, false);
-
-      // If brand has Getlate profile and hasn't been synced yet, sync in background
-      const currentBrand = brands.find(b => b.id === selectedBrandId);
-      if (currentBrand?.getlate_profile_id && lastSyncedBrandId.current !== selectedBrandId) {
-        lastSyncedBrandId.current = selectedBrandId;
-        // Trigger sync in background (silent mode - no toast notifications)
-        void syncNow(true);
-      }
     } else {
       // Clear accounts when no brand is selected
       // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setAccounts([]);
-      lastSyncedBrandId.current = null; // Reset when brand is cleared
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrandId, brands]); // Depend on brand ID and brands array
@@ -727,7 +691,15 @@ export default function ConnectionsPage() {
     }
 
     return undefined;
-  }, [searchParams, selectedBrandId, brands, loadAccountsFromDB, showToast, t, setSelectedBrandId, syncNow]);
+  }, [
+    searchParams,
+    selectedBrandId,
+    brands,
+    loadAccountsFromDB,
+    showToast,
+    t,
+    setSelectedBrandId,
+  ]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {

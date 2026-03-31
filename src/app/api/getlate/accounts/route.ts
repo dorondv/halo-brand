@@ -241,7 +241,24 @@ export async function GET(request: NextRequest) {
         // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection
         // OAuth reconnection (oauthReconnect=true) means user explicitly reconnected via OAuth button
         // Regular syncs should not reactivate manually disconnected accounts
-        const shouldBeActive = manuallyDisconnected && !oauthReconnect ? false : isConnected;
+        //
+        // Routine sync: do NOT set is_active=false only because Getlate sent isConnected=false — that
+        // often flickers during API issues. Only deactivate when the token is actually past expiry,
+        // or when the user reconnected via OAuth (oauthReconnect) and Getlate says disconnected.
+        let shouldBeActive: boolean;
+        if (manuallyDisconnected && !oauthReconnect) {
+          shouldBeActive = false;
+        } else if (oauthReconnect) {
+          shouldBeActive = isConnected;
+        } else if (isConnected) {
+          shouldBeActive = true;
+        } else {
+          const tokenExpired
+            = typeof tokenExpiresAt === 'string'
+              && !Number.isNaN(Date.parse(tokenExpiresAt))
+              && new Date(tokenExpiresAt) < new Date();
+          shouldBeActive = tokenExpired ? false : existingAccount.is_active;
+        }
 
         // Update existing account
         // Include brand_id in update to ensure it's correct (in case brand changed)
