@@ -2,7 +2,6 @@
 
 import type { Range, RangeKeyDict } from 'react-date-range';
 import { endOfMonth, format, startOfMonth, startOfYear, subDays } from 'date-fns';
-import { clampDashboardDateRange, getDashboardDateBounds } from '@/libs/dashboardDateRangeLimits';
 import { enUS as dfEnUS, he as dfHe } from 'date-fns/locale';
 import { ArrowLeft, ArrowRight, CalendarIcon, ChevronDown } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
@@ -16,6 +15,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { cn } from '@/libs/cn';
+import { clampDashboardDateRange, getDashboardDateBounds } from '@/libs/dashboardDateRangeLimits';
 import 'react-date-range/dist/styles.css'; // main style file
 import 'react-date-range/dist/theme/default.css'; // theme css file
 
@@ -118,9 +118,12 @@ export function DateRangePicker() {
     params.set('range', range);
     params.set('granularity', granularity);
 
-    if (range === 'custom' && customRange?.startDate && customRange?.endDate) {
-      params.set('from', format(customRange.startDate, 'yyyy-MM-dd'));
-      params.set('to', format(customRange.endDate, 'yyyy-MM-dd'));
+    if (range === 'custom') {
+      if (customRange?.startDate && customRange?.endDate) {
+        params.set('from', format(customRange.startDate, 'yyyy-MM-dd'));
+        params.set('to', format(customRange.endDate, 'yyyy-MM-dd'));
+      }
+      // Keep existing from/to in the URL when only granularity changes (no customRange passed).
     } else {
       params.delete('from');
       params.delete('to');
@@ -233,7 +236,7 @@ export function DateRangePicker() {
             <Button
               variant="outline"
               className={cn(
-                'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
+                'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal transition-colors duration-200 ease-out hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
                 isRTL ? 'flex-row-reverse' : '',
               )}
               onClick={() => {
@@ -275,7 +278,7 @@ export function DateRangePicker() {
                         key={range.value}
                         variant="ghost"
                         className={cn(
-                          'w-full justify-start mb-1 hover:bg-pink-50 dark:hover:bg-gray-700',
+                          'w-full justify-start mb-1 transition-colors duration-200 ease-out hover:bg-pink-50 dark:hover:bg-gray-700',
                           currentRange === range.value && 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
                           isRTL && 'text-right',
                         )}
@@ -297,7 +300,7 @@ export function DateRangePicker() {
                           setShowRangeOptions(true);
                         }}
                         className={cn(
-                          'w-full text-pink-600 hover:bg-pink-50 dark:text-pink-400 dark:hover:bg-gray-700',
+                          'w-full text-pink-600 transition-colors duration-200 ease-out hover:bg-pink-50 dark:text-pink-400 dark:hover:bg-gray-700',
                           isRTL ? 'flex-row-reverse' : '',
                         )}
                       >
@@ -330,7 +333,7 @@ export function DateRangePicker() {
         <Button
           variant="outline"
           className={cn(
-            'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
+            'min-w-[200px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal transition-colors duration-200 ease-out hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
             isRTL ? 'flex-row-reverse' : '',
           )}
           disabled
@@ -349,7 +352,7 @@ export function DateRangePicker() {
             <Button
               variant="outline"
               className={cn(
-                'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
+                'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal transition-colors duration-200 ease-out hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
                 isRTL ? 'flex-row-reverse' : '',
               )}
             >
@@ -370,7 +373,7 @@ export function DateRangePicker() {
                 key={option.value}
                 type="button"
                 className={cn(
-                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors hover:bg-pink-50 dark:hover:bg-gray-700 dark:text-gray-200',
+                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 ease-out hover:bg-pink-50 dark:hover:bg-gray-700 dark:text-gray-200',
                   currentGranularity === option.value && 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
                   isRTL && 'text-right',
                 )}
@@ -386,7 +389,7 @@ export function DateRangePicker() {
         <Button
           variant="outline"
           className={cn(
-            'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
+            'min-w-[120px] justify-between rounded-lg border border-pink-200 bg-white px-4 py-2 text-sm font-normal transition-colors duration-200 ease-out hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:bg-gray-700',
             isRTL ? 'flex-row-reverse' : '',
           )}
           disabled
