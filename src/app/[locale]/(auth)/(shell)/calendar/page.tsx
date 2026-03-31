@@ -30,6 +30,7 @@ import {
   Grid3x3,
   Plus,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
@@ -44,123 +45,41 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
+import { getInternationalEventKeysForDate } from './internationalEvents';
 
 // Force dynamic rendering - this page requires authentication
 
 export const dynamic = 'force-dynamic';
 
-// Important dates data - abbreviated for demo (you can add more)
-const importantDates: Record<
-  string,
-  { type: string; name: string; category: string; description?: string }
-> = {
-  '2024-11-01': {
-    type: 'banking',
-    name: 'יום הבנק - נובמבר',
-    category: 'בנקאי',
-    description: 'יום ללא פעילות בנקאית. הזדמנות לתוכן על תכנון פיננסי לסוף השנה.',
-  },
-  '2024-11-11': {
-    type: 'commercial',
-    name: 'יום הרווקים הסיני - Singles Day',
-    category: 'מסחרי',
-    description: 'חג הקניות המקוונות הגדול בעולם. יום למבצעים אגרסיביים, קופונים והנחות משמעותיות.',
-  },
-  '2024-11-28': {
-    type: 'national',
-    name: 'חג ההודיה - ארה״ב',
-    category: 'לאומי',
-    description: 'חג ההודיה האמריקאי. תוכן על הכרת טובה, משפחה ומסורות אמריקאיות.',
-  },
-  '2024-11-29': {
-    type: 'commercial',
-    name: 'בלאק פריידי',
-    category: 'מסחרי',
-    description: 'יום הקניות הגדול בעולם. חובה להכין קמפיין מבצעים אגרסיבי מראש.',
-  },
-  '2024-12-25': {
-    type: 'christian',
-    name: 'חג המולד',
-    category: 'נוצרי',
-    description: 'חג לידת ישו. עונת מתנות, חגיגות ומבצעי חורף.',
-  },
-  '2024-12-26': {
-    type: 'jewish',
-    name: 'חנוכה',
-    category: 'יהודי',
-    description: 'חג האור. מתאים למבצעי מתנות, מתכני סופגניות ולביבות.',
-  },
-  '2024-12-31': {
-    type: 'civil',
-    name: 'ערב השנה החדשה',
-    category: 'אזרחי',
-    description: 'סיום השנה. מסיבות, תחזיות לשנה הבאה ותוכן של סיכום והתחלות חדשות.',
-  },
-  '2025-01-01': { type: 'civil', name: 'ראש השנה האזרחי', category: 'אזרחי' },
-  '2025-02-14': { type: 'commercial', name: 'יום האהבה', category: 'מסחרי' },
-  '2025-03-08': { type: 'international', name: 'יום האישה הבינלאומי', category: 'בינלאומי' },
-  '2025-04-22': { type: 'international', name: 'יום כדור הארץ', category: 'בינלאומי' },
-  '2025-05-09': { type: 'jewish', name: 'יום העצמאות', category: 'ישראלי' },
+const CALENDAR_MANUAL_EVENTS_KEY = 'halo-brand-calendar-manual-events';
+
+type ManualCalendarEvent = { id: string; dateISO: string; name: string };
+
+type CalendarImportantEvent = {
+  type: 'international' | 'custom';
+  name: string;
+  description?: string;
+  id?: string;
 };
+
+const ALL_CALENDAR_EVENT_TYPES = ['international', 'custom'] as const;
 
 const getCategoryConfig = (type: string, t: (key: string) => string) => {
   const configs: Record<string, { color: string; name: string; bgColor: string }> = {
-    jewish: {
-      color:
-        'border-blue-200 !bg-blue-100 !text-blue-900 dark:border-blue-800/80 dark:!bg-blue-950/55 dark:!text-blue-100',
-      name: t('category_jewish'),
-      bgColor: 'bg-blue-500',
-    },
-    muslim: {
-      color:
-        'border-green-200 !bg-green-100 !text-green-900 dark:border-green-800/80 dark:!bg-green-950/55 dark:!text-green-100',
-      name: t('category_muslim'),
-      bgColor: 'bg-green-500',
-    },
-    christian: {
-      color:
-        'border-yellow-200 !bg-yellow-100 !text-yellow-900 dark:border-yellow-800/80 dark:!bg-yellow-950/45 dark:!text-yellow-100',
-      name: t('category_christian'),
-      bgColor: 'bg-yellow-500',
-    },
-    commercial: {
-      color:
-        'border-pink-200 !bg-pink-100 !text-pink-900 dark:border-pink-800/80 dark:!bg-pink-950/50 dark:!text-pink-100',
-      name: t('category_commercial'),
-      bgColor: 'bg-pink-500',
-    },
     international: {
       color:
         'border-purple-200 !bg-purple-100 !text-purple-900 dark:border-purple-800/80 dark:!bg-purple-950/50 dark:!text-purple-100',
       name: t('category_international'),
       bgColor: 'bg-purple-500',
     },
-    sports: {
+    custom: {
       color:
-        'border-red-200 !bg-red-100 !text-red-900 dark:border-red-800/80 dark:!bg-red-950/50 dark:!text-red-100',
-      name: t('category_sports'),
-      bgColor: 'bg-red-500',
-    },
-    civil: {
-      color:
-        'border-gray-200 !bg-gray-100 !text-gray-900 dark:border-slate-600 dark:!bg-slate-800/90 dark:!text-slate-100',
-      name: t('category_civil'),
-      bgColor: 'bg-gray-500',
-    },
-    national: {
-      color:
-        'border-indigo-200 !bg-indigo-100 !text-indigo-900 dark:border-indigo-800/80 dark:!bg-indigo-950/50 dark:!text-indigo-100',
-      name: t('category_national'),
-      bgColor: 'bg-indigo-500',
-    },
-    banking: {
-      color:
-        'border-amber-200 !bg-amber-100 !text-amber-950 dark:border-amber-800/80 dark:!bg-amber-950/45 dark:!text-amber-100',
-      name: t('category_banking'),
-      bgColor: 'bg-amber-500',
+        'border-emerald-200 !bg-emerald-100 !text-emerald-900 dark:border-emerald-800/80 dark:!bg-emerald-950/50 dark:!text-emerald-100',
+      name: t('category_custom'),
+      bgColor: 'bg-emerald-500',
     },
   };
-  return configs[type] || configs.civil;
+  return configs[type] || configs.international;
 };
 
 // Platform Icon Component
@@ -269,9 +188,56 @@ export default function CalendarPage() {
   const [viewMode, setViewMode] = useState<'week' | 'month' | 'year'>('month');
   const [selectedPost, setSelectedPost] = useState<Post | null>(null);
   const [showPostDialog, setShowPostDialog] = useState(false);
+  const [manualEvents, setManualEvents] = useState<ManualCalendarEvent[]>([]);
+  const [manualEventsHydrated, setManualEventsHydrated] = useState(false);
+  const [newManualEventTitle, setNewManualEventTitle] = useState('');
 
-  const allCategoryTypes = [...new Set(Object.values(importantDates).map(date => date.type))];
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => allCategoryTypes);
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(() => [...ALL_CALENDAR_EVENT_TYPES]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(CALENDAR_MANUAL_EVENTS_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as ManualCalendarEvent[];
+        if (Array.isArray(parsed)) {
+          setManualEvents(parsed);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    setManualEventsHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!manualEventsHydrated) {
+      return;
+    }
+    try {
+      localStorage.setItem(CALENDAR_MANUAL_EVENTS_KEY, JSON.stringify(manualEvents));
+    } catch {
+      /* ignore */
+    }
+  }, [manualEvents, manualEventsHydrated]);
+
+  const buildImportantEventsForDate = useCallback(
+    (date: Date): CalendarImportantEvent[] => {
+      const dateISO = format(date, 'yyyy-MM-dd');
+      const intl: CalendarImportantEvent[] = getInternationalEventKeysForDate(date).map(key => ({
+        type: 'international',
+        name: t(key),
+      }));
+      const custom: CalendarImportantEvent[] = manualEvents
+        .filter(e => e.dateISO === dateISO)
+        .map(e => ({
+          type: 'custom',
+          name: e.name,
+          id: e.id,
+        }));
+      return [...intl, ...custom];
+    },
+    [manualEvents, t],
+  );
 
   // Load scheduled posts from database
   useEffect(() => {
@@ -473,48 +439,33 @@ export default function CalendarPage() {
     }));
   };
 
-  const getImportantDateForDay = (date: Date) => {
-    const dateStr = format(date, 'yyyy-MM-dd');
-    return importantDates[dateStr] || null;
-  };
-
   const getImportantDatesForPeriod = (date: Date) => {
-    if (viewMode === 'month') {
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-
-      return Object.entries(importantDates)
-        .filter(([dateKey]) => dateKey.startsWith(`${year}-${month}`))
-        .map(([dateKey, event]) => ({
-          date: new Date(`${dateKey}T00:00:00`),
-          ...event,
-        }))
-        .filter(event => selectedCategories.includes(event.type));
-    } else {
-      const year = date.getFullYear();
-
-      return Object.entries(importantDates)
-        .filter(([dateKey]) => dateKey.startsWith(`${year}`))
-        .map(([dateKey, event]) => ({
-          date: new Date(`${dateKey}T00:00:00`),
-          ...event,
-        }))
-        .filter(event => selectedCategories.includes(event.type));
+    const start = viewMode === 'month' ? startOfMonth(date) : startOfYear(date);
+    const end = viewMode === 'month' ? endOfMonth(date) : endOfYear(date);
+    const out: Array<{ date: Date; type: string; name: string; description?: string; id?: string }> = [];
+    for (const d of eachDayOfInterval({ start, end })) {
+      for (const ev of buildImportantEventsForDate(d)) {
+        if (!selectedCategories.includes(ev.type)) {
+          continue;
+        }
+        out.push({ date: d, ...ev });
+      }
     }
+    return out;
   };
 
   const getYearCategorySummary = (year: number) => {
-    const yearStr = year.toString();
-    const yearEvents = Object.entries(importantDates)
-      .filter(([dateKey]) => dateKey.startsWith(yearStr))
-      .map(([, event]) => event)
-      .filter(event => selectedCategories.includes(event.type));
-
+    const start = startOfYear(new Date(year, 0, 1));
+    const end = endOfYear(new Date(year, 0, 1));
     const categoryCounts: Record<string, number> = {};
-    yearEvents.forEach((event) => {
-      categoryCounts[event.type] = (categoryCounts[event.type] || 0) + 1;
-    });
-
+    for (const d of eachDayOfInterval({ start, end })) {
+      for (const ev of buildImportantEventsForDate(d)) {
+        if (!selectedCategories.includes(ev.type)) {
+          continue;
+        }
+        categoryCounts[ev.type] = (categoryCounts[ev.type] || 0) + 1;
+      }
+    }
     return categoryCounts;
   };
 
@@ -824,12 +775,12 @@ export default function CalendarPage() {
           ))}
           {daysInMonth.map((date) => {
             const dayPosts = getPostsForDate(date);
-            const importantDate = getImportantDateForDay(date);
+            const importantEventsRaw = buildImportantEventsForDate(date);
+            const importantEvents = importantEventsRaw.filter(ev => selectedCategories.includes(ev.type));
             const isSelected = selectedDate && isSameDay(date, selectedDate);
             const isTodayDate = isToday(date);
-            const hasImportantDate
-              = importantDate && showImportantDates && selectedCategories.includes(importantDate.type);
-            const config = importantDate ? getCategoryConfig(importantDate.type, t as any) : null;
+            const hasImportantDate = importantEvents.length > 0 && showImportantDates;
+            const config = importantEvents[0] ? getCategoryConfig(importantEvents[0].type, t as any) : null;
 
             // Check if date is in the past (excluding today)
             const isPastDate = !isTodayDate && isPast(date);
@@ -891,12 +842,23 @@ export default function CalendarPage() {
                     {format(date, 'd')}
                   </div>
                   <div className="flex-1 space-y-1 overflow-hidden">
-                    {hasImportantDate && (
-                      <div
-                        className={`rounded px-1 py-0.5 text-[11px] font-medium ${config?.color} line-clamp-2 text-center leading-tight`}
-                        title={importantDate.name}
-                      >
-                        {importantDate.name}
+                    {hasImportantDate
+                      && importantEvents.slice(0, 2).map((ev, evIdx) => {
+                        const evConfig = getCategoryConfig(ev.type, t as any);
+                        return (
+                          <div
+                            key={`${ev.name}-${evIdx}-${ev.id || ''}`}
+                            className={`rounded px-1 py-0.5 text-[11px] font-medium ${evConfig?.color} line-clamp-2 text-center leading-tight`}
+                            title={ev.name}
+                          >
+                            {ev.name}
+                          </div>
+                        );
+                      })}
+                    {hasImportantDate && importantEvents.length > 2 && (
+                      <div className="text-center text-[10px] font-medium text-slate-600 dark:text-slate-400">
+                        +
+                        {importantEvents.length - 2}
                       </div>
                     )}
 
@@ -985,12 +947,27 @@ export default function CalendarPage() {
   };
 
   const selectedDatePosts = selectedDate ? getPostsForDate(selectedDate) : [];
-  const selectedImportantEvent = selectedDate ? getImportantDateForDay(selectedDate) : null;
-  const selectedDateImportant
-    = selectedImportantEvent && selectedCategories.includes(selectedImportantEvent.type)
-      ? selectedImportantEvent
-      : null;
+  const selectedImportantEvents = selectedDate
+    ? buildImportantEventsForDate(selectedDate).filter(ev => selectedCategories.includes(ev.type))
+    : [];
   const periodImportantDates = getImportantDatesForPeriod(currentDate);
+
+  const addManualEvent = () => {
+    if (!selectedDate || !newManualEventTitle.trim()) {
+      return;
+    }
+    const entry: ManualCalendarEvent = {
+      id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `me-${Date.now()}-${Math.random()}`,
+      dateISO: format(selectedDate, 'yyyy-MM-dd'),
+      name: newManualEventTitle.trim(),
+    };
+    setManualEvents(prev => [...prev, entry]);
+    setNewManualEventTitle('');
+  };
+
+  const removeManualEvent = (id: string) => {
+    setManualEvents(prev => prev.filter(e => e.id !== id));
+  };
 
   // Calculate min time for time picker (if selecting today, must be at least 5 minutes from now)
   const getMinTime = () => {
@@ -1014,17 +991,7 @@ export default function CalendarPage() {
     0,
   );
 
-  const legendItems = [
-    { type: 'jewish' },
-    { type: 'muslim' },
-    { type: 'christian' },
-    { type: 'commercial' },
-    { type: 'international' },
-    { type: 'national' },
-    { type: 'banking' },
-    { type: 'sports' },
-    { type: 'civil' },
-  ];
+  const legendItems = [{ type: 'international' }, { type: 'custom' }];
 
   return (
     <div className="min-h-screen p-6" dir={isRTL ? 'rtl' : 'ltr'}>
@@ -1243,29 +1210,64 @@ export default function CalendarPage() {
                     {selectedDate
                       ? (
                           <>
-                            {selectedDateImportant && (() => {
-                              const categoryConfig = getCategoryConfig(selectedDateImportant.type, t as any);
+                            {selectedImportantEvents.map((ev) => {
+                              const categoryConfig = getCategoryConfig(ev.type, t as any);
                               if (!categoryConfig) {
                                 return null;
                               }
                               return (
-                                <div className="flex-shrink-0 rounded-lg border border-purple-200 bg-purple-50 p-3 dark:border-purple-800/60 dark:bg-purple-950/40">
-                                  <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
+                                <div
+                                  key={`${ev.type}-${ev.name}-${ev.id || ev.name}`}
+                                  className={cn(
+                                    'flex-shrink-0 rounded-lg border p-3',
+                                    ev.type === 'custom'
+                                      ? 'border-emerald-200 bg-emerald-50 dark:border-emerald-800/60 dark:bg-emerald-950/40'
+                                      : 'border-purple-200 bg-purple-50 dark:border-purple-800/60 dark:bg-purple-950/40',
+                                  )}
+                                >
+                                  <div className={cn('mb-2 flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                     <Badge className={categoryConfig.color}>
                                       {categoryConfig.name}
                                     </Badge>
+                                    {ev.type === 'custom' && ev.id && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
+                                        title={t('remove_manual_event')}
+                                        aria-label={t('remove_manual_event')}
+                                        onClick={() => removeManualEvent(ev.id!)}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                   </div>
-                                  <h4 className="font-semibold text-purple-900 dark:text-purple-100">
-                                    {selectedDateImportant.name}
+                                  <h4
+                                    className={cn(
+                                      'font-semibold',
+                                      ev.type === 'custom'
+                                        ? 'text-emerald-900 dark:text-emerald-100'
+                                        : 'text-purple-900 dark:text-purple-100',
+                                    )}
+                                  >
+                                    {ev.name}
                                   </h4>
-                                  {selectedDateImportant.description && (
-                                    <p className="mt-2 text-sm text-purple-700 dark:text-purple-200/90">
-                                      {selectedDateImportant.description}
+                                  {ev.description && (
+                                    <p
+                                      className={cn(
+                                        'mt-2 text-sm',
+                                        ev.type === 'custom'
+                                          ? 'text-emerald-800 dark:text-emerald-200/90'
+                                          : 'text-purple-700 dark:text-purple-200/90',
+                                      )}
+                                    >
+                                      {ev.description}
                                     </p>
                                   )}
                                 </div>
                               );
-                            })()}
+                            })}
 
                             {selectedDatePosts.length > 0 && (
                               <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
@@ -1366,6 +1368,38 @@ export default function CalendarPage() {
                           </div>
                         )}
 
+                    {selectedDate && (
+                      <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-600 dark:bg-slate-800/60">
+                        <Label htmlFor="manual-event-title" className="text-sm font-semibold text-slate-800 dark:text-slate-200">
+                          {t('add_manual_event')}
+                        </Label>
+                        <div className={cn('mt-2 flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                          <Input
+                            id="manual-event-title"
+                            value={newManualEventTitle}
+                            onChange={e => setNewManualEventTitle(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') {
+                                e.preventDefault();
+                                addManualEvent();
+                              }
+                            }}
+                            placeholder={t('manual_event_placeholder')}
+                            className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                          />
+                          <Button
+                            type="button"
+                            size="sm"
+                            className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                            onClick={addManualEvent}
+                            disabled={!newManualEventTitle.trim()}
+                          >
+                            <Plus className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* Time Picker Section - Only show for non-past dates */}
                     {selectedDate && (!isPast(selectedDate) || isToday(selectedDate)) && (
                       <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-800/80">
@@ -1457,20 +1491,19 @@ export default function CalendarPage() {
                               if (!config) {
                                 return null;
                               }
+                              const isCustom = event.type === 'custom' && event.id;
                               return (
                                 <div
-                                  key={`${event.date.toISOString()}-${event.name}`}
+                                  key={`${event.date.toISOString()}-${event.name}-${event.id || event.type}`}
                                   className={`rounded-lg border p-3 ${config.color} cursor-pointer transition-all duration-200 hover:shadow-md`}
                                   onClick={() => {
                                     setSelectedDate(event.date);
-                                    // Set time to default (current time or 5 min from now if today)
                                     setSelectedTime(getDefaultTime(event.date));
                                   }}
                                   onKeyDown={(e) => {
                                     if (e.key === 'Enter' || e.key === ' ') {
                                       e.preventDefault();
                                       setSelectedDate(event.date);
-                                      // Set time to default (current time or 5 min from now if today)
                                       setSelectedTime(getDefaultTime(event.date));
                                     }
                                   }}
@@ -1478,7 +1511,7 @@ export default function CalendarPage() {
                                   tabIndex={0}
                                 >
                                   <div className={cn('flex items-start gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                                    <div className="flex-1">
+                                    <div className="min-w-0 flex-1">
                                       <div className={cn('mb-1 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                                         <Badge className={config.color} variant="secondary">
                                           {format(event.date, 'd')}
@@ -1493,6 +1526,22 @@ export default function CalendarPage() {
                                         </p>
                                       )}
                                     </div>
+                                    {isCustom && (
+                                      <Button
+                                        type="button"
+                                        variant="ghost"
+                                        size="icon"
+                                        className="h-8 w-8 shrink-0 text-slate-500 hover:text-red-600 dark:text-slate-400 dark:hover:text-red-400"
+                                        title={t('remove_manual_event')}
+                                        aria-label={t('remove_manual_event')}
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          removeManualEvent(event.id!);
+                                        }}
+                                      >
+                                        <Trash2 className="h-4 w-4" />
+                                      </Button>
+                                    )}
                                   </div>
                                 </div>
                               );
