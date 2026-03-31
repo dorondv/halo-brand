@@ -1,19 +1,72 @@
 'use client';
 
 import type { Conversation, MetaPlatform } from '@/libs/meta-inbox';
-import { Facebook, Instagram, Mail, MessageSquare, Search } from 'lucide-react';
+import {
+  Bird,
+  Bookmark,
+  CircleDot,
+  Cloud,
+  Facebook,
+  Instagram,
+  Linkedin,
+  Mail,
+  MessageCircle,
+  MessageSquare,
+  Music2,
+  Search,
+  Send,
+  Youtube,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/libs/cn';
 
-const platformIcons = {
+const platformIcons: Record<
+  MetaPlatform | 'email',
+  { icon: typeof Facebook; color: string }
+> = {
   facebook: { icon: Facebook, color: 'text-blue-600' },
   instagram: { icon: Instagram, color: 'text-pink-500' },
   threads: { icon: MessageSquare, color: 'text-neutral-900' },
+  twitter: { icon: Bird, color: 'text-sky-500' },
+  bluesky: { icon: Cloud, color: 'text-sky-400' },
+  reddit: { icon: CircleDot, color: 'text-orange-600' },
+  telegram: { icon: Send, color: 'text-sky-600' },
+  linkedin: { icon: Linkedin, color: 'text-blue-700' },
+  youtube: { icon: Youtube, color: 'text-red-600' },
+  tiktok: { icon: Music2, color: 'text-neutral-900' },
+  pinterest: { icon: Bookmark, color: 'text-red-700' },
   email: { icon: Mail, color: 'text-gray-600' },
-} as const;
+};
+
+function formatCommentPostDate(iso: string, locale: string): string {
+  try {
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) {
+      return '';
+    }
+    return d.toLocaleDateString(locale === 'he' ? 'he-IL' : 'en-US', {
+      month: 'numeric',
+      day: 'numeric',
+      year: 'numeric',
+    });
+  } catch {
+    return '';
+  }
+}
+
+function resolveCommentCount(conv: Conversation): number | null {
+  if (typeof conv.commentCount === 'number' && conv.commentCount >= 0) {
+    return conv.commentCount;
+  }
+  const m = (conv.lastMessage || '').trim().match(/^(\d+)\s+comment/i);
+  if (m?.[1]) {
+    return Number.parseInt(m[1], 10);
+  }
+  return null;
+}
 
 type ConversationListProps = {
   accountName: string;
@@ -26,8 +79,14 @@ type ConversationListProps = {
   searchTerm: string;
   onSearchChange: (term: string) => void;
   locale: string;
+  /** When `comment`, list rows emphasize post + comment (vs DM-style list for `chat`). */
+  inboxType: 'chat' | 'comment';
   onRefresh?: () => void;
   isLoading?: boolean;
+  /** Zernio: more pages available via cursor */
+  hasMore?: boolean;
+  onLoadMore?: () => void;
+  isLoadingMore?: boolean;
 };
 
 export function ConversationList({
@@ -41,11 +100,16 @@ export function ConversationList({
   searchTerm,
   onSearchChange,
   locale,
+  inboxType,
   onRefresh: _onRefresh,
   isLoading = false,
+  hasMore = false,
+  onLoadMore,
+  isLoadingMore = false,
 }: ConversationListProps) {
   const t = useTranslations('Inbox');
   const isRTL = locale === 'he';
+  const q = searchTerm.trim().toLowerCase();
   const filteredConversations = conversations.filter((conv) => {
     // Apply filter
     if (filter === 'unread' && conv.status !== 'unread') {
@@ -55,9 +119,14 @@ export function ConversationList({
       return false;
     }
 
-    // Apply search
-    if (searchTerm && !conv.contactName.toLowerCase().includes(searchTerm.toLowerCase())) {
-      return false;
+    // Apply search (name, comment text, post caption)
+    if (q) {
+      const name = conv.contactName.toLowerCase();
+      const last = (conv.lastMessage || '').toLowerCase();
+      const post = (conv.postContent || '').toLowerCase();
+      if (!name.includes(q) && !last.includes(q) && !post.includes(q)) {
+        return false;
+      }
     }
 
     return true;
@@ -151,7 +220,7 @@ export function ConversationList({
                       </span>
                       {(() => {
                         const platform = selectedConversation.platform as MetaPlatform;
-                        const { icon: Icon, color } = platformIcons[platform] || platformIcons.facebook;
+                        const { icon: Icon, color } = platformIcons[platform] ?? platformIcons.facebook;
                         return <Icon className={`h-4 w-4 ${color} flex-shrink-0`} />;
                       })()}
                     </div>
@@ -164,7 +233,9 @@ export function ConversationList({
                 <h1 className="mb-1 text-xl font-semibold text-gray-900">
                   {accountName}
                 </h1>
-                <span className="text-sm text-gray-600 dark:text-gray-400">{t('title')}</span>
+                <span className="text-sm text-gray-600 dark:text-gray-400">
+                  {inboxType === 'comment' ? t('comments_posts_subtitle') : t('title')}
+                </span>
               </div>
             )}
 
@@ -187,7 +258,7 @@ export function ConversationList({
             const labels = {
               all: t('filter_all'),
               unread: t('filter_unread'),
-              read: t('filter_unresolved'),
+              read: t('filter_read'),
             };
 
             return (
@@ -250,7 +321,7 @@ export function ConversationList({
                           const isSelected = selectedConversationId === conversation.id;
                           const hasUnread = conversation.unreadCount > 0;
                           const platform = conversation.platform as MetaPlatform;
-                          const { icon: PlatformIcon, color } = platformIcons[platform] || platformIcons.facebook;
+                          const { icon: PlatformIcon, color } = platformIcons[platform] ?? platformIcons.facebook;
 
                           return (
                             <div
@@ -272,61 +343,145 @@ export function ConversationList({
                                   : isSelected ? 'border-l-4 border-l-pink-500' : 'border-l-4 border-l-transparent',
                               )}
                             >
-                              <div className={cn('flex items-start gap-3', isRTL && 'flex-row-reverse')}>
-                                {/* Avatar */}
-                                <div className="relative flex-shrink-0">
-                                  {conversation.contactAvatar
-                                    ? (
-                                        <>
-                                          <Image
-                                            src={conversation.contactAvatar}
-                                            alt={conversation.contactName}
-                                            width={48}
-                                            height={48}
-                                            className="h-12 w-12 rounded-full object-cover"
-                                            unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
-                                            onError={(e) => {
-                                              const target = e.target as HTMLImageElement;
-                                              target.style.display = 'none';
-                                              const fallback = target.nextElementSibling as HTMLElement;
-                                              if (fallback) {
-                                                fallback.style.display = 'flex';
-                                              }
-                                            }}
-                                          />
-                                          <div className="hidden h-12 w-12 items-center justify-center rounded-full bg-gray-200">
-                                            <span className="text-base font-semibold text-gray-600">
-                                              {conversation.contactName.charAt(0).toUpperCase()}
-                                            </span>
-                                          </div>
-                                        </>
-                                      )
-                                    : (
-                                        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200">
-                                          <span className="text-base font-semibold text-gray-600">
-                                            {conversation.contactName.charAt(0).toUpperCase()}
+                              {inboxType === 'comment' && conversation.type === 'comment'
+                                ? (
+                                    <div className={cn('flex gap-2 rounded-lg border border-gray-200 bg-gray-50 p-2 dark:border-gray-600 dark:bg-gray-800/70', isRTL && 'flex-row-reverse')}>
+                                      {conversation.postImageUrl
+                                        ? (
+                                            <Image
+                                              src={conversation.postImageUrl}
+                                              alt=""
+                                              width={56}
+                                              height={56}
+                                              className="h-14 w-14 shrink-0 rounded-md object-cover"
+                                              unoptimized={!conversation.postImageUrl.startsWith('/') && !conversation.postImageUrl.includes('supabase.co') && !conversation.postImageUrl.includes('getlate.dev')}
+                                            />
+                                          )
+                                        : (
+                                            <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-md bg-gray-200 dark:bg-gray-700">
+                                              <MessageSquare className="h-6 w-6 text-gray-400" />
+                                            </div>
+                                          )}
+                                      <div className="min-w-0 flex-1">
+                                        <div className={cn('mb-0.5 flex items-center justify-between gap-2', isRTL && 'flex-row-reverse')}>
+                                          <span className="text-[10px] font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">
+                                            {t('post_label')}
                                           </span>
+                                          <PlatformIcon className={`h-4 w-4 ${color} shrink-0`} />
                                         </div>
-                                      )}
-                                </div>
+                                        <p className="line-clamp-2 text-xs leading-snug text-gray-800 dark:text-gray-200">
+                                          {conversation.postContent?.trim() || t('post_no_caption')}
+                                        </p>
+                                        {(() => {
+                                          const n = resolveCommentCount(conversation);
+                                          const dateStr = formatCommentPostDate(
+                                            conversation.lastMessageTime,
+                                            locale,
+                                          );
+                                          if (n == null && !dateStr) {
+                                            return null;
+                                          }
+                                          const rowJustify
+                                            = n != null && dateStr
+                                              ? 'justify-between gap-4'
+                                              : n != null
+                                                ? 'justify-start'
+                                                : 'justify-end';
+                                          return (
+                                            <div
+                                              className={cn(
+                                                'mt-2 flex w-full min-w-0 items-center text-xs text-gray-500 dark:text-gray-400',
+                                                rowJustify,
+                                                isRTL && n != null && dateStr && 'flex-row-reverse',
+                                              )}
+                                            >
+                                              {n != null
+                                                ? (
+                                                    <span
+                                                      className={cn(
+                                                        'inline-flex items-center gap-1 tabular-nums',
+                                                        isRTL && 'flex-row-reverse',
+                                                      )}
+                                                    >
+                                                      <MessageCircle
+                                                        className="h-3.5 w-3.5 shrink-0 text-gray-500 dark:text-gray-400"
+                                                        strokeWidth={1.75}
+                                                        aria-hidden
+                                                      />
+                                                      <span>{n}</span>
+                                                    </span>
+                                                  )
+                                                : null}
+                                              {dateStr
+                                                ? (
+                                                    <span className="shrink-0 text-gray-500 tabular-nums dark:text-gray-400">
+                                                      {dateStr}
+                                                    </span>
+                                                  )
+                                                : null}
+                                            </div>
+                                          );
+                                        })()}
+                                      </div>
+                                    </div>
+                                  )
+                                : (
+                                    <div className={cn('flex items-start gap-3', isRTL && 'flex-row-reverse')}>
+                                      {/* Avatar */}
+                                      <div className="relative flex-shrink-0">
+                                        {conversation.contactAvatar
+                                          ? (
+                                              <>
+                                                <Image
+                                                  src={conversation.contactAvatar}
+                                                  alt={conversation.contactName}
+                                                  width={48}
+                                                  height={48}
+                                                  className="h-12 w-12 rounded-full object-cover"
+                                                  unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
+                                                  onError={(e) => {
+                                                    const target = e.target as HTMLImageElement;
+                                                    target.style.display = 'none';
+                                                    const fallback = target.nextElementSibling as HTMLElement;
+                                                    if (fallback) {
+                                                      fallback.style.display = 'flex';
+                                                    }
+                                                  }}
+                                                />
+                                                <div className="hidden h-12 w-12 items-center justify-center rounded-full bg-gray-200">
+                                                  <span className="text-base font-semibold text-gray-600">
+                                                    {conversation.contactName.charAt(0).toUpperCase()}
+                                                  </span>
+                                                </div>
+                                              </>
+                                            )
+                                          : (
+                                              <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gray-200">
+                                                <span className="text-base font-semibold text-gray-600">
+                                                  {conversation.contactName.charAt(0).toUpperCase()}
+                                                </span>
+                                              </div>
+                                            )}
+                                      </div>
 
-                                {/* Content */}
-                                <div className="min-w-0 flex-1">
-                                  <div className={cn('flex items-start justify-between gap-2 mb-1', isRTL && 'flex-row-reverse')}>
-                                    <p className={cn('truncate text-sm font-semibold', isSelected ? 'text-pink-900 dark:text-pink-100' : 'text-gray-900 dark:text-gray-100')}>
-                                      {conversation.contactName}
-                                    </p>
-                                    {/* Platform Icon */}
-                                    <PlatformIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
-                                  </div>
-                                  <p className={`line-clamp-2 text-sm ${
-                                    hasUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'
-                                  }`}
-                                  >
-                                    {conversation.lastMessage || t('no_message')}
-                                  </p>
-                                </div>
-                              </div>
+                                      {/* Content */}
+                                      <div className="min-w-0 flex-1">
+                                        <div className={cn('flex items-start justify-between gap-2 mb-1', isRTL && 'flex-row-reverse')}>
+                                          <p className={cn('truncate text-sm font-semibold', isSelected ? 'text-pink-900 dark:text-pink-100' : 'text-gray-900 dark:text-gray-100')}>
+                                            {conversation.contactName}
+                                          </p>
+                                          {/* Platform Icon */}
+                                          <PlatformIcon className={`h-4 w-4 ${color} flex-shrink-0`} />
+                                        </div>
+                                        <p className={`line-clamp-2 text-sm ${
+                                          hasUnread ? 'font-medium text-gray-900 dark:text-gray-100' : 'text-gray-600 dark:text-gray-400'
+                                        }`}
+                                        >
+                                          {conversation.lastMessage || t('no_message')}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  )}
                             </div>
                           );
                         })}
@@ -335,6 +490,20 @@ export function ConversationList({
                   ))}
                 </div>
               )}
+        {hasMore && onLoadMore && (
+          <div className={cn('border-t border-gray-200 px-6 py-3 dark:border-gray-700', isRTL && 'text-right')}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="w-full"
+              disabled={isLoadingMore}
+              onClick={() => onLoadMore()}
+            >
+              {isLoadingMore ? t('loading_more') : t('load_more')}
+            </Button>
+          </div>
+        )}
       </div>
     </div>
   );

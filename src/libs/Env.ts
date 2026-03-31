@@ -7,7 +7,8 @@ export const Env = createEnv({
     DATABASE_URL: z.string().min(1),
     ADMIN_EMAIL: z.string().email().optional(), // Admin email for admin access control
     GETLATE_API_URL: z.string().url().optional(), // Optional, defaults to production API
-    GETLATE_SERVICE_API_KEY: z.string().min(1).optional(), // Service account API key for auto-setup
+    /** Service key: Getlate/Zernio auto-setup and server-side unified inbox (optional; inbox falls back to user getlate_api_key). */
+    GETLATE_SERVICE_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(), // OpenAI API key for AI features
     PAYPAL_CLIENT_ID: z.string().min(1).optional(), // PayPal Client ID for subscriptions
     PAYPAL_CLIENT_SECRET: z.string().min(1).optional(), // PayPal Client Secret
