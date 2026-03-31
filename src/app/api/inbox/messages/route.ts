@@ -5,6 +5,12 @@ import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
 import { createMetaInboxClient } from '@/libs/meta-inbox';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import {
+  mapZernioCommentTreeToMessages,
+  resolveZernioApiKey,
+  zernioGetAllConversationMessages,
+  zernioGetAllPostCommentsPages,
+} from '@/libs/zernio-inbox';
 import { socialAccounts } from '@/models/Schema';
 
 /**
@@ -31,6 +37,7 @@ export async function GET(request: NextRequest) {
     const platform = searchParams.get('platform') as MetaPlatform | null;
     const conversationType = searchParams.get('type') as 'chat' | 'comment' | null;
     const postId = searchParams.get('postId'); // For comment conversations, get postId to fetch all comments
+    const zernioAccountId = searchParams.get('zernioAccountId');
 
     if (!conversationId || !accountId || !platform) {
       return NextResponse.json(
@@ -55,13 +62,72 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const platformSpecificData = account.platformSpecificData as Record<string, unknown> | null;
+    const psd = account.platformSpecificData as Record<string, unknown> | null;
+
+    if (zernioAccountId && conversationType === 'chat') {
+      const apiKey = await resolveZernioApiKey(supabase, user.id);
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'Zernio API key not configured', messages: [] },
+          { status: 400 },
+        );
+      }
+      try {
+        const rawMessages = await zernioGetAllConversationMessages(
+          apiKey,
+          conversationId,
+          zernioAccountId,
+        );
+        const messages = rawMessages.map(m => ({
+          id: m.id,
+          conversationId,
+          senderName: m.senderName || 'Unknown',
+          senderId: m.senderId,
+          content: m.message || '',
+          timestamp: m.createdAt || new Date().toISOString(),
+          isOutgoing: m.direction === 'outgoing',
+          attachments: m.attachments
+            ?.filter(att => att.url)
+            .map(att => ({
+              type: (att.type === 'video' ? 'video' : att.type === 'image' ? 'image' : 'file') as 'image' | 'video' | 'file',
+              url: att.url as string,
+            })),
+        }));
+        return NextResponse.json({ messages });
+      } catch (zErr) {
+        console.error('[API] Zernio list messages failed:', zErr);
+        return NextResponse.json(
+          { error: zErr instanceof Error ? zErr.message : 'Zernio messages failed', messages: [] },
+          { status: 502 },
+        );
+      }
+    }
+
+    if (zernioAccountId && conversationType === 'comment' && postId) {
+      const apiKey = await resolveZernioApiKey(supabase, user.id);
+      if (apiKey) {
+        try {
+          const redditSub
+            = platform === 'reddit'
+              ? (psd?.subreddit as string | undefined)
+              || (psd?.redditSubreddit as string | undefined)
+              : undefined;
+          const nodes = await zernioGetAllPostCommentsPages(apiKey, postId, zernioAccountId, {
+            ...(redditSub ? { subreddit: redditSub } : {}),
+          });
+          const messages = mapZernioCommentTreeToMessages(nodes, postId);
+          return NextResponse.json({ messages });
+        } catch (zErr) {
+          console.error('[API] Zernio get post comments failed, falling back to Meta:', zErr);
+        }
+      }
+    }
 
     // For Facebook page comments and Instagram comments, use page access token
     // Both require page access token since Instagram Business Accounts are linked to Facebook Pages
     let pageAccessToken: string | undefined;
     if (conversationType === 'comment' && (platform === 'facebook' || platform === 'instagram')) {
-      pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+      pageAccessToken = psd?.pageAccessToken as string | undefined;
     }
 
     // Create Meta client - use page access token if available for Facebook comments, otherwise use user token
@@ -72,9 +138,9 @@ export async function GET(request: NextRequest) {
       async (newToken: string) => {
         // Update token in database
         // If we used page token, update pageAccessToken in platformSpecificData
-        if (pageAccessToken && platformSpecificData) {
+        if (pageAccessToken && psd) {
           const updatedData = {
-            ...platformSpecificData,
+            ...psd,
             pageAccessToken: newToken,
           };
           await db

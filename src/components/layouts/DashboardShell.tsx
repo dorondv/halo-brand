@@ -36,7 +36,7 @@ type Props = {
 
 const baseNav = [
   { href: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
-  { href: '/inbox', key: 'comments_center', icon: Mail },
+  { href: '/inbox', key: 'inbox', icon: Mail },
   { href: '/create-post', key: 'create_post', icon: PenTool },
   { href: '/calendar', key: 'calendar', icon: CalendarIcon },
   { href: '/insights', key: 'insights', icon: BarChart3 },

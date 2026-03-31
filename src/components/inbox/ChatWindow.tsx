@@ -12,14 +12,25 @@ import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 import { formatDateForDisplay, getIntlLocale } from '@/libs/timezone';
 
+function flattenMessagesDeep(msgs: Message[]): Message[] {
+  const out: Message[] = [];
+  for (const m of msgs) {
+    out.push(m);
+    if (m.replies?.length) {
+      out.push(...flattenMessagesDeep(m.replies));
+    }
+  }
+  return out;
+}
+
 // CommentThread component for rendering nested comments
 type CommentThreadProps = {
   message: Message;
   conversation: Conversation | null;
-  messageLikes: Record<string, { liked: boolean; count: number }>;
+  messageLikes: Record<string, { liked: boolean; count: number; likeUri?: string }>;
   likingMessageId: string | null;
   replyingToMessage: Message | null;
-  onLike: (messageId: string) => void;
+  onLike: (message: Message) => void;
   onReply: (message: Message) => void;
   locale: string;
   isRTL: boolean;
@@ -147,7 +158,7 @@ function CommentThread({
                 {/* Like button */}
                 <button
                   type="button"
-                  onClick={() => onLike(message.id)}
+                  onClick={() => onLike(message)}
                   disabled={likingMessageId === message.id}
                   className={cn(
                     'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
@@ -316,7 +327,9 @@ export function ChatWindow({
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ type: 'image' | 'file'; url: string; file: File }>>([]);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [messageLikes, setMessageLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const [messageLikes, setMessageLikes] = useState<
+    Record<string, { liked: boolean; count: number; likeUri?: string }>
+  >({});
   const [likingMessageId, setLikingMessageId] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -345,7 +358,23 @@ export function ChatWindow({
         return;
       }
 
-      const likesPromises = messages
+      // Zernio-loaded comment threads: like state comes from message payload (Meta token is often invalid here)
+      if (conversation.zernioSocialAccountId) {
+        const likesMap: Record<string, { liked: boolean; count: number; likeUri?: string }> = {};
+        for (const msg of flattenMessagesDeep(messages)) {
+          if (!msg.isOutgoing) {
+            likesMap[msg.id] = {
+              liked: msg.isLiked ?? false,
+              count: msg.likeCount ?? 0,
+              likeUri: msg.likeUri,
+            };
+          }
+        }
+        setMessageLikes(likesMap);
+        return;
+      }
+
+      const likesPromises = flattenMessagesDeep(messages)
         .filter(msg => !msg.isOutgoing) // Only fetch likes for incoming messages
         .map(async (msg) => {
           try {
@@ -366,7 +395,7 @@ export function ChatWindow({
         });
 
       const likesResults = await Promise.all(likesPromises);
-      const likesMap: Record<string, { liked: boolean; count: number }> = {};
+      const likesMap: Record<string, { liked: boolean; count: number; likeUri?: string }> = {};
       likesResults.forEach((result) => {
         likesMap[result.messageId] = { liked: result.liked, count: result.count };
       });
@@ -586,31 +615,62 @@ export function ChatWindow({
   };
 
   // Handle like/unlike a comment
-  const handleLike = async (messageId: string) => {
+  const handleLike = async (message: Message) => {
+    const messageId = message.id;
     if (!conversation || !accountId || likingMessageId) {
       return;
     }
+    if (conversation.zernioSocialAccountId && !conversation.postId) {
+      return;
+    }
+
+    const current = messageLikes[messageId];
+    const currentlyLiked = current?.liked ?? message.isLiked ?? false;
+    const currentCount = current?.count ?? message.likeCount ?? 0;
+    const likeUri = current?.likeUri ?? message.likeUri;
 
     setLikingMessageId(messageId);
     try {
+      const isZernio = !!conversation.zernioSocialAccountId && !!conversation.postId;
       const response = await fetch('/api/inbox/comments/like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          commentId: messageId,
-          accountId,
-          platform: conversation.platform,
-          conversationId: conversation.id,
-        }),
+        body: JSON.stringify(
+          isZernio
+            ? {
+                commentId: messageId,
+                accountId,
+                platform: conversation.platform,
+                conversationId: conversation.id,
+                postId: conversation.postId,
+                zernioSocialAccountId: conversation.zernioSocialAccountId,
+                currentlyLiked,
+                currentCount,
+                ...(currentlyLiked && likeUri ? { likeUri } : {}),
+              }
+            : {
+                commentId: messageId,
+                accountId,
+                platform: conversation.platform,
+                conversationId: conversation.id,
+              },
+        ),
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as {
+          liked: boolean;
+          count?: number;
+          likeUri?: string;
+        };
         setMessageLikes(prev => ({
           ...prev,
           [messageId]: {
             liked: data.liked,
-            count: data.count || 0,
+            count: data.count ?? 0,
+            likeUri: data.liked
+              ? (typeof data.likeUri === 'string' ? data.likeUri : prev[messageId]?.likeUri)
+              : undefined,
           },
         }));
       }
@@ -713,22 +773,31 @@ export function ChatWindow({
         </div>
       </div>
 
-      {/* Post Context (for comments) */}
-      {conversation.type === 'comment' && conversation.postContent && (
+      {/* Post Context (for comments): show whenever this thread is tied to a post */}
+      {conversation.type === 'comment' && (conversation.postContent || conversation.postImageUrl || conversation.postId) && (
         <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex gap-3">
-            {conversation.postImageUrl && (
-              <Image
-                src={conversation.postImageUrl}
-                alt="Post"
-                width={60}
-                height={60}
-                unoptimized={!conversation.postImageUrl.startsWith('/') && !conversation.postImageUrl.includes('supabase.co') && !conversation.postImageUrl.includes('getlate.dev')}
-                className="h-15 w-15 rounded object-cover"
-              />
-            )}
-            <div className="flex-1">
-              <p className="line-clamp-2 text-sm text-gray-900 dark:text-gray-100">{conversation.postContent}</p>
+            {conversation.postImageUrl
+              ? (
+                  <Image
+                    src={conversation.postImageUrl}
+                    alt="Post"
+                    width={60}
+                    height={60}
+                    unoptimized={!conversation.postImageUrl.startsWith('/') && !conversation.postImageUrl.includes('supabase.co') && !conversation.postImageUrl.includes('getlate.dev')}
+                    className="h-[60px] w-[60px] rounded object-cover"
+                  />
+                )
+              : (
+                  <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded bg-gray-200 dark:bg-gray-700">
+                    <MessageCircle className="h-7 w-7 text-gray-400" />
+                  </div>
+                )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">{t('post_label')}</p>
+              <p className="line-clamp-3 text-sm text-gray-900 dark:text-gray-100">
+                {conversation.postContent?.trim() ? conversation.postContent : t('post_no_caption')}
+              </p>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {formatDateForDisplay(conversation.lastMessageTime, { locale, format: 'short' })}
               </p>

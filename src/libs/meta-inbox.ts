@@ -7,7 +7,18 @@
 
 const META_GRAPH_API_BASE = 'https://graph.facebook.com/v21.0';
 
-export type MetaPlatform = 'facebook' | 'instagram' | 'threads';
+export type MetaPlatform
+  = | 'facebook'
+    | 'instagram'
+    | 'threads'
+    | 'twitter'
+    | 'bluesky'
+    | 'reddit'
+    | 'telegram'
+    | 'linkedin'
+    | 'youtube'
+    | 'tiktok'
+    | 'pinterest';
 
 export type ConversationType = 'chat' | 'comment';
 
@@ -16,6 +27,8 @@ export type InboxAccount = {
   accountId: string; // Platform account ID
   accountName: string;
   platform: MetaPlatform;
+  /** Brand (Zernio profile) name when the account is linked to a brand */
+  brandName?: string | null;
   avatarUrl?: string;
   unreadCount: number;
   isActive: boolean;
@@ -39,6 +52,12 @@ export type Conversation = {
   postContent?: string;
   postImageUrl?: string;
   commentId?: string; // For comment conversations
+  /** Total comments on the post (e.g. Zernio commented-posts list); drives list metadata row */
+  commentCount?: number;
+  /** Zernio connected social account id — required for inbox API message send/fetch */
+  zernioSocialAccountId?: string;
+  /** Our `social_accounts.id` for this row (set when aggregating or for client routing) */
+  inboxAccountId?: string;
 };
 
 export type Message = {
@@ -56,6 +75,8 @@ export type Message = {
   }>;
   likeCount?: number;
   isLiked?: boolean;
+  /** Bluesky: URI returned when liking (needed to unlike). */
+  likeUri?: string;
   parentId?: string; // ID of parent comment if this is a reply
   replies?: Message[]; // Nested replies
 };
