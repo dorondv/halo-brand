@@ -47,8 +47,25 @@ import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 import { localToUtc } from '@/libs/timezone';
+import { AppConfig } from '@/utils/AppConfig';
 
 export const dynamic = 'force-dynamic';
+
+/** Locales supported for AI-generated post text (same as app UI languages). */
+type AiContentLocale = (typeof AppConfig.locales)[number];
+
+const AI_LANGUAGE_LABELS: Record<AiContentLocale, string> = {
+  he: 'עברית',
+  en: 'English',
+  es: 'Español',
+  fr: 'Français',
+  de: 'Deutsch',
+  pt: 'Português',
+};
+
+function isAiContentLocale(value: string): value is AiContentLocale {
+  return (AppConfig.locales as readonly string[]).includes(value);
+}
 
 type Platform = 'instagram' | 'x' | 'facebook' | 'linkedin' | 'youtube' | 'tiktok' | 'threads';
 type Format = 'feed' | 'story' | 'reel' | 'post' | 'short' | 'video' | 'carousel' | 'thread' | 'pin' | 'link';
@@ -229,7 +246,7 @@ function EmojiPicker({ onSelect }: { onSelect: (emoji: string) => void }) {
               'whitespace-nowrap rounded px-2 py-1 text-xs font-medium transition-colors',
               activeCategory === category
                 ? 'bg-pink-100 text-pink-700'
-                : 'text-slate-600 hover:bg-slate-100',
+                : 'text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800',
             )}
           >
             {category.split(' ')[0]}
@@ -490,46 +507,46 @@ function PreviewCard({
       // Instagram Feed Post
       return (
         <div className={cn(
-          'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white',
+          'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900',
           previewDevice === 'mobile' ? 'max-w-sm' : '',
         )}
         >
           {/* Profile Header */}
-          <div className="flex items-center gap-3 border-b border-slate-100 p-3">
+          <div className="flex items-center gap-3 border-b border-slate-100 p-3 dark:border-slate-800">
             <AvatarComponent platform={platform} accounts={accounts} size={32} />
             <div className="flex-1">
-              <p className="text-sm font-semibold text-slate-900">{accountName}</p>
+              <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{accountName}</p>
             </div>
-            <MoreHorizontal className="h-5 w-5 text-slate-600" />
+            <MoreHorizontal className="h-5 w-5 text-slate-600 dark:text-slate-200" />
           </div>
 
           {/* Media */}
           {previewMediaUrls[0] && (
-            <div className="relative aspect-square w-full bg-slate-100">
+            <div className="relative aspect-square w-full bg-slate-100 dark:bg-slate-800">
               <Image src={previewMediaUrls[0]} alt="Post" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
             </div>
           )}
 
           {/* Actions */}
           <div className="flex items-center gap-4 p-3">
-            <ThumbsUp className="h-6 w-6 text-slate-900" />
-            <MessageCircle className="h-6 w-6 text-slate-900" />
-            <Share2 className="h-6 w-6 text-slate-900" />
+            <ThumbsUp className="h-6 w-6 text-slate-900 dark:text-slate-100" />
+            <MessageCircle className="h-6 w-6 text-slate-900 dark:text-slate-100" />
+            <Share2 className="h-6 w-6 text-slate-900 dark:text-slate-100" />
             <div className="ml-auto">
-              <Bookmark className="h-6 w-6 text-slate-900" />
+              <Bookmark className="h-6 w-6 text-slate-900 dark:text-slate-100" />
             </div>
           </div>
 
           {/* Title */}
           {previewTitle && (
             <div className="px-3 pt-2">
-              <h3 className="text-base font-semibold text-slate-900">{previewTitle}</h3>
+              <h3 className="text-base font-semibold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
             </div>
           )}
           {/* Caption */}
           {previewCaption && (
             <div className="px-3 pb-2">
-              <p className="text-sm text-slate-900">
+              <p className="text-sm text-slate-900 dark:text-slate-100">
                 <span className="font-semibold">{accountName}</span>
                 {' '}
                 {previewCaption}
@@ -537,7 +554,7 @@ function PreviewCard({
               {previewHashtags.length > 0 && (
                 <div className="mt-1 flex flex-wrap gap-1">
                   {previewHashtags.slice(0, 5).map(tag => (
-                    <span key={tag} className="text-sm text-blue-600">
+                    <span key={tag} className="text-sm text-blue-600 dark:text-blue-400">
                       #
                       {tag}
                     </span>
@@ -553,7 +570,7 @@ function PreviewCard({
     // X/Twitter or Threads - Text-focused with media
     return (
       <div className={cn(
-        'mx-auto border-b border-slate-200 bg-white',
+        'mx-auto border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900',
         previewDevice === 'mobile' ? 'max-w-sm' : '',
       )}
       >
@@ -563,24 +580,24 @@ function PreviewCard({
             <AvatarComponent platform={platform} accounts={accounts} size={40} />
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-slate-900">{accountName}</span>
-                <span className="text-sm text-slate-500">
+                <span className="font-semibold text-slate-900 dark:text-slate-100">{accountName}</span>
+                <span className="text-sm text-slate-500 dark:text-slate-200">
                   @
                   {platformAccount?.account_name || 'username'}
                 </span>
-                <span className="text-sm text-slate-500">·</span>
-                <span className="text-sm text-slate-500">2h</span>
+                <span className="text-sm text-slate-500 dark:text-slate-200">·</span>
+                <span className="text-sm text-slate-500 dark:text-slate-200">2h</span>
               </div>
               {previewTitle && (
-                <h3 className="mt-1 text-base font-semibold text-slate-900">{previewTitle}</h3>
+                <h3 className="mt-1 text-base font-semibold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
               )}
-              <p className="mt-1 text-sm whitespace-pre-wrap text-slate-900">
+              <p className="mt-1 text-sm whitespace-pre-wrap text-slate-900 dark:text-slate-100">
                 {previewCaption || t('preview_empty')}
               </p>
               {previewHashtags.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {previewHashtags.slice(0, 5).map(tag => (
-                    <span key={tag} className="text-sm text-blue-500">
+                    <span key={tag} className="text-sm text-blue-500 dark:text-blue-400">
                       #
                       {tag}
                     </span>
@@ -588,7 +605,7 @@ function PreviewCard({
                 </div>
               )}
               {previewMediaUrls[0] && (
-                <div className="mt-3 overflow-hidden rounded-2xl bg-slate-100">
+                <div className="mt-3 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
                   <div className="relative aspect-video w-full">
                     <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                   </div>
@@ -598,7 +615,7 @@ function PreviewCard({
           </div>
 
           {/* Actions */}
-          <div className="mt-3 flex items-center justify-between text-slate-500">
+          <div className="mt-3 flex items-center justify-between text-slate-500 dark:text-slate-200">
             <button type="button" className="flex items-center gap-2 hover:text-blue-500">
               <MessageCircle className="h-4 w-4" />
               <span className="text-xs">{previewLink ? '1' : '12'}</span>
@@ -672,33 +689,33 @@ function PreviewCard({
       // Facebook Feed Post
       return (
         <div className={cn(
-          'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm',
+          'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900',
           previewDevice === 'mobile' ? 'max-w-sm' : '',
         )}
         >
           {/* Profile Header */}
-          <div className="flex items-center gap-3 border-b border-slate-100 p-3">
+          <div className="flex items-center gap-3 border-b border-slate-100 p-3 dark:border-slate-800">
             <AvatarComponent platform={platform} accounts={accounts} size={40} />
             <div className="flex-1">
-              <p className="font-semibold text-slate-900">{accountName}</p>
-              <div className="flex items-center gap-1 text-xs text-slate-500">
+              <p className="font-semibold text-slate-900 dark:text-slate-100">{accountName}</p>
+              <div className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-200">
                 <span>{new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long' })}</span>
                 <Globe className="h-3 w-3" />
               </div>
             </div>
-            <MoreHorizontal className="h-5 w-5 text-slate-400" />
+            <MoreHorizontal className="h-5 w-5 text-slate-400 dark:text-slate-200" />
           </div>
 
           {/* Content */}
           <div className="p-3">
             {previewTitle && (
-              <h3 className="mb-2 text-base font-semibold text-slate-900">{previewTitle}</h3>
+              <h3 className="mb-2 text-base font-semibold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
             )}
-            <p className="text-sm whitespace-pre-wrap text-slate-900">
+            <p className="text-sm whitespace-pre-wrap text-slate-900 dark:text-slate-100">
               {previewCaption || t('preview_empty')}
             </p>
             {previewMediaUrls[0] && (
-              <div className="mt-3 overflow-hidden rounded-lg bg-slate-100">
+              <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                 <div className="relative aspect-video w-full">
                   <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                 </div>
@@ -707,16 +724,16 @@ function PreviewCard({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-around border-t border-slate-100 p-2">
-            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+          <div className="flex items-center justify-around border-t border-slate-100 p-2 dark:border-slate-800">
+            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
               <ThumbsUp className="h-4 w-4" />
               <span>{t('like')}</span>
             </button>
-            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
               <MessageCircle className="h-4 w-4" />
               <span>{t('comment')}</span>
             </button>
-            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+            <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
               <Share2 className="h-4 w-4" />
               <span>{t('share')}</span>
             </button>
@@ -728,30 +745,30 @@ function PreviewCard({
     // LinkedIn Post
     return (
       <div className={cn(
-        'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm',
+        'mx-auto overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900',
         previewDevice === 'mobile' ? 'max-w-sm' : '',
       )}
       >
         {/* Profile Header */}
-        <div className="flex items-center gap-3 border-b border-slate-100 p-4">
+        <div className="flex items-center gap-3 border-b border-slate-100 p-4 dark:border-slate-800">
           <AvatarComponent platform={platform} accounts={accounts} size={48} />
           <div className="flex-1">
-            <p className="font-semibold text-slate-900">{accountName}</p>
-            <p className="text-xs text-slate-500">{t('preview_meta')}</p>
+            <p className="font-semibold text-slate-900 dark:text-slate-100">{accountName}</p>
+            <p className="text-xs text-slate-500 dark:text-slate-200">{t('preview_meta')}</p>
           </div>
-          <MoreHorizontal className="h-5 w-5 text-slate-400" />
+          <MoreHorizontal className="h-5 w-5 text-slate-400 dark:text-slate-200" />
         </div>
 
         {/* Content */}
         <div className="p-4">
           {previewTitle && (
-            <h3 className="mb-2 text-lg font-semibold text-slate-900">{previewTitle}</h3>
+            <h3 className="mb-2 text-lg font-semibold text-slate-900 dark:text-slate-100">{previewTitle}</h3>
           )}
-          <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-900">
+          <p className="text-sm leading-relaxed whitespace-pre-wrap text-slate-900 dark:text-slate-100">
             {previewCaption || t('preview_empty')}
           </p>
           {previewMediaUrls[0] && (
-            <div className="mt-3 overflow-hidden rounded-lg bg-slate-100">
+            <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
               <div className="relative aspect-video w-full">
                 <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
               </div>
@@ -760,16 +777,16 @@ function PreviewCard({
         </div>
 
         {/* Actions */}
-        <div className="flex items-center justify-around border-t border-slate-100 p-2">
-          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+        <div className="flex items-center justify-around border-t border-slate-100 p-2 dark:border-slate-800">
+          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
             <ThumbsUp className="h-4 w-4" />
             <span>{t('like')}</span>
           </button>
-          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
             <MessageCircle className="h-4 w-4" />
             <span>{previewLink ? '1' : 'Comment'}</span>
           </button>
-          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50">
+          <button type="button" className="flex items-center gap-2 rounded px-3 py-1.5 text-sm text-slate-600 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800">
             <Share2 className="h-4 w-4" />
             <span>{t('share')}</span>
           </button>
@@ -777,15 +794,15 @@ function PreviewCard({
 
         {/* First Comment - Show link as first comment */}
         {previewLink && (
-          <div className="border-t border-slate-100 p-3">
+          <div className="border-t border-slate-100 p-3 dark:border-slate-800">
             <div className="flex items-start gap-3">
               <AvatarComponent platform={platform} accounts={accounts} size={32} />
               <div className="min-w-0 flex-1">
                 <div className="mb-1 flex items-center gap-2">
-                  <span className="text-sm font-semibold text-slate-900">{accountName}</span>
-                  <span className="text-xs text-slate-400">{t('now')}</span>
+                  <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">{accountName}</span>
+                  <span className="text-xs text-slate-400 dark:text-slate-200">{t('now')}</span>
                 </div>
-                <p className="text-sm break-all text-blue-600">{previewLink}</p>
+                <p className="text-sm break-all text-blue-600 dark:text-blue-400">{previewLink}</p>
               </div>
             </div>
           </div>
@@ -796,7 +813,7 @@ function PreviewCard({
     // YouTube Video/Short
     return (
       <div className={cn(
-        'mx-auto overflow-hidden rounded-lg bg-white',
+        'mx-auto overflow-hidden rounded-lg bg-white dark:bg-slate-900',
         previewDevice === 'mobile' ? 'max-w-sm' : '',
       )}
       >
@@ -844,9 +861,9 @@ function PreviewCard({
                       )}
                 </div>
                 <div className="p-3">
-                  <h3 className="font-semibold text-slate-900">{previewTitle || 'Your Video'}</h3>
-                  <p className="mt-1 line-clamp-2 text-sm text-slate-600">{previewCaption}</p>
-                  <div className="mt-2 flex items-center gap-4 text-xs text-slate-500">
+                  <h3 className="font-semibold text-slate-900 dark:text-slate-100">{previewTitle || 'Your Video'}</h3>
+                  <p className="mt-1 line-clamp-2 text-sm text-slate-600 dark:text-slate-200">{previewCaption}</p>
+                  <div className="mt-2 flex items-center gap-4 text-xs text-slate-500 dark:text-slate-200">
                     <span>1.2K views</span>
                     <span>2 hours ago</span>
                   </div>
@@ -922,8 +939,8 @@ function PreviewCard({
 
   // Default fallback
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <p className="text-sm text-slate-500">{t('preview_empty')}</p>
+    <div className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+      <p className="text-sm text-slate-600 dark:text-slate-200">{t('preview_empty')}</p>
     </div>
   );
 }
@@ -993,13 +1010,13 @@ export default function CreatePostPage() {
   const [_minimizedPlatforms, _setMinimizedPlatforms] = useState<Record<Platform, boolean>>({} as Record<Platform, boolean>);
   const [aiBriefInput, setAiBriefInput] = useState<Record<Platform, string>>({} as Record<Platform, string>);
   const [aiToneInput, setAiToneInput] = useState<Record<Platform, string>>({} as Record<Platform, string>);
-  const [aiLanguageInput, setAiLanguageInput] = useState<Record<Platform, 'en' | 'he'>>({} as Record<Platform, 'en' | 'he'>);
+  const [aiLanguageInput, setAiLanguageInput] = useState<Record<Platform, AiContentLocale>>({} as Record<Platform, AiContentLocale>);
   const [aiStyleInput, setAiStyleInput] = useState<Record<Platform, string>>({} as Record<Platform, string>);
 
   const [aiBrief, setAiBrief] = useState('');
   const [aiTone, setAiTone] = useState(TONE_OPTIONS[0]);
   const [aiStyle, setAiStyle] = useState('');
-  const [aiLanguage, setAiLanguage] = useState<'en' | 'he'>('en');
+  const [aiLanguage, setAiLanguage] = useState<AiContentLocale>(() => (isAiContentLocale(locale) ? locale : 'en'));
   const [_aiLoadingType, _setAiLoadingType] = useState<AiSuggestionType | null>(null);
   const [_aiVariantTarget, setAiVariantTarget] = useState('');
   const aiCaption: string | null = null; // Fallback AI caption, currently not set
@@ -1685,6 +1702,13 @@ export default function CreatePostPage() {
   }, [formatMap]);
   const isPlatformSelected = selectedPlatforms.length > 0;
 
+  const aiLanguageSelectOptions = useMemo((): Array<{ value: string; name: string }> => {
+    return (AppConfig.locales as readonly AiContentLocale[]).map(code => ({
+      value: code,
+      name: AI_LANGUAGE_LABELS[code] ?? code,
+    }));
+  }, []);
+
   // Validate platform content and return errors
   const validatePlatform = useCallback((platform: Platform): string[] => {
     const errors: string[] = [];
@@ -2029,7 +2053,7 @@ export default function CreatePostPage() {
     }));
   };
 
-  const handleGenerateAll = useCallback(async (briefText?: string, tone?: string, language?: 'en' | 'he', style?: string, platform?: Platform) => {
+  const handleGenerateAll = useCallback(async (briefText?: string, tone?: string, language?: AiContentLocale, style?: string, platform?: Platform) => {
     const targetPlatform = platform || activePlatformTab || selectedPlatforms[0];
     if (!targetPlatform) {
       return;
@@ -2517,11 +2541,11 @@ export default function CreatePostPage() {
   };
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="min-h-screen bg-white dark:bg-slate-950" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* AI Generation Loader Overlay */}
       {isGeneratingAll && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="relative rounded-2xl bg-white p-8 shadow-2xl dark:border dark:border-gray-700 dark:bg-gray-800">
+          <div className="relative rounded-2xl bg-white p-8 shadow-2xl dark:border dark:border-slate-700 dark:bg-slate-900">
             <div className="flex flex-col items-center gap-4">
               <div className="relative">
                 <div className="h-16 w-16 animate-spin rounded-full border-4 border-pink-200 border-t-pink-600" />
@@ -2531,7 +2555,7 @@ export default function CreatePostPage() {
                 <h3 className="text-lg font-semibold text-slate-900 dark:text-gray-100">
                   {isRTL ? 'יוצר תוכן באמצעות AI...' : 'Generating content with AI...'}
                 </h3>
-                <p className="mt-1 text-sm text-slate-600 dark:text-gray-400">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-200">
                   {isRTL ? 'אנא המתן, זה עשוי לקחת כמה רגעים' : 'Please wait, this may take a few moments'}
                 </p>
               </div>
@@ -2554,7 +2578,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('posts_this_month')}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('posts_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.postsThisMonth}
                       {' '}
@@ -2579,7 +2603,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('ai_content_this_month')}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_content_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiGenerationsThisMonth}
                       {' '}
@@ -2604,7 +2628,7 @@ export default function CreatePostPage() {
               <CardContent className="p-4">
                 <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                   <div className="flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-gray-400">{t('ai_images_this_month')}</p>
+                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_images_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiImageGenerationsThisMonth}
                       {' '}
@@ -2629,15 +2653,15 @@ export default function CreatePostPage() {
         {/* Check if brand is selected */}
         {!selectedBrandId
           ? (
-              <Card className="border-2 border-amber-200 bg-amber-50/50 shadow-lg dark:border-amber-900/50 dark:bg-amber-950/30">
+              <Card className="border-2 border-amber-200 bg-amber-50/50 shadow-lg dark:border-slate-600 dark:bg-slate-900">
                 <CardContent className="flex flex-col items-center justify-center py-12 text-center">
-                  <div className="mb-4 rounded-full bg-amber-100 p-4 dark:bg-amber-900/40">
-                    <AlertCircle className="h-12 w-12 text-amber-600 dark:text-amber-400" />
+                  <div className="mb-4 rounded-full bg-amber-100 p-4 dark:bg-slate-800">
+                    <AlertCircle className="h-12 w-12 text-amber-600 dark:text-slate-200" />
                   </div>
                   <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-gray-100">
                     {isRTL ? 'אנא בחר מותג' : 'Please Select a Brand'}
                   </h2>
-                  <p className="mb-6 max-w-md text-slate-600 dark:text-gray-300">
+                  <p className="mb-6 max-w-md text-slate-600 dark:text-slate-200">
                     {isRTL
                       ? 'על מנת ליצור פוסטים, אנא בחר מותג מהתפריט למעלה.'
                       : 'To create posts, please select a brand from the menu above.'}
@@ -2655,7 +2679,7 @@ export default function CreatePostPage() {
                       <h2 className="mb-2 text-2xl font-semibold text-slate-900 dark:text-gray-100">
                         {t('no_connected_accounts')}
                       </h2>
-                      <p className="mb-6 max-w-md text-slate-600 dark:text-gray-300">
+                      <p className="mb-6 max-w-md text-slate-600 dark:text-slate-200">
                         {t('no_connected_accounts_hint')}
                       </p>
                       <Link href="/connections">
@@ -2721,7 +2745,7 @@ export default function CreatePostPage() {
                                             : undefined
                                     }
                                   >
-                                    <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-slate-600 dark:text-gray-400')} />
+                                    <Icon className={cn('h-5 w-5', isSelected ? 'text-white' : 'text-slate-600 dark:text-slate-200')} />
                                   </button>
                                 </div>
                               );
@@ -2778,18 +2802,20 @@ export default function CreatePostPage() {
 
                                 {/* AI Prompt Panel - Opens directly under button */}
                                 {showAiPanel.base && (
-                                  <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
+                                  <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4 dark:border-pink-900/50 dark:bg-pink-950/25">
                                     <div className="space-y-2">
-                                      <label className="block text-sm font-semibold text-pink-700">
+                                      <label className="block text-sm font-semibold text-pink-700 dark:text-pink-300">
                                         {t('ai_what_post_about')}
                                       </label>
                                       <div className="relative">
                                         <Textarea
                                           value={aiBrief || ''}
                                           onChange={e => setAiBrief(e.target.value)}
-                                          placeholder={t('ai_brief_placeholder_long')}
+                                          placeholder={isRTL
+                                            ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
+                                            : (t('ai_brief_placeholder_long'))}
                                           className={cn(
-                                            'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 pr-16',
+                                            'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm placeholder:text-slate-500 focus:border-pink-400 focus:ring-pink-400 pr-16 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400',
                                             (aiBrief || '').length > 1200 && 'border-red-300 focus:border-red-400',
                                             isRTL && 'pl-16 pr-3',
                                           )}
@@ -2798,7 +2824,7 @@ export default function CreatePostPage() {
                                         <div className={cn(
                                           'absolute bottom-2 text-xs',
                                           isRTL ? 'left-2' : 'right-2',
-                                          (aiBrief || '').length > 1200 ? 'text-red-600 font-semibold' : 'text-slate-500',
+                                          (aiBrief || '').length > 1200 ? 'text-red-600 font-semibold' : 'text-slate-500 dark:text-slate-200',
                                         )}
                                         >
                                           {(aiBrief || '').length}
@@ -2806,37 +2832,36 @@ export default function CreatePostPage() {
                                         </div>
                                       </div>
                                       {(aiBrief || '').length > 1200 && (
-                                        <p className="text-xs text-red-600">
+                                        <p className="text-xs text-red-600 dark:text-red-400">
                                           {t('ai_brief_too_long')}
                                         </p>
                                       )}
                                     </div>
 
                                     <div className="space-y-2">
-                                      <label className="block text-sm font-semibold text-pink-700">
+                                      <label className="block text-sm font-semibold text-pink-700 dark:text-pink-300">
                                         {t('ai_language_label')}
                                       </label>
                                       <Select
                                         value={aiLanguage || 'en'}
                                         onValueChange={(value) => {
-                                          if (value === 'en' || value === 'he') {
+                                          if (isAiContentLocale(value)) {
                                             setAiLanguage(value);
                                           }
                                         }}
                                       >
-                                        <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
+                                        <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" dir={isRTL ? 'rtl' : 'ltr'}>
                                           <SelectValue
                                             placeholder={t('ai_language_placeholder')}
-                                            selectedLabel={aiLanguage === 'he' ? 'עברית' : aiLanguage === 'en' ? 'English' : undefined}
-                                            options={[
-                                              { value: 'en', name: 'English' },
-                                              { value: 'he', name: 'עברית' },
-                                            ]}
+                                            options={aiLanguageSelectOptions}
                                           />
                                         </SelectTrigger>
                                         <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                          <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
-                                          <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
+                                          {AppConfig.locales.map(code => (
+                                            <SelectItem key={code} value={code} dir={isRTL ? 'rtl' : 'ltr'}>
+                                              {AI_LANGUAGE_LABELS[code as AiContentLocale]}
+                                            </SelectItem>
+                                          ))}
                                         </SelectContent>
                                       </Select>
                                     </div>
@@ -2848,7 +2873,7 @@ export default function CreatePostPage() {
                                         onClick={() => {
                                           setShowAiPanel(prev => ({ ...prev, base: false }));
                                         }}
-                                        className="text-slate-700 hover:bg-white/50"
+                                        className="text-slate-700 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-slate-800"
                                       >
                                         {t('cancel')}
                                       </Button>
@@ -2898,7 +2923,7 @@ export default function CreatePostPage() {
                                         <label className="text-sm font-semibold text-slate-900 dark:text-gray-100">
                                           {t('post_type_label')}
                                         </label>
-                                        <span className="rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-700">
+                                        <span className="rounded-full bg-pink-100 px-3 py-1 text-sm font-medium text-pink-700 dark:bg-pink-950/50 dark:text-pink-300">
                                           {t(`format_${formats[0]}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}
                                         </span>
                                       </div>
@@ -2920,16 +2945,16 @@ export default function CreatePostPage() {
                                           return (
                                             <div
                                               key={platform}
-                                              className={cn('flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-xs', 'border-pink-200')}
+                                              className={cn('flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-xs dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200', 'border-pink-200')}
                                             >
                                               {config.icon && (
                                                 <div className={cn('flex h-4 w-4 items-center justify-center rounded', config.bg)}>
                                                   <config.icon className="h-2.5 w-2.5 text-white" />
                                                 </div>
                                               )}
-                                              <span className="font-medium text-slate-700">{config.name}</span>
-                                              <span className="text-pink-600">•</span>
-                                              <span className="text-pink-600">{t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}</span>
+                                              <span className="font-medium text-slate-700 dark:text-slate-100">{config.name}</span>
+                                              <span className="text-pink-600 dark:text-pink-400">•</span>
+                                              <span className="font-medium text-pink-600 dark:text-pink-400">{t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}</span>
                                             </div>
                                           );
                                         })}
@@ -2965,7 +2990,7 @@ export default function CreatePostPage() {
                                     }}
                                     placeholder={t('content_placeholder_full')}
                                     className={cn(
-                                      'min-h-[250px] w-full resize-none border-slate-200 bg-white text-base leading-relaxed focus:border-pink-400 focus:ring-pink-400',
+                                      'min-h-[250px] w-full resize-none border-slate-200 bg-white text-base leading-relaxed placeholder:text-slate-500 focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400',
                                       isRTL && 'text-right',
                                     )}
                                   />
@@ -2985,7 +3010,7 @@ export default function CreatePostPage() {
                                             ? (platformContent[firstPlatform]?.caption || baseCaption || '')
                                             : (baseCaption || (firstPlatform ? (platformContent[firstPlatform]?.caption || '') : ''))).length > Math.min(...selectedPlatforms.map(p => PLATFORM_CHARACTER_LIMITS[p])) * 0.9
                                             ? 'font-medium text-amber-600'
-                                            : 'text-slate-500',
+                                            : 'text-slate-500 dark:text-slate-200',
                                     )}
                                     >
                                       {(editMode === 'unified' && firstPlatform
@@ -3004,7 +3029,7 @@ export default function CreatePostPage() {
                                           type="button"
                                           variant="ghost"
                                           size="icon"
-                                          className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                          className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                                           onClick={() => {
                                             setEmojiPickerTarget('base');
                                             setShowEmojiPicker(true);
@@ -3021,116 +3046,9 @@ export default function CreatePostPage() {
                                 </div>
                               </div>
 
-                              {/* AI Prompt Panel */}
-                              {showAiPanel.base && (
-                                <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
-                                  <div className="space-y-2">
-                                    <label className="block text-sm font-semibold text-pink-700">
-                                      {t('ai_what_post_about')}
-                                    </label>
-                                    <div className="relative">
-                                      <Textarea
-                                        value={aiBrief || ''}
-                                        onChange={e => setAiBrief(e.target.value)}
-                                        placeholder={isRTL
-                                          ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
-                                          : 'e.g., New product launch, professional tip, personal story...'}
-                                        className={cn(
-                                          'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 pr-16',
-                                          (aiBrief || '').length > 1200 && 'border-red-300 focus:border-red-400',
-                                          isRTL && 'pl-16 pr-3',
-                                        )}
-                                        dir={isRTL ? 'rtl' : 'ltr'}
-                                      />
-                                      <div className={cn(
-                                        'absolute bottom-2 text-xs',
-                                        isRTL ? 'left-2' : 'right-2',
-                                        (aiBrief || '').length > 1200 ? 'text-red-600 font-semibold' : 'text-slate-500',
-                                      )}
-                                      >
-                                        {(aiBrief || '').length}
-                                        /1200
-                                      </div>
-                                    </div>
-                                    {(aiBrief || '').length > 1200 && (
-                                      <p className="text-xs text-red-600">
-                                        {isRTL
-                                          ? 'התיאור ארוך מדי. אנא קיצר אותו ל-1200 תווים או פחות.'
-                                          : 'Brief is too long. Please shorten it to 1200 characters or less.'}
-                                      </p>
-                                    )}
-                                  </div>
-
-                                  <div className="space-y-2">
-                                    <label className="block text-sm font-semibold text-pink-700">
-                                      {t('ai_language_label')}
-                                    </label>
-                                    <Select
-                                      value={aiLanguage || 'en'}
-                                      onValueChange={(value) => {
-                                        if (value === 'en' || value === 'he') {
-                                          setAiLanguage(value);
-                                        }
-                                      }}
-                                    >
-                                      <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
-                                        <SelectValue
-                                          placeholder={t('ai_language_placeholder')}
-                                          selectedLabel={aiLanguage === 'he' ? 'עברית' : aiLanguage === 'en' ? 'English' : undefined}
-                                          options={[
-                                            { value: 'en', name: 'English' },
-                                            { value: 'he', name: 'עברית' },
-                                          ]}
-                                        />
-                                      </SelectTrigger>
-                                      <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                        <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
-                                        <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
-                                      </SelectContent>
-                                    </Select>
-                                  </div>
-
-                                  <div className={cn('flex items-center gap-3 justify-end', isRTL && 'flex-row-reverse')}>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setShowAiPanel(prev => ({ ...prev, base: false }));
-                                      }}
-                                      className="text-slate-700 hover:bg-white/50"
-                                    >
-                                      {t('cancel')}
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      onClick={() => {
-                                        void handleGenerateAll(aiBrief || '', aiTone, aiLanguage, aiStyle);
-                                        setShowAiPanel(prev => ({ ...prev, base: false }));
-                                      }}
-                                      disabled={isGeneratingAll || !aiBrief?.trim()}
-                                      className="gap-2 bg-linear-to-r from-pink-500 to-pink-600 text-white hover:from-pink-600 hover:to-pink-700"
-                                    >
-                                      {isGeneratingAll
-                                        ? (
-                                            <>
-                                              <span className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                                              {t('ai_loading')}
-                                            </>
-                                          )
-                                        : (
-                                            <>
-                                              <Wand2 className="h-4 w-4" />
-                                              {t('create_content')}
-                                            </>
-                                          )}
-                                    </Button>
-                                  </div>
-                                </div>
-                              )}
-
                               {/* Optional Link Field */}
                               <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                                   {isRTL ? 'קישור (אופציונלי)' : 'Link (Optional)'}
                                 </label>
                                 <div className="relative">
@@ -3153,7 +3071,7 @@ export default function CreatePostPage() {
                                     }}
                                     placeholder={isRTL ? 'https://example.com' : 'https://example.com'}
                                     className={cn(
-                                      'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors',
+                                      'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors placeholder:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400',
                                       'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
                                       isRTL && 'text-right',
                                     )}
@@ -3163,14 +3081,14 @@ export default function CreatePostPage() {
                                     isRTL ? 'left-2' : 'right-2',
                                   )}
                                   >
-                                    <ExternalLink className="h-4 w-4 text-slate-400" />
+                                    <ExternalLink className="h-4 w-4 text-slate-400 dark:text-slate-200" />
                                   </div>
                                 </div>
                               </div>
 
                               {/* Media Upload */}
                               <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">{t('media_upload_title')}</label>
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">{t('media_upload_title')}</label>
 
                                 {/* Mode Selection Tabs */}
                                 <Tabs
@@ -3178,7 +3096,7 @@ export default function CreatePostPage() {
                                   onValueChange={value => setMediaMode(prev => ({ ...prev, base: value as 'manual' | 'ai' }))}
                                   className="w-full"
                                 >
-                                  <TabsList className="grid h-9 w-full grid-cols-2">
+                                  <TabsList className="grid h-9 w-full grid-cols-2 dark:bg-slate-800">
                                     <TabsTrigger value="manual" className="text-xs">
                                       {isRTL ? 'העלאה ידנית' : 'Manual Upload'}
                                     </TabsTrigger>
@@ -3238,25 +3156,25 @@ export default function CreatePostPage() {
                                       role="button"
                                       tabIndex={0}
                                       className={cn(
-                                        'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50',
+                                        'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50 dark:border-slate-600 dark:bg-slate-900/90 dark:hover:border-pink-500 dark:hover:bg-slate-800/90',
                                         isUploadingMedia && 'pointer-events-none opacity-50',
-                                        isDraggingOver.base && 'border-pink-500 bg-pink-100 border-solid',
+                                        isDraggingOver.base && 'border-pink-500 bg-pink-100 border-solid dark:border-pink-400 dark:bg-pink-950/50',
                                       )}
                                     >
                                       {isUploadingMedia
                                         ? (
                                             <div className="flex flex-col items-center gap-2">
                                               <span className="h-5 w-5 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-                                              <p className="text-xs text-slate-600">{t('uploading_media')}</p>
+                                              <p className="text-xs text-slate-600 dark:text-slate-200">{t('uploading_media')}</p>
                                             </div>
                                           )
                                         : (
                                             <>
-                                              <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver.base ? 'text-pink-500' : 'text-slate-400')} />
-                                              <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver.base ? 'text-pink-700' : 'text-slate-700')}>
+                                              <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver.base ? 'text-pink-500' : 'text-slate-400 dark:text-slate-200')} />
+                                              <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver.base ? 'text-pink-700 dark:text-pink-300' : 'text-slate-700 dark:text-slate-200')}>
                                                 {isDraggingOver.base ? (isRTL ? 'שחרר כאן להעלאה' : 'Drop files here') : t('click_to_upload_media')}
                                               </p>
-                                              <p className="mt-0.5 text-[10px] text-slate-500">{t('media_upload_hint')}</p>
+                                              <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-200">{t('media_upload_hint')}</p>
                                             </>
                                           )}
                                     </div>
@@ -3266,11 +3184,11 @@ export default function CreatePostPage() {
                                   <TabsContent value="ai" className="mt-2 space-y-2">
                                     {/* Images in Post Counter - moved here from top */}
                                     {limits && (
-                                      <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
+                                      <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                         <CardContent className="p-3">
                                           <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <div className="flex-1">
-                                              <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
+                                              <p className="text-xs font-medium text-slate-600 dark:text-slate-200">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
                                               <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                 {usage.imagesInCurrentPost}
                                                 {' '}
@@ -3278,8 +3196,8 @@ export default function CreatePostPage() {
                                                 {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
                                               </p>
                                             </div>
-                                            <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
-                                              <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                                            <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
+                                              <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-300'}`} />
                                             </div>
                                           </div>
                                         </CardContent>
@@ -3292,7 +3210,7 @@ export default function CreatePostPage() {
                                         placeholder={isRTL
                                           ? 'תאר את התמונה שברצונך ליצור... (למשל: "חתול חמוד יושב על חלון עם נוף עירוני ברקע")'
                                           : 'Describe the image you want to create... (e.g., "A cute cat sitting on a window with a city skyline in the background")'}
-                                        className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                        className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                                         dir={isRTL ? 'rtl' : 'ltr'}
                                       />
                                       <Button
@@ -3361,7 +3279,7 @@ export default function CreatePostPage() {
                                               </>
                                             )}
                                       </Button>
-                                      <p className="text-center text-[10px] text-slate-500">
+                                      <p className="text-center text-[10px] text-slate-500 dark:text-slate-200">
                                         {isRTL
                                           ? 'הערה: יצירת וידאו עם AI זמינה בקרוב. כרגע ניתן ליצור תמונות בלבד.'
                                           : 'Note: AI video generation coming soon. Currently only images are supported.'}
@@ -3374,7 +3292,7 @@ export default function CreatePostPage() {
                                 {mediaUrls.length > 0 && (
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <p className="text-xs font-medium text-slate-600">
+                                      <p className="text-xs font-medium text-slate-600 dark:text-slate-200">
                                         {mediaUrls.length}
                                         {' '}
                                         {mediaUrls.length === 1 ? t('media_item') : t('media_items')}
@@ -3449,7 +3367,7 @@ export default function CreatePostPage() {
 
                               {/* Hashtags */}
                               <div className="space-y-2">
-                                <label className="text-sm font-medium text-slate-700">
+                                <label className="text-sm font-medium text-slate-700 dark:text-slate-200">
                                   {isRTL ? 'האשטאגים' : 'Hashtags'}
                                 </label>
                                 <div className="relative">
@@ -3481,7 +3399,7 @@ export default function CreatePostPage() {
                                       });
                                     }}
                                     className={cn(
-                                      'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors',
+                                      'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100',
                                       'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
                                       isRTL && 'text-right',
                                     )}
@@ -3524,21 +3442,21 @@ export default function CreatePostPage() {
 
                               {/* Character Counter */}
                               {selectedPlatforms.length > 0 && (
-                                <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm">
-                                  <div className="flex items-center gap-2 text-slate-600">
+                                <div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-sm dark:bg-slate-900/60">
+                                  <div className="flex items-center gap-2 text-slate-600 dark:text-slate-200">
                                     <span className="font-medium">
                                       {(editMode === 'unified' && firstPlatform
                                         ? (platformContent[firstPlatform]?.caption || baseCaption || '')
                                         : (baseCaption || (firstPlatform ? (platformContent[firstPlatform]?.caption || '') : ''))).length}
                                     </span>
-                                    <span className="text-slate-400">/</span>
+                                    <span className="text-slate-400 dark:text-slate-200">/</span>
                                     <span>
                                       {selectedPlatforms.length > 0
                                         ? Math.min(...selectedPlatforms.map(p => PLATFORM_CHARACTER_LIMITS[p]))
                                         : 280}
                                     </span>
                                     {selectedPlatforms.length > 1 && (
-                                      <span className="text-xs text-slate-400">
+                                      <span className="text-xs text-slate-400 dark:text-slate-200">
                                         (
                                         {isRTL ? 'משותף ל' : 'shared with'}
                                         {' '}
@@ -3556,10 +3474,10 @@ export default function CreatePostPage() {
                                         ? (
                                             <div
                                               key={platform}
-                                              className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white"
+                                              className="flex h-6 w-6 items-center justify-center rounded-full border border-slate-200 bg-white dark:border-slate-600 dark:bg-slate-800"
                                               title={PLATFORM_ICON_CONFIG[platform]?.name}
                                             >
-                                              <Icon className="h-3.5 w-3.5 text-slate-600" />
+                                              <Icon className="h-3.5 w-3.5 text-slate-600 dark:text-slate-200" />
                                             </div>
                                           )
                                         : null;
@@ -3584,9 +3502,9 @@ export default function CreatePostPage() {
                                     return (
                                       <div
                                         key={platform}
-                                        className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm"
+                                        className="flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 p-3 text-sm dark:border-red-900/60 dark:bg-red-950/35"
                                       >
-                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600" />
+                                        <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-red-600 dark:text-red-400" />
                                         <div className="min-w-0 flex-1">
                                           <div className="mb-1 flex items-center gap-2">
                                             {Icon && (
@@ -3594,11 +3512,11 @@ export default function CreatePostPage() {
                                                 <Icon className="h-3 w-3 text-white" />
                                               </div>
                                             )}
-                                            <span className="font-semibold text-red-900">
+                                            <span className="font-semibold text-red-900 dark:text-red-200">
                                               {config.name}
                                             </span>
                                           </div>
-                                          <ul className="list-inside list-disc space-y-0.5 text-red-700">
+                                          <ul className="list-inside list-disc space-y-0.5 text-red-700 dark:text-red-300">
                                             {platformErrors.map((error, idx) => (
                                               <li key={idx}>{error}</li>
                                             ))}
@@ -3618,7 +3536,7 @@ export default function CreatePostPage() {
                           <Card className="border-0 shadow-lg">
                             <CardHeader className="pb-3">
                               <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-900 dark:text-gray-100">
-                                <Pencil className="h-5 w-5 text-pink-500" />
+                                <Pencil className="h-5 w-5 text-pink-500 dark:text-pink-400" />
                                 {isRTL ? 'עריכה לפי פלטפורמה' : 'Edit by Platform'}
                               </CardTitle>
                             </CardHeader>
@@ -3628,7 +3546,7 @@ export default function CreatePostPage() {
                                 onValueChange={value => setActivePerPlatformTab(value as Platform)}
                                 className="w-full"
                               >
-                                <TabsList className="mb-4 flex h-auto w-full justify-start gap-1 overflow-x-auto bg-slate-50 p-1">
+                                <TabsList className="mb-4 flex h-auto w-full justify-start gap-1 overflow-x-auto bg-slate-50 p-1 dark:bg-slate-800">
                                   {selectedPlatforms.map((platform) => {
                                     const config = PLATFORM_ICON_CONFIG[platform];
                                     const Icon = config.icon;
@@ -3640,7 +3558,7 @@ export default function CreatePostPage() {
                                         key={platform}
                                         value={platform}
                                         className={cn(
-                                          'flex h-auto items-center justify-center gap-2 p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm',
+                                          'flex h-auto items-center justify-center gap-2 p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800',
                                           isSelected && 'data-[state=active]:border-pink-500',
                                         )}
                                         title={config.name}
@@ -3648,7 +3566,7 @@ export default function CreatePostPage() {
                                         <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', config.bg)}>
                                           <Icon className="h-4 w-4 text-white" />
                                         </div>
-                                        <span className="hidden text-xs font-medium text-slate-700 sm:inline">
+                                        <span className="hidden text-xs font-medium text-slate-700 sm:inline dark:text-slate-100">
                                           {config.name}
                                         </span>
                                         {isSelected && selectedFormats[0] && (
@@ -3689,19 +3607,19 @@ export default function CreatePostPage() {
                                                   variant="outline"
                                                   size="sm"
                                                   className={cn(
-                                                    'w-full h-9 border-slate-300 bg-white text-sm justify-between',
+                                                    'w-full h-9 border-slate-300 bg-white text-sm justify-between dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100',
                                                     isRTL && 'flex-row-reverse',
                                                   )}
                                                 >
                                                   <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-                                                    <ImageIcon className="h-4 w-4 text-slate-600" />
+                                                    <ImageIcon className="h-4 w-4 text-slate-600 dark:text-slate-200" />
                                                     <span>
                                                       {selectedFormats.length > 0 && selectedFormats[0]
                                                         ? t(`format_${selectedFormats[0]}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')
                                                         : t('select_post_type_placeholder')}
                                                     </span>
                                                   </div>
-                                                  <ChevronDown className={cn('h-4 w-4 text-slate-400', isRTL && 'rotate-180')} />
+                                                  <ChevronDown className={cn('h-4 w-4 text-slate-400 dark:text-slate-200', isRTL && 'rotate-180')} />
                                                 </Button>
                                               </PopoverTrigger>
                                               <PopoverContent className="w-56 p-2" align={isRTL ? 'end' : 'start'}>
@@ -3748,7 +3666,7 @@ export default function CreatePostPage() {
                                                           <div className="flex items-center gap-1">
                                                             <span>{t(`format_${format}` as 'format_feed' | 'format_story' | 'format_reel' | 'format_post' | 'format_short' | 'format_video' | 'format_carousel' | 'format_thread' | 'format_pin' | 'format_link')}</span>
                                                             {isDisabled && (
-                                                              <span className="text-xs text-slate-400">
+                                                              <span className="text-xs text-slate-400 dark:text-slate-200">
                                                                 (
                                                                 {t('requires_media')}
                                                                 )
@@ -3756,7 +3674,7 @@ export default function CreatePostPage() {
                                                             )}
                                                           </div>
                                                           {isDisabled && validation.reason && (
-                                                            <p className="mt-0.5 text-xs text-slate-500">{validation.reason}</p>
+                                                            <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-200">{validation.reason}</p>
                                                           )}
                                                         </div>
                                                       </button>
@@ -3780,7 +3698,7 @@ export default function CreatePostPage() {
                                                   [platform]: { ...prev[platform], title: e.target.value },
                                                 }))}
                                                 placeholder={t('post_title_placeholder')}
-                                                className="border-slate-200 bg-white focus:border-pink-400"
+                                                className="border-slate-200 bg-white focus:border-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                                               />
                                             )}
 
@@ -3827,7 +3745,7 @@ export default function CreatePostPage() {
                                                     [platform]: { ...prev[platform], caption: e.target.value },
                                                   }))}
                                                   placeholder={t('content_placeholder')}
-                                                  className="min-h-[120px] resize-none border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                                  className="min-h-[120px] resize-none border-slate-200 bg-white text-sm placeholder:text-slate-500 focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
                                                 />
 
                                                 {/* Character Count & Emoji Selector */}
@@ -3841,7 +3759,7 @@ export default function CreatePostPage() {
                                                       ? 'font-semibold text-red-600'
                                                       : platformContentData.caption.length > limit * 0.9
                                                         ? 'font-medium text-amber-600'
-                                                        : 'text-slate-500',
+                                                        : 'text-slate-500 dark:text-slate-200',
                                                   )}
                                                   >
                                                     {platformContentData.caption.length}
@@ -3855,7 +3773,7 @@ export default function CreatePostPage() {
                                                         type="button"
                                                         variant="ghost"
                                                         size="icon"
-                                                        className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700"
+                                                        className="h-6 w-6 text-slate-500 hover:bg-slate-100 hover:text-slate-700 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-slate-100"
                                                         onClick={() => {
                                                           setEmojiPickerTarget(platform);
                                                           setShowEmojiPicker(true);
@@ -3874,7 +3792,7 @@ export default function CreatePostPage() {
 
                                             {/* Optional Link Field - Right after caption for all platforms */}
                                             <div className="space-y-2">
-                                              <label className="text-xs font-medium text-slate-700">
+                                              <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
                                                 {isRTL ? 'קישור (אופציונלי)' : 'Link (Optional)'}
                                               </label>
                                               <div className="relative">
@@ -3887,7 +3805,7 @@ export default function CreatePostPage() {
                                                   }))}
                                                   placeholder={isRTL ? 'https://example.com' : 'https://example.com'}
                                                   className={cn(
-                                                    'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors',
+                                                    'h-9 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm transition-colors placeholder:text-slate-500 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400',
                                                     'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
                                                     isRTL && 'text-right',
                                                   )}
@@ -3897,16 +3815,16 @@ export default function CreatePostPage() {
                                                   isRTL ? 'left-2' : 'right-2',
                                                 )}
                                                 >
-                                                  <ExternalLink className="h-4 w-4 text-slate-400" />
+                                                  <ExternalLink className="h-4 w-4 text-slate-400 dark:text-slate-200" />
                                                 </div>
                                               </div>
                                             </div>
 
                                             {/* AI Prompt Panel - Inline at bottom */}
                                             {showAiPanel[platform] && (
-                                              <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4">
+                                              <div className="space-y-4 rounded-lg border border-pink-200 bg-pink-50/50 p-4 dark:border-pink-900/50 dark:bg-pink-950/25">
                                                 <div className="space-y-2">
-                                                  <label className="block text-sm font-semibold text-pink-700">
+                                                  <label className="block text-sm font-semibold text-pink-700 dark:text-pink-300">
                                                     {t('ai_what_post_about')}
                                                   </label>
                                                   <div className="relative">
@@ -3917,7 +3835,7 @@ export default function CreatePostPage() {
                                                         ? 'למשל: השקת מוצר חדש, טיפ מקצועי, סיפור אישי...'
                                                         : 'e.g., New product launch, professional tip, personal story...'}
                                                       className={cn(
-                                                        'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 pr-16',
+                                                        'min-h-[80px] resize-none rounded-lg border-pink-200 bg-white text-sm placeholder:text-slate-500 focus:border-pink-400 focus:ring-pink-400 pr-16 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400',
                                                         (aiBriefInput[platform] || '').length > 1200 && 'border-red-300 focus:border-red-400',
                                                         isRTL && 'pl-16 pr-3',
                                                       )}
@@ -3926,7 +3844,7 @@ export default function CreatePostPage() {
                                                     <div className={cn(
                                                       'absolute bottom-2 text-xs',
                                                       isRTL ? 'left-2' : 'right-2',
-                                                      (aiBriefInput[platform] || '').length > 1200 ? 'text-red-600 font-semibold' : 'text-slate-500',
+                                                      (aiBriefInput[platform] || '').length > 1200 ? 'text-red-600 font-semibold' : 'text-slate-500 dark:text-slate-200',
                                                     )}
                                                     >
                                                       {(aiBriefInput[platform] || '').length}
@@ -3943,30 +3861,29 @@ export default function CreatePostPage() {
                                                 </div>
 
                                                 <div className="space-y-2">
-                                                  <label className="block text-sm font-semibold text-pink-700">
+                                                  <label className="block text-sm font-semibold text-pink-700 dark:text-pink-300">
                                                     {t('ai_language_label')}
                                                   </label>
                                                   <Select
                                                     value={aiLanguageInput[platform] || aiLanguage || 'en'}
                                                     onValueChange={(value) => {
-                                                      if (value === 'en' || value === 'he') {
+                                                      if (isAiContentLocale(value)) {
                                                         setAiLanguageInput(prev => ({ ...prev, [platform]: value }));
                                                       }
                                                     }}
                                                   >
-                                                    <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400" dir={isRTL ? 'rtl' : 'ltr'}>
+                                                    <SelectTrigger className="w-full border-pink-200 bg-white focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100" dir={isRTL ? 'rtl' : 'ltr'}>
                                                       <SelectValue
                                                         placeholder={t('ai_language_placeholder')}
-                                                        selectedLabel={aiLanguageInput[platform] === 'he' ? 'עברית' : aiLanguageInput[platform] === 'en' ? 'English' : undefined}
-                                                        options={[
-                                                          { value: 'en', name: 'English' },
-                                                          { value: 'he', name: 'עברית' },
-                                                        ]}
+                                                        options={aiLanguageSelectOptions}
                                                       />
                                                     </SelectTrigger>
                                                     <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                                      <SelectItem value="en" dir={isRTL ? 'rtl' : 'ltr'}>{t('english')}</SelectItem>
-                                                      <SelectItem value="he" dir={isRTL ? 'rtl' : 'ltr'}>{t('hebrew')}</SelectItem>
+                                                      {AppConfig.locales.map(code => (
+                                                        <SelectItem key={code} value={code} dir={isRTL ? 'rtl' : 'ltr'}>
+                                                          {AI_LANGUAGE_LABELS[code as AiContentLocale]}
+                                                        </SelectItem>
+                                                      ))}
                                                     </SelectContent>
                                                   </Select>
                                                 </div>
@@ -3978,7 +3895,7 @@ export default function CreatePostPage() {
                                                     onClick={() => {
                                                       setShowAiPanel(prev => ({ ...prev, [platform]: false }));
                                                     }}
-                                                    className="text-slate-700 hover:bg-white/50"
+                                                    className="text-slate-700 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-slate-800"
                                                   >
                                                     {t('cancel')}
                                                   </Button>
@@ -4017,7 +3934,7 @@ export default function CreatePostPage() {
 
                                             {/* Media Upload - Per Platform */}
                                             <div className="space-y-2">
-                                              <label className="text-xs font-medium text-slate-700">{t('media_upload_title')}</label>
+                                              <label className="text-xs font-medium text-slate-700 dark:text-slate-200">{t('media_upload_title')}</label>
 
                                               {/* Mode Selection Tabs */}
                                               <Tabs
@@ -4025,7 +3942,7 @@ export default function CreatePostPage() {
                                                 onValueChange={value => setMediaMode(prev => ({ ...prev, [platform]: value as 'manual' | 'ai' }))}
                                                 className="w-full"
                                               >
-                                                <TabsList className="grid h-9 w-full grid-cols-2">
+                                                <TabsList className="grid h-9 w-full grid-cols-2 dark:bg-slate-800">
                                                   <TabsTrigger value="manual" className="text-xs">
                                                     {isRTL ? 'העלאה ידנית' : 'Manual Upload'}
                                                   </TabsTrigger>
@@ -4063,25 +3980,25 @@ export default function CreatePostPage() {
                                                     role="button"
                                                     tabIndex={0}
                                                     className={cn(
-                                                      'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50',
+                                                      'relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-4 transition-colors hover:border-pink-400 hover:bg-pink-50/50 dark:border-slate-600 dark:bg-slate-900/90 dark:hover:border-pink-500 dark:hover:bg-slate-800/90',
                                                       isUploadingMedia && 'pointer-events-none opacity-50',
-                                                      isDraggingOver[platform] && 'border-pink-500 bg-pink-100 border-solid',
+                                                      isDraggingOver[platform] && 'border-pink-500 bg-pink-100 border-solid dark:border-pink-400 dark:bg-pink-950/50',
                                                     )}
                                                   >
                                                     {isUploadingMedia
                                                       ? (
                                                           <div className="flex flex-col items-center gap-2">
                                                             <span className="h-5 w-5 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-                                                            <p className="text-xs text-slate-600">{t('uploading_media')}</p>
+                                                            <p className="text-xs text-slate-600 dark:text-slate-200">{t('uploading_media')}</p>
                                                           </div>
                                                         )
                                                       : (
                                                           <>
-                                                            <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver[platform] ? 'text-pink-500' : 'text-slate-400')} />
-                                                            <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver[platform] ? 'text-pink-700' : 'text-slate-700')}>
+                                                            <ImageIcon className={cn('h-6 w-6 transition-colors', isDraggingOver[platform] ? 'text-pink-500' : 'text-slate-400 dark:text-slate-200')} />
+                                                            <p className={cn('mt-1 text-xs font-medium transition-colors', isDraggingOver[platform] ? 'text-pink-700 dark:text-pink-300' : 'text-slate-700 dark:text-slate-200')}>
                                                               {isDraggingOver[platform] ? (isRTL ? 'שחרר כאן להעלאה' : 'Drop files here') : t('click_to_upload_media')}
                                                             </p>
-                                                            <p className="mt-0.5 text-[10px] text-slate-500">{t('media_upload_hint')}</p>
+                                                            <p className="mt-0.5 text-[10px] text-slate-500 dark:text-slate-200">{t('media_upload_hint')}</p>
                                                           </>
                                                         )}
                                                   </div>
@@ -4091,11 +4008,11 @@ export default function CreatePostPage() {
                                                 <TabsContent value="ai" className="mt-2 space-y-2">
                                                   {/* Images in Post Counter - moved here from top */}
                                                   {limits && (
-                                                    <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
+                                                    <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                                       <CardContent className="p-3">
                                                         <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
                                                           <div className="flex-1">
-                                                            <p className="text-xs font-medium text-slate-600">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
+                                                            <p className="text-xs font-medium text-slate-600 dark:text-slate-200">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
                                                             <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                               {usage.imagesInCurrentPost}
                                                               {' '}
@@ -4103,8 +4020,8 @@ export default function CreatePostPage() {
                                                               {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
                                                             </p>
                                                           </div>
-                                                          <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100' : 'bg-purple-100'}`}>
-                                                            <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600' : 'text-purple-600'}`} />
+                                                          <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
+                                                            <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-300'}`} />
                                                           </div>
                                                         </div>
                                                       </CardContent>
@@ -4117,7 +4034,7 @@ export default function CreatePostPage() {
                                                       placeholder={isRTL
                                                         ? 'תאר את התמונה שברצונך ליצור... (למשל: "חתול חמוד יושב על חלון עם נוף עירוני ברקע")'
                                                         : 'Describe the image you want to create... (e.g., "A cute cat sitting on a window with a city skyline in the background")'}
-                                                      className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                                      className="min-h-[80px] resize-none rounded-lg border-slate-200 bg-white text-sm placeholder:text-slate-500 focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-400"
                                                       dir={isRTL ? 'rtl' : 'ltr'}
                                                     />
                                                     <Button
@@ -4140,7 +4057,7 @@ export default function CreatePostPage() {
                                                             </>
                                                           )}
                                                     </Button>
-                                                    <p className="text-center text-[10px] text-slate-500">
+                                                    <p className="text-center text-[10px] text-slate-500 dark:text-slate-200">
                                                       {isRTL
                                                         ? 'הערה: יצירת וידאו עם AI זמינה בקרוב. כרגע ניתן ליצור תמונות בלבד.'
                                                         : 'Note: AI video generation coming soon. Currently only images are supported.'}
@@ -4153,7 +4070,7 @@ export default function CreatePostPage() {
                                               {platformMediaUrls.length > 0 && (
                                                 <div className="space-y-2">
                                                   <div className="flex items-center justify-between">
-                                                    <p className="text-xs font-medium text-slate-600">
+                                                    <p className="text-xs font-medium text-slate-600 dark:text-slate-200">
                                                       {platformMediaUrls.length}
                                                       {' '}
                                                       {platformMediaUrls.length === 1 ? t('media_item') : t('media_items')}
@@ -4239,7 +4156,7 @@ export default function CreatePostPage() {
                                                     onChange={e => setHashtagInput(prev => ({ ...prev, [platform]: e.target.value }))}
                                                     onKeyDown={e => addHashtag(e, platform)}
                                                     className={cn(
-                                                      'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors',
+                                                      'h-9 w-full rounded-lg border border-slate-200 bg-white pl-3 pr-9 text-sm transition-colors dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100',
                                                       'focus:border-pink-400 focus:ring-1 focus:ring-pink-400',
                                                       isRTL && 'text-right',
                                                     )}
@@ -4277,14 +4194,14 @@ export default function CreatePostPage() {
 
                                             {/* Platform Validation Errors */}
                                             {platformValidationErrors[platform] && platformValidationErrors[platform].length > 0 && (
-                                              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3">
+                                              <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-3 dark:border-red-900/60 dark:bg-red-950/35">
                                                 <div className="flex items-start gap-2">
-                                                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600" />
+                                                  <AlertCircle className="mt-0.5 h-4 w-4 shrink-0 text-red-600 dark:text-red-400" />
                                                   <div className="min-w-0 flex-1">
-                                                    <p className="mb-1 text-xs font-semibold text-red-900">
+                                                    <p className="mb-1 text-xs font-semibold text-red-900 dark:text-red-200">
                                                       {isRTL ? 'שגיאות אימות:' : 'Validation Errors:'}
                                                     </p>
-                                                    <ul className="list-inside list-disc space-y-0.5 text-xs text-red-700">
+                                                    <ul className="list-inside list-disc space-y-0.5 text-xs text-red-700 dark:text-red-300">
                                                       {platformValidationErrors[platform].map((error, idx) => (
                                                         <li key={idx}>{error}</li>
                                                       ))}
@@ -4306,7 +4223,7 @@ export default function CreatePostPage() {
 
                         {/* Error Display */}
                         {error && (
-                          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600">
+                          <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-600 dark:border-red-900/60 dark:bg-red-950/35 dark:text-red-300">
                             {error}
                           </div>
                         )}
@@ -4327,7 +4244,7 @@ export default function CreatePostPage() {
                                 onClick={() => setPreviewDevice('mobile')}
                                 className={cn(
                                   'h-8 w-8 p-0',
-                                  previewDevice === 'mobile' ? 'bg-slate-100' : '',
+                                  previewDevice === 'mobile' ? 'bg-slate-100 dark:bg-slate-700 dark:text-slate-100' : 'dark:text-slate-200',
                                 )}
                               >
                                 <Smartphone className="h-4 w-4" />
@@ -4339,7 +4256,7 @@ export default function CreatePostPage() {
                                 onClick={() => setPreviewDevice('desktop')}
                                 className={cn(
                                   'h-8 w-8 p-0',
-                                  previewDevice === 'desktop' ? 'bg-slate-100' : '',
+                                  previewDevice === 'desktop' ? 'bg-slate-100 dark:bg-slate-700 dark:text-slate-100' : 'dark:text-slate-200',
                                 )}
                               >
                                 <Monitor className="h-4 w-4" />
@@ -4365,8 +4282,8 @@ export default function CreatePostPage() {
                                               className={cn(
                                                 'flex shrink-0 items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors',
                                                 isActive
-                                                  ? 'border-pink-500 bg-pink-50 text-pink-700'
-                                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300',
+                                                  ? 'border-pink-500 bg-pink-50 text-pink-700 dark:border-pink-500 dark:bg-pink-950/50 dark:text-pink-300'
+                                                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-500',
                                               )}
                                             >
                                               {Icon && (
@@ -4418,13 +4335,13 @@ export default function CreatePostPage() {
                                   </div>
                                 )
                               : (
-                                  <div className="flex h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50">
-                                    <p className="text-sm text-slate-500">{t('select_platform_to_preview')}</p>
+                                  <div className="flex h-64 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900/80">
+                                    <p className="text-sm text-slate-600 dark:text-slate-200">{t('select_platform_to_preview')}</p>
                                   </div>
                                 )}
-                            <div className="mt-4 rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs text-slate-500">
+                            <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-100">
                               <div className="flex items-start gap-2">
-                                <MessageCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                                <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-300" />
                                 <span>
                                   {t('preview_disclaimer')}
                                 </span>
@@ -4436,14 +4353,14 @@ export default function CreatePostPage() {
                     </div>
 
                     {/* Bottom Actions - Full Width Footer (Below both panels) */}
-                    <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white px-6 py-4 shadow-lg">
+                    <div className="sticky bottom-0 z-10 -mx-6 border-t border-slate-200 bg-white px-6 py-4 shadow-lg dark:border-slate-800 dark:bg-slate-950">
                       <div className="mx-auto flex max-w-[1600px] items-center justify-between gap-4">
                         {/* Left: Cancel Button */}
                         <Button
                           type="button"
                           variant="ghost"
                           onClick={() => router.back()}
-                          className="text-slate-600 hover:bg-slate-100"
+                          className="text-slate-600 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
                         >
                           {t('cancel')}
                         </Button>
@@ -4454,13 +4371,13 @@ export default function CreatePostPage() {
                             type="button"
                             variant="outline"
                             onClick={() => setShowPreviewModal(true)}
-                            className="h-8 gap-1.5 border-slate-300 px-3 text-sm"
+                            className="h-8 gap-1.5 border-slate-300 px-3 text-sm dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                           >
                             <Monitor className="h-3.5 w-3.5" />
                             {t('preview_button')}
                           </Button>
 
-                          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1">
+                          <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 p-1 dark:border-slate-700 dark:bg-slate-900">
                             <Button
                               type="button"
                               variant="ghost"
@@ -4469,8 +4386,8 @@ export default function CreatePostPage() {
                               className={cn(
                                 'h-8 gap-1.5 px-3 text-sm transition-all',
                                 scheduleMode === 'now'
-                                  ? 'bg-white text-slate-900 shadow-sm'
-                                  : 'text-slate-600 hover:bg-white/50',
+                                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                                  : 'text-slate-600 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-slate-800',
                               )}
                             >
                               <Clock className="h-3.5 w-3.5" />
@@ -4484,8 +4401,8 @@ export default function CreatePostPage() {
                               className={cn(
                                 'h-8 gap-1.5 px-3 text-sm transition-all',
                                 scheduleMode === 'later'
-                                  ? 'bg-white text-slate-900 shadow-sm'
-                                  : 'text-slate-600 hover:bg-white/50',
+                                  ? 'bg-white text-slate-900 shadow-sm dark:bg-slate-700 dark:text-slate-100'
+                                  : 'text-slate-600 hover:bg-white/50 dark:text-slate-200 dark:hover:bg-slate-800',
                               )}
                             >
                               <Calendar className="h-3.5 w-3.5" />
@@ -4494,8 +4411,8 @@ export default function CreatePostPage() {
                           </div>
 
                           {scheduleMode === 'later' && (
-                            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm">
-                              <label className="text-xs font-medium text-slate-700">
+                            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                              <label className="text-xs font-medium text-slate-700 dark:text-slate-200">
                                 {t('schedule_select_datetime')}
                               </label>
                               <div className="flex items-center gap-2">
@@ -4508,7 +4425,7 @@ export default function CreatePostPage() {
                                     const time = scheduledTime ? scheduledTime.split('T')[1] : '00:00';
                                     setScheduledTime(date && time ? `${date}T${time}` : date);
                                   }}
-                                  className="h-9 flex-1 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                  className="h-9 flex-1 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                                 />
                                 <Input
                                   type="time"
@@ -4531,11 +4448,11 @@ export default function CreatePostPage() {
                                       setScheduledTime(date);
                                     }
                                   }}
-                                  className="h-9 w-32 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400"
+                                  className="h-9 w-32 border-slate-200 bg-white text-sm focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100"
                                 />
                               </div>
                               {scheduledTime && (
-                                <p className="text-xs text-slate-500">
+                                <p className="text-xs text-slate-500 dark:text-slate-200">
                                   {t('schedule_hint')}
                                   :
                                   {new Date(scheduledTime).toLocaleString(locale === 'he' ? 'he-IL' : 'en-US', {
@@ -4579,20 +4496,20 @@ export default function CreatePostPage() {
 
                     {/* Preview Modal */}
                     <Dialog open={showPreviewModal} onOpenChange={setShowPreviewModal}>
-                      <DialogContent className="mx-auto my-auto flex max-h-[90vh] max-w-4xl flex-col overflow-hidden">
+                      <DialogContent className="mx-auto my-auto flex max-h-[90vh] max-w-4xl flex-col overflow-hidden dark:border-slate-700 dark:bg-slate-900">
                         <DialogClose />
                         <DialogHeader>
                           <div className="flex items-center justify-between">
-                            <DialogTitle className="text-lg font-semibold text-slate-900">
+                            <DialogTitle className="text-lg font-semibold text-slate-900 dark:text-slate-100">
                               {t('preview_title')}
                             </DialogTitle>
-                            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1">
+                            <div className="flex items-center gap-1 rounded-lg border border-slate-200 bg-white p-1 dark:border-slate-600 dark:bg-slate-950">
                               <button
                                 type="button"
                                 onClick={() => setPreviewDevice('mobile')}
                                 className={cn(
                                   'flex h-8 w-8 items-center justify-center rounded transition-colors',
-                                  previewDevice === 'mobile' ? 'bg-slate-900 text-white' : 'text-slate-600',
+                                  previewDevice === 'mobile' ? 'bg-slate-900 text-white dark:bg-slate-600' : 'text-slate-600 dark:text-slate-200',
                                 )}
                               >
                                 <Smartphone className="h-4 w-4" />
@@ -4602,7 +4519,7 @@ export default function CreatePostPage() {
                                 onClick={() => setPreviewDevice('desktop')}
                                 className={cn(
                                   'flex h-8 w-8 items-center justify-center rounded transition-colors',
-                                  previewDevice === 'desktop' ? 'bg-slate-900 text-white' : 'text-slate-600',
+                                  previewDevice === 'desktop' ? 'bg-slate-900 text-white dark:bg-slate-600' : 'text-slate-600 dark:text-slate-200',
                                 )}
                               >
                                 <Monitor className="h-4 w-4" />
@@ -4613,13 +4530,13 @@ export default function CreatePostPage() {
 
                         {selectedPlatforms.length === 0
                           ? (
-                              <div className="mt-4 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center">
-                                <p className="text-sm text-slate-500">{t('preview_empty')}</p>
+                              <div className="mt-4 rounded-lg border-2 border-dashed border-slate-200 bg-slate-50 p-8 text-center dark:border-slate-600 dark:bg-slate-950">
+                                <p className="text-sm text-slate-600 dark:text-slate-200">{t('preview_empty')}</p>
                               </div>
                             )
                           : (
                               <Tabs defaultValue={selectedPlatforms[0]} className="mt-4 flex flex-1 flex-col overflow-hidden">
-                                <TabsList className="mb-4 flex h-auto w-full justify-center gap-1 bg-slate-50 p-1">
+                                <TabsList className="mb-4 flex h-auto w-full justify-center gap-1 bg-slate-50 p-1 dark:bg-slate-950">
                                   {selectedPlatforms.map((platform) => {
                                     const config = PLATFORM_ICON_CONFIG[platform];
                                     const Icon = config.icon;
@@ -4627,7 +4544,7 @@ export default function CreatePostPage() {
                                       <TabsTrigger
                                         key={platform}
                                         value={platform}
-                                        className="flex h-auto items-center justify-center p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm"
+                                        className="flex h-auto items-center justify-center p-2 data-[state=active]:bg-white data-[state=active]:shadow-sm dark:data-[state=active]:bg-slate-800"
                                         title={config.name}
                                       >
                                         <div className={cn('flex h-8 w-8 items-center justify-center rounded-lg', config.bg)}>
@@ -4673,9 +4590,9 @@ export default function CreatePostPage() {
                             )}
 
                         {/* Disclaimer */}
-                        <div className="mt-4 rounded-lg border-t border-slate-200 bg-slate-50 p-3">
-                          <p className="flex items-start gap-2 text-xs text-slate-500">
-                            <span className="mt-0.5">ℹ️</span>
+                        <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/80">
+                          <p className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-100">
+                            <span className="mt-0.5 text-slate-500 dark:text-slate-300">ℹ️</span>
                             <span>{t('preview_disclaimer')}</span>
                           </p>
                         </div>

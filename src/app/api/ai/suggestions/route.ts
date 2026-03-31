@@ -4,6 +4,18 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+/** Must match `AppConfig.locales` in @/utils/AppConfig */
+const AI_LOCALES = ['he', 'en', 'es', 'fr', 'de', 'pt'] as const;
+
+const AI_LANGUAGE_ENGLISH_NAMES: Record<(typeof AI_LOCALES)[number], string> = {
+  he: 'Hebrew',
+  en: 'English',
+  es: 'Spanish',
+  fr: 'French',
+  de: 'German',
+  pt: 'Portuguese',
+};
+
 // Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
 // requires cookies() from next/headers which is not available in Edge runtime
 
@@ -25,7 +37,7 @@ const suggestionSchema = z.object({
   postTitle: z.string().max(500).optional(),
   tone: z.string().max(80).optional(),
   style: z.string().max(80).optional(),
-  language: z.enum(['en', 'he']).default('en'),
+  language: z.enum(AI_LOCALES).default('en'),
   platform: z.string().optional(),
   format: z.string().optional(),
   mediaCount: z.number().int().min(0).optional(),
@@ -115,7 +127,7 @@ export async function POST(request: Request) {
     }
   }
 
-  const languageLabel = payload.language === 'he' ? 'Hebrew' : 'English';
+  const languageLabel = AI_LANGUAGE_ENGLISH_NAMES[payload.language];
 
   // Build media context
   const mediaContext = [];
