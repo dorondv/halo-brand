@@ -21,7 +21,7 @@ export default async function GetlateTestPage() {
     redirect('/sign-in');
   }
 
-  // Get user's Getlate API key
+  // Get user's Publishing integration API key
   const { data: userRecord } = await supabase
     .from('users')
     .select('getlate_api_key')
@@ -47,7 +47,7 @@ export default async function GetlateTestPage() {
 
   const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-  // Fetch all Getlate data
+  // Fetch all Publishing integration data
   let profiles: any[] = [];
   let profilesError: string | null = null;
   const accounts: Record<string, any[]> = {};

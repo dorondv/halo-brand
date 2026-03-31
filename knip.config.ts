@@ -25,7 +25,7 @@ const config: KnipConfig = {
   ignoreIssues: {
     'src/components/ui/badge.tsx': ['exports', 'types'],
     'src/libs/dashboard-cache.ts': ['exports'], // getDemographics reserved for API wiring
-    'src/libs/Getlate.ts': ['exports', 'types'], // GetlateClient constructed via factory only
+    'src/libs/Getlate.ts': ['exports', 'types'], // publishing client constructed via factory only
     'src/libs/meta-inbox.ts': ['exports', 'types'], // MetaInboxClient via createMetaInboxClient
     'src/libs/post-score-calculator.ts': ['exports', 'types'],
     'src/libs/socialvault.ts': ['exports', 'types'],

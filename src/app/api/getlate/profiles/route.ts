@@ -5,8 +5,8 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * GET /api/getlate/profiles
- * Get all Getlate profiles for the authenticated user
+ * GET /api/publishing/profiles
+ * Get all Publishing integration profiles for the authenticated user
  */
 export async function GET(_request: NextRequest) {
   try {
@@ -29,7 +29,7 @@ export async function GET(_request: NextRequest) {
       );
     }
 
-    // Fetch profiles from Getlate
+    // Fetch profiles from Publishing integration
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     const profiles = await getlateClient.getProfiles();
 
@@ -44,8 +44,8 @@ export async function GET(_request: NextRequest) {
 }
 
 /**
- * POST /api/getlate/profiles
- * Create a new Getlate profile and link it to a brand
+ * POST /api/publishing/profiles
+ * Create a new Publishing integration profile and link it to a brand
  */
 export async function POST(request: NextRequest) {
   try {
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Create profile in Getlate
+    // Create profile in Publishing integration
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     let profile: any;
 

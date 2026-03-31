@@ -231,7 +231,7 @@ export function PostSentimentClient() {
         }
 
         // Extract platformPostUrl from post's platforms array (Priority 2)
-        // This is where Getlate stores platformPostUrl in the original API response
+        // This is where Publishing integration stores platformPostUrl in the original API response
         if (!platformPostUrl && platforms.length > 0) {
           for (const platformData of platforms) {
             // Handle both object and string formats

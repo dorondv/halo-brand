@@ -54,7 +54,7 @@ type DashboardProps = {
 export const dynamic = 'force-dynamic';
 
 /**
- * Getlate often returns video exposure in `views` while `impressions` is 0 (e.g. TikTok).
+ * Publishing integration often returns video exposure in `views` while `impressions` is 0 (e.g. TikTok).
  * Charts and engagement rate use impressions as the denominator — without this, rate stays 0%.
  */
 function effectiveExposureFromGetlateAnalytics(analytics: {
@@ -186,8 +186,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     { posts: previousPostsData, analytics: previousAnalyticsData },
     _accountsData,
     followerStatsData,
-    getlateOverview, // Get overview data from Getlate API (totalPosts, publishedPosts, scheduledPosts)
-    getlatePosts, // Get posts directly from Getlate API (exact structure)
+    getlateOverview, // Get overview data from Publishing integration API (totalPosts, publishedPosts, scheduledPosts)
+    getlatePosts, // Get posts directly from Publishing integration API (exact structure)
   ] = await Promise.all([
     getPosts(supabase, userId, selectedBrandId, rangeFrom, rangeTo),
     getPosts(supabase, userId, selectedBrandId, previousRangeFrom, previousRangeTo),
@@ -344,17 +344,17 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   let totalFollowers = 0;
 
   // Count unique published posts (External Post IDs only)
-  // Priority: Use Getlate API overview when available (most accurate), otherwise use database
+  // Priority: Use Publishing integration API overview when available (most accurate), otherwise use database
   // dateFilteredAnalytics is already filtered to only published posts
   let totalPosts = 0;
 
-  // If Getlate API overview is available and we have Getlate posts, prioritize Getlate data
+  // If Publishing integration API overview is available and we have Publishing integration posts, prioritize Publishing integration data
   // This ensures consistency between overview count and actual posts displayed
   if (getlateOverview && getlatePosts && getlatePosts.length > 0) {
-    // Use Getlate API overview as primary source when Getlate posts are available
+    // Use Publishing integration API overview as primary source when Publishing integration posts are available
     // Filter overview by platform if selected
     if (selectedPlatform && selectedPlatform !== 'all') {
-      // When platform is selected, count published posts from Getlate API that match the platform
+      // When platform is selected, count published posts from Publishing integration API that match the platform
       const filteredGetlatePosts = getlatePosts.filter((post) => {
         const isPublished = post.status === 'published' || post.isExternal === true;
         if (!isPublished) {
@@ -377,11 +377,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       });
       totalPosts = new Set(filteredGetlatePosts.map(p => p._id)).size;
     } else {
-      // Use Getlate overview publishedPosts count (already filtered by date range)
+      // Use Publishing integration overview publishedPosts count (already filtered by date range)
       totalPosts = getlateOverview.publishedPosts || 0;
     }
   } else {
-    // Fallback to database count when Getlate API data is not available
+    // Fallback to database count when Publishing integration API data is not available
     const uniquePostIds = new Set<string>();
     if (dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
       for (const post of dateFilteredPosts) {
@@ -399,23 +399,23 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
     totalPosts = uniquePostIds.size;
 
-    // Use Getlate API overview as fallback if database count is 0
+    // Use Publishing integration API overview as fallback if database count is 0
     if (totalPosts === 0 && getlateOverview && getlateOverview.publishedPosts > 0) {
       totalPosts = getlateOverview.publishedPosts || 0;
     }
   }
 
   // Calculate totals from analytics
-  // Priority: Use Getlate API analytics when Getlate posts are available (most accurate)
+  // Priority: Use Publishing integration API analytics when Publishing integration posts are available (most accurate)
   // Otherwise use database analytics
   // Engagement = likes + comments + shares (all engagement types)
 
-  // Check if we should use Getlate API analytics
+  // Check if we should use Publishing integration API analytics
   const useGetlateAnalytics = getlatePosts && getlatePosts.length > 0;
 
   if (useGetlateAnalytics) {
-    // Calculate metrics from Getlate API posts analytics
-    // Getlate posts include analytics directly in the post object
+    // Calculate metrics from Publishing integration API posts analytics
+    // Publishing integration posts include analytics directly in the post object
     for (const post of getlatePosts) {
       // Only include published posts (matches totalPosts calculation)
       const isPublished = post.status === 'published' || post.isExternal === true;
@@ -450,7 +450,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         }
       }
 
-      // Extract analytics from Getlate post structure
+      // Extract analytics from Publishing integration post structure
       // Priority: platformAnalytics (per-platform) > platforms array > root analytics
       let analytics: any = post.analytics || {};
 
@@ -512,7 +512,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         analytics = aggregatedAnalytics;
       }
 
-      // Aggregate metrics from Getlate analytics
+      // Aggregate metrics from Publishing integration analytics
       totalImpressions += effectiveExposureFromGetlateAnalytics(analytics);
       _totalReach += Number(analytics.reach ?? 0);
       _totalClicks += Number(analytics.clicks ?? 0);
@@ -523,7 +523,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       totalEngagement += likes + comments + shares;
     }
   } else {
-    // Fallback to database analytics when Getlate API data is not available
+    // Fallback to database analytics when Publishing integration API data is not available
     for (const analytics of dateFilteredAnalytics) {
       totalImpressions += Number(analytics.impressions ?? 0);
       // Extract reach, clicks, views from metadata (stored by sync function)
@@ -546,7 +546,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     for (const acc of _accountsData) {
       const platform = (acc as any)?.platform ?? 'unknown';
       const platformData = (acc as any)?.platform_specific_data as any;
-      // Try follower_count first (from Getlate), then followers
+      // Try follower_count first (from Publishing integration), then followers
       const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
       if (followers > 0) {
         const normalized = normalizePlatform(platform);
@@ -596,7 +596,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Create a map of post_id -> platforms from analytics (most reliable source)
   const postPlatformMap = new Map<string, Set<string>>();
 
-  // Build platform map from Getlate API analytics when available
+  // Build platform map from Publishing integration API analytics when available
   if (useGetlateAnalytics && getlatePosts) {
     for (const post of getlatePosts) {
       // Only include published posts
@@ -628,7 +628,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           }
           postPlatformMap.get(postId)!.add(plat);
 
-          // Aggregate metrics by platform from Getlate analytics
+          // Aggregate metrics by platform from Publishing integration analytics
           const existingEntry = platformMap.get(plat);
           const entry = existingEntry ?? { followers: 0, impressions: 0, posts: 0, engagement: 0 };
           entry.followers = existingEntry?.followers ?? 0; // Preserve followers from accounts
@@ -695,7 +695,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   }
 
-  // Fallback to database analytics when Getlate API data is not available
+  // Fallback to database analytics when Publishing integration API data is not available
   if (!useGetlateAnalytics && dateFilteredAnalytics && Array.isArray(dateFilteredAnalytics)) {
     for (const analytics of dateFilteredAnalytics) {
       // Use analytics.platform as primary source (most reliable)
@@ -751,7 +751,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // Use a Set to track which posts we've already counted per platform to avoid double-counting
   const postsCountedPerPlatform = new Map<string, Set<string>>();
 
-  // Count posts from Getlate API when available
+  // Count posts from Publishing integration API when available
   if (useGetlateAnalytics && getlatePosts) {
     for (const post of getlatePosts) {
       // Only include published posts
@@ -765,7 +765,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         continue;
       }
 
-      // Determine platforms from Getlate post structure
+      // Determine platforms from Publishing integration post structure
       let platforms: string[] = [];
 
       // Priority: platformAnalytics > platforms array > root platform
@@ -810,13 +810,13 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   }
 
-  // Fallback to database posts when Getlate API data is not available
+  // Fallback to database posts when Publishing integration API data is not available
   if (!useGetlateAnalytics && dateFilteredPosts && Array.isArray(dateFilteredPosts)) {
     for (const post of dateFilteredPosts) {
       // Priority order for platform detection:
       // 1. Analytics platform (most reliable)
       // 2. Scheduled posts -> social accounts -> platform
-      // 3. Post platforms array (from Getlate)
+      // 3. Post platforms array (from Publishing integration)
       // 4. Post metadata.platform
       let platforms: string[] = [];
 
@@ -830,7 +830,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         if (platformsFromScheduled && platformsFromScheduled.size > 0) {
           platforms = Array.from(platformsFromScheduled);
         } else {
-          // Try post platforms array (from Getlate)
+          // Try post platforms array (from Publishing integration)
           const postPlatforms = (post as any)?.platforms;
           if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {
             platforms = postPlatforms.map((p: any) => {
@@ -972,7 +972,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return map;
   };
 
-  // Helper function to build series map from Getlate API posts
+  // Helper function to build series map from Publishing integration API posts
   const buildSeriesMapFromGetlate = (posts: typeof getlatePosts, platformFilter?: string | null): Record<string, { followers: number; impressions: number; count: number; engagement: number; engagementRate: number }> => {
     const map: Record<string, { followers: number; impressions: number; count: number; engagement: number; engagementRate: number }> = {};
 
@@ -1020,7 +1020,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         map[key] = { followers: 0, impressions: 0, count: 0, engagement: 0, engagementRate: 0 };
       }
 
-      // Extract analytics from Getlate post structure
+      // Extract analytics from Publishing integration post structure
       let analytics: any = {};
       if (normalizedPlatformFilter && post.platformAnalytics && Array.isArray(post.platformAnalytics)) {
         const platformAnalytics = post.platformAnalytics.find((pa: any) =>
@@ -1095,7 +1095,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     return map;
   };
 
-  // Build series map from Getlate API posts when available, otherwise use database analytics
+  // Build series map from Publishing integration API posts when available, otherwise use database analytics
   const seriesMap = useGetlateAnalytics && getlatePosts
     ? buildSeriesMapFromGetlate(getlatePosts)
     : buildSeriesMap(dateFilteredAnalytics);
@@ -1135,7 +1135,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         continue;
       }
 
-      // Check post platforms array (from Getlate) - optimized with early return
+      // Check post platforms array (from Publishing integration) - optimized with early return
       const postPlatforms = (post as any)?.platforms;
       if (Array.isArray(postPlatforms) && postPlatforms.length > 0) {
         let found = false;
@@ -1258,7 +1258,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         const accPlatform = normalizePlatform((acc as any)?.platform ?? 'unknown');
         if (accPlatform === normalizedPlatform) {
           const platformData = (acc as any)?.platform_specific_data as any;
-          // Try follower_count first (from Getlate), then followers
+          // Try follower_count first (from Publishing integration), then followers
           const followers = Number(platformData?.follower_count ?? platformData?.followers ?? 0);
           // Take max if multiple accounts on same platform
           filteredFollowers = Math.max(filteredFollowers, followers);
@@ -1284,7 +1284,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   }
 
   // If platform is selected, use filtered metrics, otherwise use totals.
-  // When using Getlate, DB analytics rows are often missing/stale — use platformMap (same source as charts).
+  // When using Publishing integration, DB analytics rows are often missing/stale — use platformMap (same source as charts).
   const displayImpressions = normalizedSelectedPlatform
     ? (useGetlateAnalytics
         ? (platformMap.get(normalizedSelectedPlatform)?.impressions ?? filteredImpressions)
@@ -1390,7 +1390,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   };
 
-  // Build filtered series map using Getlate API posts when available, otherwise use database analytics
+  // Build filtered series map using Publishing integration API posts when available, otherwise use database analytics
   const filteredSeriesMap = useGetlateAnalytics && getlatePosts
     ? buildSeriesMapFromGetlate(getlatePosts, selectedPlatform)
     : buildSeriesMap(finalFilteredAnalytics);
@@ -1422,13 +1422,13 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     };
   });
 
-  // Generate follower trend series from Getlate API follower stats
-  // Use real historical data from Getlate if available, otherwise fallback to current snapshot
+  // Generate follower trend series from Publishing integration API follower stats
+  // Use real historical data from Publishing integration if available, otherwise fallback to current snapshot
   let followerTrendSeries: Array<{ date: string; followers: number }> = [];
 
   if (followerStatsData && followerStatsData.followerTrend && followerStatsData.followerTrend.length > 0) {
-    // Use real follower stats from Getlate API
-    // Map Getlate data to the same bucket keys as `dateSeries` (daily API dates align to week/month buckets correctly)
+    // Use real follower stats from Publishing integration API
+    // Map Publishing integration data to the same bucket keys as `dateSeries` (daily API dates align to week/month buckets correctly)
     const followerStatsMap = new Map<string, number>();
     for (const stat of followerStatsData.followerTrend) {
       const key = mapFollowerStatDateToSeriesKey(stat.date);
@@ -1537,8 +1537,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   // If no platform posts but we have a totalPosts from earlier calculation, keep it
   // This handles edge cases where platformPostsCount might be empty but posts exist
 
-  // Calculate growth/change percentages using follower stats from Getlate API
-  // Use real growth data from Getlate if available
+  // Calculate growth/change percentages using follower stats from Publishing integration API
+  // Use real growth data from Publishing integration if available
   const followerStatsAccounts = followerStatsData && 'accounts' in followerStatsData ? followerStatsData.accounts : undefined;
   if (followerStatsAccounts && Array.isArray(followerStatsAccounts) && followerStatsAccounts.length > 0) {
     // Map account growth data by platform
@@ -2025,23 +2025,23 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     platformPostUrl?: string | null;
   }> | undefined;
 
-  // Generate filtered posts table data from Getlate API posts (exact structure)
-  // If Getlate API posts are available, use them directly; otherwise fallback to database posts
-  // Note: getlatePosts already includes all pages and is filtered by date range and platform from API
+  // Generate filtered posts table data from Publishing integration API posts (exact structure)
+  // If Publishing integration API posts are available, use them directly; otherwise fallback to database posts
+  // Note: API-sourced posts already include all pages and are filtered by date range and platform
   // We only need to filter for published posts to match the overview count
   if (getlatePosts && getlatePosts.length > 0) {
-    // Filter for published posts only (matches getlateOverview.publishedPosts count)
+    // Filter for published posts only (matches overview publishedPosts count)
     // The API already filters by date range and platform, so we only need to check status
     const filteredGetlatePosts = getlatePosts.filter((post) => {
       // Only include published posts (External Post IDs)
-      // Check status and isExternal flag - this matches what Getlate API counts as "publishedPosts"
+      // Check status and isExternal flag - this matches what Publishing integration API counts as "publishedPosts"
       const isPublished = post.status === 'published' || post.isExternal === true;
       return isPublished;
     });
 
     // Collect posts for scoring
     const postsForScoring = filteredGetlatePosts.map((post: any) => {
-      // Extract analytics from Getlate API structure
+      // Extract analytics from Publishing integration API structure
       // Priority: platformAnalytics (detailed) > platforms array > top-level analytics
       let analytics = post.analytics;
       if (post.platformAnalytics && post.platformAnalytics.length > 0) {
@@ -2069,7 +2069,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         ? engagementRateFromAPI
         : (impressions > 0 ? (engagement / impressions) * 100 : 0);
 
-      // Extract media URLs from Getlate API structure and normalize for consistent rendering
+      // Extract media URLs from Publishing integration API structure and normalize for consistent rendering
       const rawMediaUrlsForScoring: string[] = [];
       if (post.thumbnailUrl) {
         rawMediaUrlsForScoring.push(String(post.thumbnailUrl).trim());
@@ -2118,7 +2118,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     // Calculate smart scores (returns Map<string, number>)
     const smartScores = calculateScoresForPosts(postsForScoring);
 
-    // Generate table data from Getlate API posts - expand to one row per platform
+    // Generate table data from Publishing integration API posts - expand to one row per platform
     const expandedPosts: typeof postsTableData = [];
 
     for (const post of filteredGetlatePosts) {
@@ -2294,7 +2294,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       totalPosts = sumOfPlatformPosts > 0 ? sumOfPlatformPosts : filteredExpandedPosts.length;
     }
   } else if ((finalFilteredPosts && finalFilteredPosts.length > 0) || (finalFilteredAnalytics && finalFilteredAnalytics.length > 0)) {
-    // Fallback: Use database posts if Getlate API posts are not available
+    // Fallback: Use database posts if Publishing integration API posts are not available
     // Create a map of post_id -> latest analytics for quick lookup
     type AnalyticsEntry = { post_id: string; likes: number | null; comments: number | null; shares: number | null; impressions: number | null; date: string; metadata: any; platform?: string | null };
     const latestAnalyticsByPost = new Map<string, AnalyticsEntry>();
@@ -2552,7 +2552,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         }
       }
 
-      // Priority 3: Post platforms array (from Getlate)
+      // Priority 3: Post platforms array (from Publishing integration)
       if (platformsSet.size === 0) {
         const postPlatforms = (postData as any)?.platforms;
         if (postPlatforms && Array.isArray(postPlatforms) && postPlatforms.length > 0) {

@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user ID and Getlate API key from users table
+    // Get user ID and Publishing integration API key from users table
     const { data: userRecord } = await supabase
       .from('users')
       .select('id, getlate_api_key')
@@ -70,8 +70,8 @@ export async function POST(request: NextRequest) {
     const dateToDate = new Date(dateTo);
     dateToDate.setHours(23, 59, 59, 999); // Include full end date
 
-    // Try to get data from Getlate API first (more comprehensive)
-    // Fall back to local database if Getlate is not available
+    // Try to get data from Publishing integration API first (more comprehensive)
+    // Fall back to local database if Publishing integration is not available
     let posts: any[] = [];
     let analytics: any[] = [];
     let followerStats: any = null;
@@ -91,14 +91,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (useGetlate) {
-      // Fetch posts from Getlate API (real data)
+      // Fetch posts from Publishing integration API (real data)
       const getlatePosts = await getGetlatePosts(supabase, userId, brandId ?? null, {
         fromDate: dateFrom,
         toDate: dateTo,
         platform: 'all' as any,
       });
 
-      // Convert Getlate posts format to our format
+      // Convert Publishing integration posts format to our format
       posts = getlatePosts.map(post => ({
         id: post._id || '',
         content: post.content || '',
@@ -108,8 +108,8 @@ export async function POST(request: NextRequest) {
         metadata: post,
       }));
 
-      // Extract analytics from Getlate posts (they include analytics in the response)
-      // Getlate API returns analytics directly in the post object
+      // Extract analytics from Publishing integration posts (they include analytics in the response)
+      // Publishing integration API returns analytics directly in the post object
       analytics = getlatePosts
         .filter(post => post.analytics)
         .map((post) => {

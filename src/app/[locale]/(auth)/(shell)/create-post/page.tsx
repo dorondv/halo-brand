@@ -148,8 +148,8 @@ const PLATFORM_ICON_CONFIG = {
   youtube: { icon: YouTubeIcon, color: 'text-white', bg: 'bg-pink-500', name: 'YouTube' },
 } as const;
 
-// Default formats based on Getlate API documentation: https://docs.getlate.dev
-// These will be overridden by Getlate API data when available
+// Default formats aligned with the publishing integration API (vendor docs).
+// Overridden when live API data is available.
 const DEFAULT_PLATFORM_FORMATS: Record<Platform, Format[]> = {
   instagram: ['feed', 'story', 'reel', 'carousel'], // Feed posts, Stories, Reels, Carousels (up to 10 items)
   x: ['post', 'thread'], // Text, images, videos, threads (multi-post)
@@ -190,7 +190,7 @@ const FORMAT_MIN_MEDIA_COUNT: Record<Format, number> = {
   link: 0,
 };
 
-// Maximum media counts per format (based on Getlate API limits)
+// Maximum media counts per format (based on Publishing integration API limits)
 const FORMAT_MAX_MEDIA_COUNT: Record<Format, number> = {
   feed: 1, // Single image/video
   story: 1, // Single image/video
@@ -1575,7 +1575,7 @@ export default function CreatePostPage() {
     setPlatformValidationErrors({} as Record<Platform, string[]>);
   }, [selectedBrandId]);
 
-  // Load post types from Getlate API
+  // Load post types from Publishing integration API
   const loadPostTypes = useCallback(async () => {
     if (!selectedBrandId) {
       return;
@@ -1590,7 +1590,7 @@ export default function CreatePostPage() {
 
       const data = await response.json();
 
-      // Map Getlate format names to our Format type
+      // Map Publishing integration format names to our Format type
       const mappedFormats: Record<Platform, Format[]> = { ...DEFAULT_PLATFORM_FORMATS };
 
       // Use formats from API if available, otherwise use defaults
@@ -1598,17 +1598,17 @@ export default function CreatePostPage() {
         Object.entries(data.formats).forEach(([platform, formats]) => {
           const normalizedPlatform = platform === 'twitter' ? 'x' : platform as Platform;
           if (normalizedPlatform in mappedFormats) {
-            // Map Getlate format names to our format names
+            // Map Publishing integration format names to our format names
             const mapped = (formats as string[]).map((f: string) => {
-              // Map common variations based on Getlate API documentation
+              // Map common variations based on Publishing integration API documentation
               if (f === 'article') {
                 return 'post';
               }
-              // Facebook doesn't support reels according to Getlate API docs - filter them out
+              // Facebook doesn't support reels according to Publishing integration API docs - filter them out
               if (f === 'reel' && normalizedPlatform === 'facebook') {
                 return null;
               }
-              // Threads doesn't support reels according to Getlate API docs - filter them out
+              // Threads doesn't support reels according to Publishing integration API docs - filter them out
               if (f === 'reel' && normalizedPlatform === 'threads') {
                 return null;
               }
@@ -1636,15 +1636,15 @@ export default function CreatePostPage() {
           const normalizedPlatform = platformData.platform === 'twitter' ? 'x' : platformData.platform as Platform;
           if (normalizedPlatform && platformData.formats && Array.isArray(platformData.formats)) {
             const mapped = platformData.formats.map((f: string) => {
-              // Map common variations based on Getlate API documentation
+              // Map common variations based on Publishing integration API documentation
               if (f === 'article') {
                 return 'post';
               }
-              // Facebook doesn't support reels according to Getlate API docs - filter them out
+              // Facebook doesn't support reels according to Publishing integration API docs - filter them out
               if (f === 'reel' && normalizedPlatform === 'facebook') {
                 return null;
               }
-              // Threads doesn't support reels according to Getlate API docs - filter them out
+              // Threads doesn't support reels according to Publishing integration API docs - filter them out
               if (f === 'reel' && normalizedPlatform === 'threads') {
                 return null;
               }
@@ -2335,7 +2335,7 @@ export default function CreatePostPage() {
 
         const useGetlate = !!brandData?.getlate_profile_id;
 
-        // Build platforms array according to Getlate API structure
+        // Build platforms array according to Publishing integration API structure
         // Each platform can have platform-specific content in platformSpecificData
         // IMPORTANT: Include ALL accounts for each platform, not just the first one
         // This ensures we don't create duplicate posts when multiple accounts exist for the same platform
@@ -2358,7 +2358,7 @@ export default function CreatePostPage() {
           const platformVariants = variants.filter(v => v.platform === platform);
           const format = platformVariants[0]?.format || (platformFormats[platform]?.[0] || 'post');
 
-          // Build platform-specific data according to Getlate API
+          // Build platform-specific data according to Publishing integration API
           const platformSpecificData: Record<string, unknown> = {
             format, // Content type/format for this platform
           };
@@ -2408,16 +2408,16 @@ export default function CreatePostPage() {
           }
 
           // Create ONE entry per account for this platform
-          // According to Getlate API, each platform entry should have a unique accountId
+          // According to Publishing integration API, each platform entry should have a unique accountId
           // If multiple accounts exist for the same platform, they should be separate entries
-          // BUT: Getlate API might not support multiple accounts of the same platform in one post
+          // BUT: Publishing integration API might not support multiple accounts of the same platform in one post
           // So we'll use only the first account to avoid duplicates
           // If user wants to post to multiple accounts of the same platform, they should create separate posts
           const account = platformAccounts[0]; // Use first account to avoid duplicate posts
 
           if (account?.id) {
             platformsArray.push({
-              platform: platform === 'x' ? 'twitter' : platform, // Getlate uses 'twitter' not 'x'
+              platform: platform === 'x' ? 'twitter' : platform, // Publishing integration uses 'twitter' not 'x'
               account_id: account.id,
               config: platformSpecificData,
             });
@@ -2429,7 +2429,7 @@ export default function CreatePostPage() {
         }
 
         // Get shared content and media (use first platform's content as base, or combine)
-        // According to Getlate API, we can use shared content at root level
+        // According to Publishing integration API, we can use shared content at root level
         const firstPlatform = selectedPlatforms[0];
         if (!firstPlatform) {
           return null;
@@ -2452,7 +2452,7 @@ export default function CreatePostPage() {
         const sharedMediaUrls = mediaUrls.length > 0 ? mediaUrls : (firstPlatformContent.mediaUrls || []);
         const sharedMediaFiles = mediaFiles.filter(f => sharedMediaUrls.includes(f.url));
 
-        // Create ONE post with all platforms (Getlate API structure)
+        // Create ONE post with all platforms (Publishing integration API structure)
         const response = await fetch('/api/posts', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -2460,7 +2460,7 @@ export default function CreatePostPage() {
             content: sharedContent,
             ai_caption: aiCaption,
             image_url: sharedMediaUrls[0] || null,
-            // Use hashtags from first platform as shared hashtags (Getlate API supports both root and platform-specific)
+            // Use hashtags from first platform as shared hashtags (Publishing integration API supports both root and platform-specific)
             hashtags: firstPlatformContent.hashtags || [],
             media_type: sharedMediaUrls.length > 0
               ? (sharedMediaFiles.some(f => f.type === 'video') ? 'video' : 'image')

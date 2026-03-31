@@ -1,6 +1,6 @@
 import { addDays, differenceInCalendarDays, endOfDay, startOfDay, subDays } from 'date-fns';
 
-/** Getlate analytics: date range must not exceed one year. */
+/** Publishing integration analytics: date range must not exceed one year. */
 export const DASHBOARD_MAX_RANGE_INCLUSIVE_DAYS = 365;
 
 /** Earliest selectable start: this many calendar days before today. */
@@ -13,7 +13,7 @@ export function getDashboardDateBounds(now: Date = new Date()) {
 }
 
 /**
- * Clamp [from, to] to [earliestStart, today] and to at most 365 inclusive calendar days (Getlate limit).
+ * Clamp [from, to] to [earliestStart, today] and to at most 365 inclusive calendar days (Publishing integration limit).
  * If the span is too long, keeps the most recent 365 days ending at `to` (then re-clamps to bounds).
  */
 export function clampDashboardDateRange(from: Date, to: Date, now: Date = new Date()): { from: Date; to: Date } {

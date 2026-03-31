@@ -93,8 +93,8 @@ async function deduplicateBrandAccounts(
 }
 
 /**
- * GET /api/getlate/accounts
- * Get all connected accounts from Getlate and sync with database
+ * GET /api/publishing/accounts
+ * Get all connected accounts from Publishing integration and sync with database
  */
 export async function GET(request: NextRequest) {
   try {
@@ -145,7 +145,7 @@ export async function GET(request: NextRequest) {
 
     await deduplicateBrandAccounts(supabase, user.id, brandId);
 
-    // Fetch accounts from Getlate
+    // Fetch accounts from Publishing integration
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     const getlateAccountsResponse = await getlateClient.getAccounts(brandRecord.getlate_profile_id);
 
@@ -162,7 +162,7 @@ export async function GET(request: NextRequest) {
     // Sync accounts with database
     const syncedAccounts = [];
     for (const getlateAccount of getlateAccounts) {
-      // Handle Getlate API response format:
+      // Handle Publishing integration API response format:
       // _id, username, profilePicture, isActive, displayName, tokenExpiresAt, permissions
       // getAccounts() already maps these fields, so we can use the mapped values
       const accountId = getlateAccount._id || getlateAccount.id;
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Use mapped values from getAccounts()
-      // Getlate API uses 'username', getAccounts() maps it to 'accountName'
+      // Publishing integration API uses 'username', getAccounts() maps it to 'accountName'
       const accountName = getlateAccount.accountName || getlateAccount.username || '';
       if (!accountName) {
         continue;
@@ -186,10 +186,10 @@ export async function GET(request: NextRequest) {
       const accountIdValue = getlateAccount.accountId || accountId;
       const displayName = getlateAccount.displayName || accountName; // Fallback to accountName if displayName not provided
       const avatarUrl = getlateAccount.avatarUrl || getlateAccount.profilePicture;
-      // Extract followersCount (correct API field name) from GetlateAccount
+      // Extract followersCount (correct API field name) from the account payload
       const followerCount = getlateAccount.followersCount ?? 0;
       const lastSync = getlateAccount.lastSync || new Date().toISOString();
-      // Getlate API uses 'isActive', getAccounts() maps it to 'isConnected'
+      // Publishing integration API uses 'isActive', getAccounts() maps it to 'isConnected'
       const isConnected = getlateAccount.isConnected !== undefined
         ? getlateAccount.isConnected
         : (getlateAccount.isActive !== undefined ? getlateAccount.isActive : true);
@@ -205,7 +205,7 @@ export async function GET(request: NextRequest) {
       const normalizedPlatform = platform === 'x' || platform === 'twitter' ? 'twitter' : platform.toLowerCase();
 
       // Check if account already exists
-      // First try to find by getlate_account_id and brand_id
+      // First try to find by provider account id and brand_id
       const { data: existingAccountsForBrand } = await supabase
         .from('social_accounts')
         .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
 
       let existingAccount: ExistingAccountRow | null = (existingAccountsForBrand?.[0] as ExistingAccountRow | undefined) ?? null;
 
-      // If not found, try to find by getlate_account_id only (in case brand_id changed)
+      // If not found, try by provider account id only (in case brand_id changed)
       if (!existingAccount) {
         const { data: accountsByGetlateId } = await supabase
           .from('social_accounts')
@@ -242,9 +242,9 @@ export async function GET(request: NextRequest) {
         // OAuth reconnection (oauthReconnect=true) means user explicitly reconnected via OAuth button
         // Regular syncs should not reactivate manually disconnected accounts
         //
-        // Routine sync: do NOT set is_active=false only because Getlate sent isConnected=false — that
+        // Routine sync: do NOT set is_active=false only because Publishing integration sent isConnected=false — that
         // often flickers during API issues. Only deactivate when the token is actually past expiry,
-        // or when the user reconnected via OAuth (oauthReconnect) and Getlate says disconnected.
+        // or when the user reconnected via OAuth (oauthReconnect) and Publishing integration says disconnected.
         let shouldBeActive: boolean;
         if (manuallyDisconnected && !oauthReconnect) {
           shouldBeActive = false;
@@ -322,7 +322,7 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Count UNIQUE accounts for this brand (dedupe by getlate_account_id to avoid overcounting duplicates)
+        // Count UNIQUE accounts for this brand (dedupe by provider account id to avoid overcounting duplicates)
         const { data: existingAccounts } = await supabase
           .from('social_accounts')
           .select('id, getlate_account_id, account_name')

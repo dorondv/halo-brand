@@ -103,11 +103,11 @@ export async function getAccounts(
 }
 
 /**
- * Background sync analytics from Getlate (non-blocking)
+ * Background sync analytics from Publishing integration (non-blocking)
  * This should be called separately, not blocking the main page load
  * Note: Supabase client must be created outside the cache scope
  *
- * Rate Limit: 30 requests per hour per user (Getlate Analytics API)
+ * Rate Limit: 30 requests per hour per user (Publishing integration Analytics API)
  * Strategy: Fetch comprehensive data with pagination, but respect rate limits
  */
 export async function syncAnalyticsInBackground(
@@ -137,7 +137,7 @@ export async function syncAnalyticsInBackground(
           toDate: toDate.toISOString().split('T')[0],
         });
       } else {
-        // Sync for all brands with Getlate profiles
+        // Sync for all brands with Publishing integration profiles
         // IMPORTANT: Rate limit is 30 req/hour, so we sync sequentially with delays
         // to avoid hitting the limit when syncing multiple brands
         const { data: brands } = await supabase

@@ -44,7 +44,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
 
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -93,14 +93,14 @@ export async function GET(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
 
-    // Try to get pages from availablePages in account data first (like getlate-test page)
+    // Try to get pages from availablePages in account data first (like publishing-test page)
     let pages: Awaited<ReturnType<typeof getlateClient.getFacebookSelectPage>> = [];
 
     try {
       // Fetch raw accounts to get availablePages with pages list
       const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
 
-      // Find the Facebook account matching this getlate_account_id
+      // Find the Facebook account matching this provider account id
       // Try multiple matching strategies since accountId format might vary
       const rawFacebookAccount = rawAccounts.find(
         (acc: any) => {
@@ -129,7 +129,7 @@ export async function GET(request: NextRequest) {
 
         if (availablePages && Array.isArray(availablePages) && availablePages.length > 0) {
           // availablePages already contains the pages list - use it directly
-          // Map availablePages to GetlateFacebookPage format
+          // Map availablePages to the client Facebook page shape
           pages = availablePages.map((page: any) => ({
             id: page._id || page.id || page.pageId || page.facebookPageId,
             name: page.name || page.pageName || page.title || 'Page',
@@ -230,7 +230,7 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthenticated' }, { status: 401 });
     }
 
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -348,7 +348,7 @@ export async function PUT(request: NextRequest) {
       console.error('[Getlate Facebook Pages] Failed to update account metadata:', updateError);
     }
 
-    // Sync accounts from Getlate API to get updated followers count for the new page
+    // Sync accounts from Publishing integration API to get updated followers count for the new page
     if (socialAccount.brand_id) {
       // Trigger sync in background (don't await to avoid blocking response)
       fetch(`${request.nextUrl.origin}/api/getlate/accounts?brandId=${socialAccount.brand_id}`, {

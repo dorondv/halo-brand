@@ -46,7 +46,7 @@ export async function POST(request: Request) {
       account_id: z.string().uuid(),
       config: z.any().optional(),
     })).optional(),
-    use_getlate: z.boolean().optional().default(false), // Whether to use Getlate API
+    use_getlate: z.boolean().optional().default(false), // Whether to use Publishing integration API
   });
 
   const parse = PostSchema.safeParse(body);
@@ -65,13 +65,13 @@ export async function POST(request: Request) {
     );
   }
 
-  // If using Getlate, create post via Getlate API
+  // If using Publishing integration, create post via Publishing integration API
   let getlatePostId: string | null = null;
   let getlatePlatforms: any[] | null = null;
 
   if (payload.use_getlate && payload.brand_id) {
     try {
-      // Get user's Getlate API key
+      // Get user's Publishing integration API key
       const { data: userRecord } = await supabase
         .from('users')
         .select('getlate_api_key')
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
         .single();
 
       if (userRecord?.getlate_api_key) {
-        // Get brand's Getlate profile ID
+        // Get brand's Publishing integration profile ID
         const { data: brandRecord } = await supabase
           .from('brands')
           .select('getlate_profile_id')
@@ -90,11 +90,11 @@ export async function POST(request: Request) {
         if (brandRecord?.getlate_profile_id) {
           const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-          // Map platforms to Getlate format
+          // Map platforms to Publishing integration format
           // The account_id in payload.platforms might be either:
-          // 1. Local database ID (if not using Getlate)
-          // 2. Getlate account ID (if already mapped by frontend)
-          // We need to fetch social accounts to get getlate_account_id for local IDs
+          // 1. Local database ID (if not using Publishing integration)
+          // 2. Publishing integration account ID (if already mapped by frontend)
+          // We need to fetch social accounts to resolve provider account ids for local row IDs
           const accountIds = (payload.platforms || []).map(p => p.account_id);
           const { data: socialAccounts } = await supabase
             .from('social_accounts')
@@ -102,14 +102,14 @@ export async function POST(request: Request) {
             .in('id', accountIds)
             .eq('brand_id', payload.brand_id);
 
-          // Also check if any account_ids are already getlate_account_ids
+          // Also check if any account_ids are already provider-side account ids
           const { data: accountsByGetlateId } = await supabase
             .from('social_accounts')
             .select('id, getlate_account_id, platform')
             .in('getlate_account_id', accountIds)
             .eq('brand_id', payload.brand_id);
 
-          // Create maps: local ID -> getlate_account_id and getlate_account_id -> getlate_account_id
+          // Maps: local row id -> provider account id, and provider id -> provider id (for direct matches)
           const localIdToGetlateMap = new Map(
             socialAccounts?.map(acc => [acc.id, acc.getlate_account_id]) || [],
           );
@@ -123,15 +123,15 @@ export async function POST(request: Request) {
             ? payload.metadata.media_urls
             : (payload.image_url ? [payload.image_url] : []);
 
-          // Upload media to Getlate first (required for proper media handling)
-          // This downloads from Supabase Storage URLs and uploads to Getlate's media endpoint
+          // Upload media to Publishing integration first (required for proper media handling)
+          // This downloads from Supabase Storage URLs and uploads to Publishing integration's media endpoint
           let mediaItems: Array<{ type: 'image' | 'video'; url: string }> | undefined;
           if (rawMediaUrls.length > 0) {
             try {
-              // Upload media to Getlate and get their URLs
+              // Upload media to Publishing integration and get their URLs
               const uploadedUrls = await getlateClient.uploadMediaFromUrls(rawMediaUrls);
 
-              // Convert to mediaItems format (required by Getlate API)
+              // Convert to mediaItems format (required by Publishing integration API)
               mediaItems = uploadedUrls.map((url: string) => {
                 // Determine type from URL
                 const urlLower = url.toLowerCase();
@@ -161,17 +161,17 @@ export async function POST(request: Request) {
             }
           }
 
-          // Map platforms to Getlate format with proper account IDs
+          // Map platforms to Publishing integration format with proper account IDs
           // IMPORTANT: Deduplicate platforms to prevent multiple posts for the same platform
-          // Getlate API should only have one entry per platform per post
+          // Publishing integration API should only have one entry per platform per post
           const seenPlatforms = new Set<string>();
           const getlatePlatformsArray = (payload.platforms || [])
             .map((p) => {
-              // Check if account_id is already a getlate_account_id or needs to be looked up
+              // Check if account_id is already a provider account id or needs lookup
               const getlateAccountId = getlateIdMap.get(p.account_id)
                 || localIdToGetlateMap.get(p.account_id);
 
-              // If we couldn't find a getlate_account_id, this account might not be connected via Getlate
+              // If we could not resolve a provider account id, the account may not be connected
               if (!getlateAccountId) {
                 return null;
               }
@@ -208,7 +208,7 @@ export async function POST(request: Request) {
               // Handle platform-specific content
               // If platform has specific content in config, it's already in platformSpecificData.content
               // Otherwise, shared content (payload.content) will be used at root level
-              // Note: Don't set platformSpecificData.content to shared content - let Getlate use root level content
+              // Note: Don't set platformSpecificData.content to shared content - let Publishing integration use root level content
 
               // Ensure format is set if provided
               if (platformSpecificData.format) {
@@ -232,7 +232,7 @@ export async function POST(request: Request) {
 
               return {
                 platform,
-                accountId: getlateAccountId, // Getlate API expects accountId (camelCase)
+                accountId: getlateAccountId, // Publishing integration API expects accountId (camelCase)
                 platformSpecificData: Object.keys(platformSpecificData).length > 0 ? platformSpecificData : undefined,
               };
             })
@@ -242,7 +242,7 @@ export async function POST(request: Request) {
             platformSpecificData?: Record<string, unknown>;
           }>;
 
-          // If no valid Getlate accounts found, skip Getlate integration
+          // If no valid Publishing integration accounts found, skip Publishing integration integration
           if (getlatePlatformsArray.length === 0) {
             // Continue with local post creation
           } else {
@@ -273,11 +273,11 @@ export async function POST(request: Request) {
               }
             }
 
-            // Create post in Getlate
-            // According to Getlate API docs: content and mediaItems are shared at root level
+            // Create post in Publishing integration
+            // According to Publishing integration API docs: content and mediaItems are shared at root level
             // Platform-specific content goes in platformSpecificData.content for each platform
             // Title can be at root level (for YouTube, LinkedIn) or in platformSpecificData
-            // Use mediaItems format (required by Getlate API for proper media handling)
+            // Use mediaItems format (required by Publishing integration API for proper media handling)
             // Set publishNow to true if not scheduled (for immediate publishing)
 
             // Ensure LinkedIn and YouTube have title in platformSpecificData if title exists
@@ -336,7 +336,7 @@ export async function POST(request: Request) {
               profileId: brandRecord.getlate_profile_id,
               content: payload.content, // Shared content (platform-specific content is in platformSpecificData)
               title: sharedTitle, // Optional title (for YouTube, LinkedIn) - also in platformSpecificData
-              // Send mediaItems at root level (Getlate API format)
+              // Send mediaItems at root level (Publishing integration API format)
               // Platform-specific mediaItems are in platformSpecificData.mediaItems
               mediaItems,
               scheduledFor: payload.scheduled_for,
@@ -345,7 +345,7 @@ export async function POST(request: Request) {
               // Add hashtags if provided
               hashtags: payload.hashtags,
               // Publish immediately if not scheduled
-              // Note: Getlate API publishes asynchronously - the post is created immediately
+              // Note: Publishing integration API publishes asynchronously - the post is created immediately
               // but publishing to social platforms happens in the background
               publishNow: !payload.scheduled_for,
             });
@@ -353,10 +353,10 @@ export async function POST(request: Request) {
             getlatePostId = getlatePost.id || (getlatePost as any)._id;
             getlatePlatforms = getlatePost.platforms;
 
-            // Check post status - Getlate API returns immediately but publishing is async
+            // Check post status - Publishing integration API returns immediately but publishing is async
             // Status can be: 'draft', 'scheduled', 'published', or 'failed'
-            // If status is 'failed', it means Getlate's internal retry mechanism exhausted
-            // However, the post was still created in Getlate and may be retried later
+            // If status is 'failed', it means Publishing integration's internal retry mechanism exhausted
+            // However, the post was still created in Publishing integration and may be retried later
             if (getlatePost.status === 'failed') {
               console.warn('[Getlate Post Creation] Post created in Getlate but publishing failed:', {
                 getlatePostId,
@@ -364,8 +364,8 @@ export async function POST(request: Request) {
                 status: getlatePost.status,
                 note: 'Post exists in Getlate but may not be published yet. Check Getlate dashboard for details.',
               });
-              // Continue with local post creation - the post exists in Getlate
-              // User can retry publishing from Getlate dashboard if needed
+              // Continue with local post creation - the post exists in Publishing integration
+              // User can retry publishing from Publishing integration dashboard if needed
             } else if (!payload.scheduled_for && getlatePost.status !== 'published') {
               // For immediate publishing, if status is not 'published', it's still processing
               console.warn('[Getlate Post Creation] Post created, publishing in progress:', {
@@ -381,14 +381,14 @@ export async function POST(request: Request) {
       // Log the error for debugging
       const errorMessage = error?.message || String(error);
 
-      // Check if this is a publishing timeout/retry error from Getlate API
-      // These errors occur when Getlate's async publishing fails, but the post may still exist
+      // Check if this is a publishing timeout/retry error from Publishing integration API
+      // These errors occur when Publishing integration's async publishing fails, but the post may still exist
       const isPublishingError = errorMessage.includes('timeout')
         || errorMessage.includes('max retries')
         || errorMessage.includes('Publishing failed');
 
       if (isPublishingError) {
-        // This is a publishing error - the post may have been created in Getlate
+        // This is a publishing error - the post may have been created in Publishing integration
         // but publishing to social platforms failed
         console.warn('[Getlate Post Creation] Publishing error (post may still exist in Getlate):', {
           error: errorMessage,
@@ -396,7 +396,7 @@ export async function POST(request: Request) {
           platforms: payload.platforms?.map(p => p.platform),
           note: 'The post may have been created in Getlate but publishing failed. Check Getlate dashboard to verify post status and retry if needed.',
         });
-        // Continue with local post creation - user can check Getlate dashboard for post status
+        // Continue with local post creation - user can check Publishing integration dashboard for post status
       } else {
         // This is a different error (API failure, network issue, etc.)
         console.error('[Getlate Post Creation] Error creating post via Getlate API:', {
@@ -407,8 +407,8 @@ export async function POST(request: Request) {
         });
       }
 
-      // Continue with local post creation even if Getlate fails
-      // This allows the post to be saved locally even if Getlate API fails
+      // Continue with local post creation even if Publishing integration fails
+      // This allows the post to be saved locally even if Publishing integration API fails
     }
   }
 
@@ -460,10 +460,10 @@ export async function POST(request: Request) {
     }
   }
 
-  // If post was created with Getlate, sync analytics in the background
+  // If post was created with Publishing integration, sync analytics in the background
   if (getlatePostId && payload.brand_id) {
     // Sync analytics asynchronously (don't wait for it)
-    // Pass Getlate post ID directly for faster lookup
+    // Pass Publishing integration post ID directly for faster lookup
     // Note: For immediate publishing, analytics may not be available immediately
     // The sync will handle this gracefully and can be retried later
     syncAnalyticsFromGetlate(supabase, user.id, payload.brand_id, {

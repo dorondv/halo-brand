@@ -3,9 +3,9 @@ import type { GetlateAnalyticsPost, GetlatePlatform } from './Getlate';
 import { createGetlateClient } from './Getlate';
 
 /**
- * Get posts directly from Getlate API for dashboard display
+ * Get posts directly from Publishing integration API for dashboard display
  * Fetches all pages to match the overview count exactly
- * Returns posts in the exact format from Getlate API
+ * Returns posts in the exact format from Publishing integration API
  */
 export async function getGetlatePosts(
   supabase: SupabaseClient,
@@ -20,7 +20,7 @@ export async function getGetlatePosts(
   },
 ): Promise<GetlateAnalyticsPost[]> {
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -28,10 +28,10 @@ export async function getGetlatePosts(
       .single();
 
     if (!userRecord?.getlate_api_key) {
-      return []; // No Getlate API key
+      return []; // No Publishing integration API key
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     if (!brandId) {
       return []; // Need brand ID to get posts
     }
@@ -44,7 +44,7 @@ export async function getGetlatePosts(
       .single();
 
     if (!brandRecord?.getlate_profile_id) {
-      return []; // Brand not linked to Getlate profile
+      return []; // Brand not linked to Publishing integration profile
     }
 
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
@@ -53,7 +53,7 @@ export async function getGetlatePosts(
     // This ensures the table shows the same posts that are counted in totalPosts
     let allGetlatePosts: GetlateAnalyticsPost[] = [];
     let currentPage = 1;
-    const pageSize = options?.limit || 100; // Max 100 per page (Getlate API limit)
+    const pageSize = options?.limit || 100; // Max 100 per page (Publishing integration API limit)
     let hasMorePages = true;
 
     while (hasMorePages) {

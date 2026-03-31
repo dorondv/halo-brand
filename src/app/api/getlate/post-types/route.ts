@@ -3,11 +3,11 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * Get available post types/formats from Getlate API
+ * Get available post types/formats from Publishing integration API
  * Returns formats available for each platform based on connected accounts
  *
- * Based on Getlate API documentation: https://docs.getlate.dev
- * Supported platforms and content types are defined according to the official API docs
+ * Based on the publishing integration API (see vendor documentation).
+ * Supported platforms and content types follow the vendor API reference.
  */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -21,7 +21,7 @@ export async function GET(request: Request) {
     const { searchParams } = new URL(request.url);
     const brandId = searchParams.get('brandId');
 
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -34,7 +34,7 @@ export async function GET(request: Request) {
 
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     let profileId: string | undefined;
     if (brandId) {
       const { data: brandRecord } = await supabase
@@ -47,12 +47,12 @@ export async function GET(request: Request) {
       profileId = brandRecord?.getlate_profile_id || undefined;
     }
 
-    // Fetch accounts from Getlate
+    // Fetch accounts from Publishing integration
     const accounts = await getlateClient.getAccounts(profileId);
 
-    // Map platform to available formats based on Getlate API capabilities
-    // Based on https://docs.getlate.dev - Supported Platforms documentation
-    // Getlate uses contentType in platformSpecificData
+    // Map platform to available formats based on Publishing integration API capabilities
+    // Supported platforms per vendor API (supported-platforms / content-type docs)
+    // Publishing integration uses contentType in platformSpecificData
     const platformFormats: Record<string, string[]> = {
       'instagram': ['feed', 'story', 'reel', 'carousel'], // Feed posts, Stories, Reels, Carousels (up to 10 items)
       'x': ['post', 'thread'], // Text, images, videos, threads (multi-post)
