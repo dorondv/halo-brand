@@ -74,7 +74,7 @@ export function PlatformCard({
   return (
     <Card
       className={cn(
-        'bg-white dark:bg-gray-800 shadow-md rounded-lg transition-all cursor-pointer w-full h-full',
+        'bg-white dark:bg-gray-800 shadow-md rounded-lg cursor-pointer w-full h-full transition-[box-shadow,border-color] duration-300 ease-out',
         // Override base Card border styles when selected
         isSelected
           ? '!border-2 !border-pink-500 ring-2 ring-pink-100 dark:ring-pink-900/40 shadow-lg'

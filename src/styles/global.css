@@ -68,6 +68,7 @@ body {
 /* Default day styling */
 .rdrDay {
   background-color: transparent;
+  transition: background-color 0.2s ease-out;
 }
 
 .rdrDayNumber {
@@ -198,7 +199,9 @@ body {
   background: white;
   color: #374151;
   cursor: pointer;
-  transition: all 0.2s;
+  transition:
+    background-color 0.2s ease-out,
+    border-color 0.2s ease-out;
   display: flex;
   align-items: center;
   justify-content: center;

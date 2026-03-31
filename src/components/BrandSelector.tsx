@@ -3,7 +3,7 @@
 import { Building2, CheckCircle2, Plus } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -120,6 +120,8 @@ export function BrandSelector() {
     const pagesThatUseBrand = ['/dashboard', '/create-post', '/calendar', '/inbox'];
     const shouldSyncURL = pagesThatUseBrand.some(page => pathname.includes(page));
 
+    let rafId: number | undefined;
+
     if (brandParam && brandParam !== 'all') {
       // URL has brand param (and it's not "all") - sync to context
       if (selectedBrandId !== brandParam) {
@@ -137,9 +139,20 @@ export function BrandSelector() {
       params.set('brand', selectedBrandId);
       const queryString = params.toString();
       const url = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(url, { scroll: false });
+      // Defer until after App Router init — sync-on-mount replace() can throw
+      // "Router action dispatched before initialization" if run in the same tick as first paint.
+      rafId = requestAnimationFrame(() => {
+        startTransition(() => {
+          router.replace(url, { scroll: false });
+        });
+      });
     }
     // Note: If no brand param and selectedBrandId is null, that's "all brands" - don't add param to URL
+    return () => {
+      if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 

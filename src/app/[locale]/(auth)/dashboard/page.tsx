@@ -1,5 +1,5 @@
 import type { Metadata } from 'next';
-import { endOfDay, endOfMonth, format, startOfDay, startOfMonth, startOfYear, subDays } from 'date-fns';
+import { endOfDay, endOfMonth, format, parseISO, startOfDay, startOfMonth, startOfYear, subDays } from 'date-fns';
 import {
   Eye,
   FileText,
@@ -52,6 +52,24 @@ type DashboardProps = {
 
 // Force dynamic rendering - this page requires authentication
 export const dynamic = 'force-dynamic';
+
+/**
+ * Getlate often returns video exposure in `views` while `impressions` is 0 (e.g. TikTok).
+ * Charts and engagement rate use impressions as the denominator — without this, rate stays 0%.
+ */
+function effectiveExposureFromGetlateAnalytics(analytics: {
+  impressions?: number;
+  views?: number;
+  reach?: number;
+}): number {
+  const impressions = Number(analytics.impressions ?? 0);
+  if (impressions > 0) {
+    return impressions;
+  }
+  const views = Number(analytics.views ?? 0);
+  const reach = Number(analytics.reach ?? 0);
+  return Math.max(views, reach);
+}
 
 export default async function Dashboard({ searchParams }: DashboardProps) {
   const params = await searchParams;
@@ -458,7 +476,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
         for (const pa of post.platformAnalytics) {
           if (pa.status === 'published' && pa.analytics) {
-            aggregatedAnalytics.impressions += Number(pa.analytics.impressions || 0);
+            aggregatedAnalytics.impressions += effectiveExposureFromGetlateAnalytics(pa.analytics);
             aggregatedAnalytics.likes += Number(pa.analytics.likes || 0);
             aggregatedAnalytics.comments += Number(pa.analytics.comments || 0);
             aggregatedAnalytics.shares += Number(pa.analytics.shares || 0);
@@ -482,7 +500,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
         for (const p of post.platforms) {
           if (p.status === 'published' && p.analytics) {
-            aggregatedAnalytics.impressions += Number(p.analytics.impressions || 0);
+            aggregatedAnalytics.impressions += effectiveExposureFromGetlateAnalytics(p.analytics);
             aggregatedAnalytics.likes += Number(p.analytics.likes || 0);
             aggregatedAnalytics.comments += Number(p.analytics.comments || 0);
             aggregatedAnalytics.shares += Number(p.analytics.shares || 0);
@@ -495,7 +513,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       }
 
       // Aggregate metrics from Getlate analytics
-      totalImpressions += Number(analytics.impressions ?? 0);
+      totalImpressions += effectiveExposureFromGetlateAnalytics(analytics);
       _totalReach += Number(analytics.reach ?? 0);
       _totalClicks += Number(analytics.clicks ?? 0);
       _totalViews += Number(analytics.views ?? 0);
@@ -616,7 +634,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           entry.followers = existingEntry?.followers ?? 0; // Preserve followers from accounts
 
           const analytics = pa.analytics || {};
-          entry.impressions += Number(analytics.impressions ?? 0);
+          entry.impressions += effectiveExposureFromGetlateAnalytics(analytics);
           const likes = Number(analytics.likes ?? 0);
           const comments = Number(analytics.comments ?? 0);
           const shares = Number(analytics.shares ?? 0);
@@ -645,7 +663,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           entry.followers = existingEntry?.followers ?? 0;
 
           const analytics = p.analytics || {};
-          entry.impressions += Number(analytics.impressions ?? 0);
+          entry.impressions += effectiveExposureFromGetlateAnalytics(analytics);
           const likes = Number(analytics.likes ?? 0);
           const comments = Number(analytics.comments ?? 0);
           const shares = Number(analytics.shares ?? 0);
@@ -666,7 +684,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           entry.followers = existingEntry?.followers ?? 0;
 
           const analytics = post.analytics || {};
-          entry.impressions += Number(analytics.impressions ?? 0);
+          entry.impressions += effectiveExposureFromGetlateAnalytics(analytics);
           const likes = Number(analytics.likes ?? 0);
           const comments = Number(analytics.comments ?? 0);
           const shares = Number(analytics.shares ?? 0);
@@ -1019,7 +1037,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         };
         for (const pa of post.platformAnalytics) {
           if (pa.status === 'published' && pa.analytics) {
-            aggregated.impressions += Number(pa.analytics.impressions || 0);
+            aggregated.impressions += effectiveExposureFromGetlateAnalytics(pa.analytics);
             aggregated.likes += Number(pa.analytics.likes || 0);
             aggregated.comments += Number(pa.analytics.comments || 0);
             aggregated.shares += Number(pa.analytics.shares || 0);
@@ -1036,7 +1054,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         };
         for (const p of post.platforms) {
           if (p.status === 'published' && p.analytics) {
-            aggregated.impressions += Number(p.analytics.impressions || 0);
+            aggregated.impressions += effectiveExposureFromGetlateAnalytics(p.analytics);
             aggregated.likes += Number(p.analytics.likes || 0);
             aggregated.comments += Number(p.analytics.comments || 0);
             aggregated.shares += Number(p.analytics.shares || 0);
@@ -1047,7 +1065,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         analytics = post.analytics || {};
       }
 
-      map[key].impressions += Number(analytics.impressions ?? 0);
+      const exposure = effectiveExposureFromGetlateAnalytics(analytics);
+      map[key].impressions += exposure;
       const likes = Number(analytics.likes ?? 0);
       const comments = Number(analytics.comments ?? 0);
       const shares = Number(analytics.shares ?? 0);
@@ -1056,13 +1075,12 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       map[key].count += 1;
 
       // Calculate engagement rate
-      const impressions = Number(analytics.impressions ?? 0);
       const engagementRateFromAPI = analytics.engagementRate !== undefined && analytics.engagementRate !== null
         ? Number(analytics.engagementRate)
         : null;
       const calculatedRate = engagementRateFromAPI !== null
         ? engagementRateFromAPI
-        : (impressions > 0 ? (engagement / impressions) * 100 : 0);
+        : (exposure > 0 ? (engagement / exposure) * 100 : 0);
       map[key].engagementRate = calculatedRate;
     }
 
@@ -1265,15 +1283,37 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     filteredFollowers = totalFollowers;
   }
 
-  // If platform is selected, use filtered metrics, otherwise use totals
-  const displayImpressions = selectedPlatform && selectedPlatform !== 'all' ? filteredImpressions : totalImpressions;
+  // If platform is selected, use filtered metrics, otherwise use totals.
+  // When using Getlate, DB analytics rows are often missing/stale — use platformMap (same source as charts).
+  const displayImpressions = normalizedSelectedPlatform
+    ? (useGetlateAnalytics
+        ? (platformMap.get(normalizedSelectedPlatform)?.impressions ?? filteredImpressions)
+        : filteredImpressions)
+    : totalImpressions;
   // Note: reach, clicks, and views are calculated and displayed in the PostsTable component per post
   // Aggregate totals (_totalReach, _totalClicks, _totalViews) are available if needed for future metric cards
-  const displayEngagement = selectedPlatform && selectedPlatform !== 'all' ? filteredEngagement : totalEngagement;
+  const displayEngagement = normalizedSelectedPlatform
+    ? (useGetlateAnalytics
+        ? (platformMap.get(normalizedSelectedPlatform)?.engagement ?? filteredEngagement)
+        : filteredEngagement)
+    : totalEngagement;
   const displayFollowers = selectedPlatform && selectedPlatform !== 'all' ? filteredFollowers : totalFollowers;
 
   // Generate date series based on granularity
   const generateDateSeries = () => {
+    // Year buckets: use every calendar year from range start through range end.
+    // (Advancing the cursor by +1 year in a while-loop skips the end year when the range is
+    // shorter than 12 months but crosses Jan 1, e.g. Dec 2025–Feb 2026 would only show 2025.)
+    if (granularity === 'year') {
+      const startY = rangeFrom.getFullYear();
+      const endY = rangeTo.getFullYear();
+      const years: string[] = [];
+      for (let y = startY; y <= endY; y++) {
+        years.push(String(y));
+      }
+      return years.length > 0 ? years : [format(rangeFrom, 'yyyy')];
+    }
+
     const dates: string[] = [];
     let current = new Date(rangeFrom);
     const end = new Date(rangeTo);
@@ -1299,10 +1339,6 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
           current = new Date(nextMonth.getTime());
           break;
         }
-        case 'year':
-          key = format(startOfDay(current), 'yyyy');
-          current = new Date(current.getFullYear() + 1, current.getMonth(), current.getDate());
-          break;
         default:
           key = format(current, 'yyyy-MM-dd');
           current.setDate(current.getDate() + 1);
@@ -1317,6 +1353,42 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
   };
 
   const dateSeries = generateDateSeries();
+
+  /** Map a follower-stat calendar date string onto the same bucket keys as `dateSeries` (fixes week vs day mismatch). */
+  const mapFollowerStatDateToSeriesKey = (dateStr: string): string => {
+    const trimmed = String(dateStr).trim();
+    const statDate = /^\d{4}-\d{2}-\d{2}$/.test(trimmed) ? parseISO(trimmed) : new Date(trimmed);
+    if (Number.isNaN(statDate.getTime())) {
+      return dateSeries[0] ?? format(new Date(), 'yyyy-MM-dd');
+    }
+    switch (granularity) {
+      case 'day':
+        return format(statDate, 'yyyy-MM-dd');
+      case 'week': {
+        const d = startOfDay(statDate).getTime();
+        if (dateSeries.length === 0) {
+          return format(statDate, 'yyyy-MM-dd');
+        }
+        for (let i = dateSeries.length - 1; i >= 0; i--) {
+          const key = dateSeries[i]!;
+          const start = startOfDay(parseISO(key)).getTime();
+          const nextStart = i + 1 < dateSeries.length
+            ? startOfDay(parseISO(dateSeries[i + 1]!)).getTime()
+            : Number.POSITIVE_INFINITY;
+          if (d >= start && d < nextStart) {
+            return key;
+          }
+        }
+        return dateSeries[0]!;
+      }
+      case 'month':
+        return format(startOfMonth(statDate), 'yyyy-MM');
+      case 'year':
+        return format(statDate, 'yyyy');
+      default:
+        return format(statDate, 'yyyy-MM-dd');
+    }
+  };
 
   // Build filtered series map using Getlate API posts when available, otherwise use database analytics
   const filteredSeriesMap = useGetlateAnalytics && getlatePosts
@@ -1356,29 +1428,10 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
 
   if (followerStatsData && followerStatsData.followerTrend && followerStatsData.followerTrend.length > 0) {
     // Use real follower stats from Getlate API
-    // Map Getlate data to match date series granularity
+    // Map Getlate data to the same bucket keys as `dateSeries` (daily API dates align to week/month buckets correctly)
     const followerStatsMap = new Map<string, number>();
     for (const stat of followerStatsData.followerTrend) {
-      const statDate = new Date(stat.date);
-      let key: string;
-
-      switch (granularity) {
-        case 'day':
-          key = format(statDate, 'yyyy-MM-dd');
-          break;
-        case 'week':
-          key = format(startOfDay(statDate), 'yyyy-MM-dd');
-          break;
-        case 'month':
-          key = format(startOfMonth(statDate), 'yyyy-MM');
-          break;
-        case 'year':
-          key = format(statDate, 'yyyy');
-          break;
-        default:
-          key = format(statDate, 'yyyy-MM-dd');
-      }
-
+      const key = mapFollowerStatDateToSeriesKey(stat.date);
       // For same key, take the maximum (latest) follower count
       const existing = followerStatsMap.get(key) || 0;
       followerStatsMap.set(key, Math.max(existing, stat.followers));
@@ -1539,79 +1592,26 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     }
   }
 
-  // Generate net follower growth from Getlate API follower stats
-  // Use real growth data from Getlate if available, otherwise calculate from follower trend
+  // Net follower growth: always derive from the same series as "Followers Trend" (period-over-period delta).
+  // Precomputed API netGrowth was mapped with different bucket keys than the chart, which could show totals (e.g. 45) as "growth".
   let netGrowthSeries: Array<{ date: string; growth: number }> = [];
-
-  if (followerStatsData && followerStatsData.netGrowth && followerStatsData.netGrowth.length > 0) {
-    // Use real net growth data from Getlate API
-    // Map Getlate data to match date series granularity
-    const growthStatsMap = new Map<string, number>();
-    for (const stat of followerStatsData.netGrowth) {
-      const statDate = new Date(stat.date);
-      let key: string;
-
-      switch (granularity) {
-        case 'day':
-          key = format(statDate, 'yyyy-MM-dd');
-          break;
-        case 'week':
-          key = format(startOfDay(statDate), 'yyyy-MM-dd');
-          break;
-        case 'month':
-          key = format(startOfMonth(statDate), 'yyyy-MM');
-          break;
-        case 'year':
-          key = format(statDate, 'yyyy');
-          break;
-        default:
-          key = format(statDate, 'yyyy-MM-dd');
-      }
-
-      // Sum growth for same key (multiple accounts)
-      const existing = growthStatsMap.get(key) || 0;
-      growthStatsMap.set(key, existing + stat.growth);
-    }
-
-    // Generate series matching dateSeries keys
-    // Use absolute value to show positive growth values
-    netGrowthSeries = dateSeries.map((dateKey) => {
-      const growth = growthStatsMap.get(dateKey) || 0;
-      return {
-        date: dateKey,
-        growth: Math.abs(growth), // Always show positive values
-      };
-    });
-  } else if (followerTrendSeries.length > 0) {
-    // Calculate growth from follower trend (day-to-day change)
+  if (followerTrendSeries.length > 0) {
     netGrowthSeries = followerTrendSeries.map((current, index) => {
       if (index === 0) {
-        return {
-          date: current.date,
-          growth: 0, // No previous day to compare
-        };
+        return { date: current.date, growth: 0 };
       }
       const previous = followerTrendSeries[index - 1];
       if (!previous) {
-        return {
-          date: current.date,
-          growth: 0,
-        };
+        return { date: current.date, growth: 0 };
       }
-      const growth = current.followers - previous.followers;
+      const delta = current.followers - previous.followers;
       return {
         date: current.date,
-        growth: Math.abs(growth), // Always show positive values
+        growth: Math.abs(Math.round(delta)),
       };
     });
   } else {
-    // Fallback: Show zeros if no data available
-    netGrowthSeries = dateSeries.map((dateKey) => {
-      return {
-        date: dateKey,
-        growth: 0,
-      };
-    });
+    netGrowthSeries = dateSeries.map(dateKey => ({ date: dateKey, growth: 0 }));
   }
 
   // Calculate posts by platform from actual data
@@ -1634,11 +1634,11 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
     const seriesData = activeSeriesMap[dateKey] || filteredSeriesMap[dateKey];
     let rate = 0;
     if (seriesData) {
-      // Use stored engagementRate if available, otherwise calculate
-      if (seriesData.engagementRate !== undefined && seriesData.engagementRate > 0) {
-        rate = seriesData.engagementRate;
-      } else if (seriesData.impressions > 0) {
+      // Prefer totals from engagement / exposure — API can report engagementRate: 0 while metrics are non-zero
+      if (seriesData.impressions > 0) {
         rate = (seriesData.engagement / seriesData.impressions) * 100;
+      } else if (seriesData.engagementRate !== undefined && seriesData.engagementRate > 0) {
+        rate = seriesData.engagementRate;
       }
     }
     return {
@@ -2221,8 +2221,8 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
         const platform = normalizePlatform(platformData.platform);
         const analytics = platformData.analytics;
 
-        // Extract metrics from platform-specific analytics
-        const impressions = Number(analytics.impressions || 0);
+        // Extract metrics from platform-specific analytics (views/reach when impressions missing — matches charts)
+        const impressions = effectiveExposureFromGetlateAnalytics(analytics);
         const likes = Number(analytics.likes || 0);
         const comments = Number(analytics.comments || 0);
         const shares = Number(analytics.shares || 0);
