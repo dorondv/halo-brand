@@ -1,8 +1,6 @@
 /**
- * Getlate.dev API Client
- *
- * Unified API for social media scheduling and analytics.
- * Documentation: https://getlate.dev/docs
+ * HTTP client for the publishing integration (social scheduling & analytics).
+ * See vendor API documentation linked in the project README.
  */
 
 import { Env } from './Env';
@@ -22,7 +20,7 @@ export type GetlatePlatform
 
 export type GetlateProfile = {
   id?: string;
-  _id?: string; // Getlate API sometimes returns _id format
+  _id?: string; // Publishing integration API sometimes returns _id format
   name: string;
   created_at?: string;
   updated_at?: string;
@@ -30,21 +28,21 @@ export type GetlateProfile = {
 
 export type GetlateAccount = {
   id?: string; // May be _id in API response
-  _id?: string; // Getlate API uses _id format
+  _id?: string; // Publishing integration API uses _id format
   profileId: string;
   platform: GetlatePlatform;
   accountName?: string; // May be username in API response
-  username?: string; // Getlate API uses username
+  username?: string; // Publishing integration API uses username
   accountId?: string; // May not be present in API response
   displayName?: string;
   avatarUrl?: string; // May be profilePicture in API response
-  profilePicture?: string; // Getlate API uses profilePicture
-  followersCount?: number; // Getlate API uses followersCount in profileData
+  profilePicture?: string; // Publishing integration API uses profilePicture
+  followersCount?: number; // Publishing integration API uses followersCount in profileData
   isConnected?: boolean; // May be isActive in API response
-  isActive?: boolean; // Getlate API uses isActive
+  isActive?: boolean; // Publishing integration API uses isActive
   lastSync?: string;
-  tokenExpiresAt?: string; // Getlate API includes token expiration
-  permissions?: string[]; // Getlate API includes permissions array
+  tokenExpiresAt?: string; // Publishing integration API includes token expiration
+  permissions?: string[]; // Publishing integration API includes permissions array
   metadata?: Record<string, unknown>;
   accessToken?: string;
   tempToken?: string;
@@ -290,7 +288,7 @@ export class GetlateClient {
   }
 
   /**
-   * Get raw account data from Getlate API (includes availablePages, etc.)
+   * Get raw account data from Publishing integration API (includes availablePages, etc.)
    * Used internally to access fields not mapped by getAccounts()
    */
   async getRawAccounts(profileId?: string): Promise<any[]> {
@@ -311,7 +309,7 @@ export class GetlateClient {
 
   /**
    * Get all connected accounts for a profile
-   * Note: Getlate API returns accounts in format: { accounts: [...] }
+   * Note: Publishing integration API returns accounts in format: { accounts: [...] }
    * Each account has: _id, profileId, platform, username, displayName, profilePicture, isActive, etc.
    */
   async getAccounts(profileId?: string): Promise<GetlateAccount[]> {
@@ -326,7 +324,7 @@ export class GetlateClient {
     if (Array.isArray(response)) {
       accounts = response;
     } else if (response && typeof response === 'object') {
-      // Getlate API returns { accounts: [...] }
+      // Publishing integration API returns { accounts: [...] }
       accounts = response.accounts || response.data || response.results || [];
     }
 
@@ -334,7 +332,7 @@ export class GetlateClient {
       return [];
     }
 
-    // Map Getlate API response format to our interface
+    // Map Publishing integration API response format to our interface
     // API uses: _id, username, profilePicture, isActive, profileData.followersCount
     // We need: id, accountName, avatarUrl, isConnected, followersCount
     return accounts.map((account: any) => {
@@ -416,13 +414,13 @@ export class GetlateClient {
    * Uses GET /v1/connect/[platform] endpoint with redirect_url parameter
    * Returns a URL to redirect the user to for OAuth authorization
    *
-   * According to Getlate API docs:
+   * According to Publishing integration API docs:
    * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL
    *
    * Headless mode (Facebook, LinkedIn, Google Business Profile):
    * GET /v1/connect/[platform]?profileId=PROFILE_ID&redirect_url=YOUR_URL&headless=true
    *
-   * Note: Getlate API returns JSON with authUrl instead of redirecting directly
+   * Note: Publishing integration API returns JSON with authUrl instead of redirecting directly
    * Standard mode success redirect: redirect_url?connected=platform&profileId=PROFILE_ID&username=USERNAME
    * Headless mode redirect: redirect_url?profileId=X&tempToken=Y&userProfile=Z&connect_token=CT&platform=PLATFORM&step=STEP
    * Error redirect: redirect_url?error=ERROR_TYPE&platform=PLATFORM
@@ -433,7 +431,7 @@ export class GetlateClient {
     redirectUrl?: string,
     headless?: boolean,
   ): Promise<{ authUrl: string; state?: string }> {
-    // Normalize platform name (x -> twitter for Getlate API)
+    // Normalize platform name (x -> twitter for Publishing integration API)
     const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
 
     // Build the endpoint URL with query parameters
@@ -449,7 +447,7 @@ export class GetlateClient {
       endpoint += `&headless=true`;
     }
 
-    // Getlate API returns JSON with authUrl, not a redirect
+    // Publishing integration API returns JSON with authUrl, not a redirect
     // We need to fetch the endpoint and extract the authUrl from the response
     const response = await this.request<{ authUrl: string; state?: string }>(endpoint, {
       method: 'GET',
@@ -470,8 +468,8 @@ export class GetlateClient {
 
   /**
    * Create a new post
-   * Note: Getlate API may return post in nested structure like { message: string, post: GetlatePost }
-   * According to Getlate API docs, use mediaItems (not mediaUrls) for proper media handling
+   * Note: the publishing API may return the post nested as { message: string, post: ... }.
+   * Per vendor docs, use mediaItems (not mediaUrls) for proper media handling.
    */
   async createPost(data: {
     profileId: string;
@@ -522,7 +520,7 @@ export class GetlateClient {
       body: JSON.stringify(requestData),
     });
 
-    // Handle nested response format: { message: string, post: GetlatePost }
+    // Handle nested response format: { message: string, post: ... }
     if (response && response.post) {
       return response.post as GetlatePost;
     }
@@ -532,12 +530,12 @@ export class GetlateClient {
   }
 
   /**
-   * Upload media files to Getlate.
+   * Upload media files to Publishing integration.
    * Callers must upload binaries to Supabase Storage first, then pass public (or signed) URLs as strings.
-   * Raw {@link File} uploads to Getlate are not supported — they bypass our canonical storage.
+   * Raw {@link File} uploads to Publishing integration are not supported — they bypass our canonical storage.
    *
    * @param files - Supabase Storage URLs for post-media (or other hosted URLs for legacy callers)
-   * @returns Array of uploaded media with URLs from Getlate
+   * @returns Array of uploaded media with URLs from Publishing integration
    */
   async uploadMedia(files: Array<File | string>): Promise<Array<{
     type: 'image' | 'video';
@@ -547,7 +545,7 @@ export class GetlateClient {
     mimeType: string;
   }>> {
     // For now, we'll handle URLs (from Supabase Storage) by downloading and uploading
-    // In the future, we could optimize by uploading directly to Getlate from the frontend
+    // In the future, we could optimize by uploading directly to Publishing integration from the frontend
 
     const uploadedFiles: Array<{
       type: 'image' | 'video';
@@ -559,10 +557,10 @@ export class GetlateClient {
 
     for (const file of files) {
       if (typeof file === 'string') {
-        // It's a URL - we need to download it first, then upload to Getlate
-        // For now, we'll pass the URL directly and let Getlate handle it
-        // If Getlate doesn't accept external URLs, we'd need to download and re-upload
-        // But based on the docs, it seems Getlate expects files to be uploaded to their endpoint
+        // It's a URL - we need to download it first, then upload to Publishing integration
+        // For now, we'll pass the URL directly and let Publishing integration handle it
+        // If Publishing integration doesn't accept external URLs, we'd need to download and re-upload
+        // But based on the docs, it seems Publishing integration expects files to be uploaded to their endpoint
 
         // Try to determine file type from URL
         const urlLower = file.toLowerCase();
@@ -579,13 +577,13 @@ export class GetlateClient {
         // If that doesn't work, we'll need to implement download + upload
         uploadedFiles.push({
           type,
-          url: file, // Use original URL - Getlate may accept external URLs
+          url: file, // Use original URL - Publishing integration may accept external URLs
           filename,
           size: 0, // Unknown size from URL
           mimeType: type === 'video' ? 'video/mp4' : 'image/jpeg',
         });
       } else {
-        throw new Error(
+        throw new TypeError(
           '[Getlate] uploadMedia(File) is not supported. Upload the file to Supabase Storage first, then pass the resulting URL as a string.',
         );
       }
@@ -595,12 +593,12 @@ export class GetlateClient {
   }
 
   /**
-   * Upload media from URLs (downloads and re-uploads to Getlate)
-   * This is needed when media is stored in Supabase Storage and needs to be uploaded to Getlate
+   * Upload media from URLs (downloads and re-uploads to Publishing integration)
+   * This is needed when media is stored in Supabase Storage and needs to be uploaded to Publishing integration
    * Works in both browser and Node.js environments
    */
   async uploadMediaFromUrls(urls: string[]): Promise<string[]> {
-    // Download files from URLs and upload to Getlate
+    // Download files from URLs and upload to Publishing integration
     const uploadedMedia: string[] = [];
 
     for (const url of urls) {
@@ -633,7 +631,7 @@ export class GetlateClient {
                       ? 'image/webp'
                       : 'image/jpeg');
 
-        // Upload to Getlate using multipart/form-data
+        // Upload to Publishing integration using multipart/form-data
         // FormData and Blob are available in Node.js 18+ (which Next.js 16 uses)
         const formData = new FormData();
         // Create Blob from ArrayBuffer (works in both browser and Node.js 18+)
@@ -725,7 +723,7 @@ export class GetlateClient {
   }
 
   /**
-   * Get posts from Getlate API
+   * Get posts from Publishing integration API
    * Fetches all posts for a profile or all posts if no profileId is provided
    */
   async getPosts(params?: {
@@ -773,8 +771,8 @@ export class GetlateClient {
    * Returns structured response with overview, posts, and pagination
    *
    * Response format:
-   * - Single post (with postId param): Returns single GetlateAnalyticsPost with platformAnalytics array
-   * - List (no postId): Returns GetlateAnalyticsResponse with posts array and pagination
+   * - Single post (with postId param): returns one analytics post object with platformAnalytics array
+   * - List (no postId): returns a paginated list response with a posts array
    */
   async getAnalytics(params: {
     profileId?: string;
@@ -879,8 +877,7 @@ export class GetlateClient {
 
   /**
    * Create a new profile
-   * Note: Getlate API returns { message: string, profile: GetlateProfile }
-   * or may return the profile directly
+   * Note: the API may return { message: string, profile: ... } or the profile object directly
    */
   async createProfile(name: string): Promise<GetlateProfile> {
     const response = await this.request<any>('/profiles', {
@@ -888,7 +885,7 @@ export class GetlateClient {
       body: JSON.stringify({ name }),
     });
 
-    // Handle nested response format: { message: string, profile: GetlateProfile }
+    // Handle nested response format: { message: string, profile: ... }
     if (response && response.profile) {
       const profile = response.profile;
       // Ensure profile has an ID field (check both _id and id)
@@ -898,7 +895,7 @@ export class GetlateClient {
       return profile;
     }
 
-    // Handle response with data property: { data: GetlateProfile }
+    // Handle response with data property: { data: ... }
     if (response && response.data) {
       const profile = response.data;
       if (!profile._id && !profile.id) {
@@ -919,7 +916,7 @@ export class GetlateClient {
    * Delete a profile by ID
    */
   /**
-   * Disconnect/delete an account from Getlate
+   * Disconnect/delete an account from Publishing integration
    * DELETE /v1/accounts/:accountId
    */
   async disconnectAccount(accountId: string): Promise<void> {
@@ -1006,7 +1003,7 @@ export class GetlateClient {
 
   /**
    * Create a team member invite token
-   * This allows creating Getlate accounts for users automatically
+   * This allows creating Publishing integration accounts for users automatically
    */
   async createTeamInvite(params: {
     scope: 'all' | 'profiles';
@@ -1032,7 +1029,7 @@ export class GetlateClient {
 
   /**
    * Create a platform connection invite
-   * Allows users to connect social accounts without exposing Getlate
+   * Allows users to connect social accounts without exposing Publishing integration
    */
   async createPlatformInvite(params: {
     profileId: string;
@@ -1043,7 +1040,7 @@ export class GetlateClient {
     inviteUrl: string;
     expiresAt: string;
   }> {
-    // Getlate API might expect redirect_url (snake_case) instead of redirectUrl (camelCase)
+    // Publishing integration API might expect redirect_url (snake_case) instead of redirectUrl (camelCase)
     // Try both formats to ensure compatibility
     const requestBody: any = {
       profileId: params.profileId,
@@ -1051,7 +1048,7 @@ export class GetlateClient {
     };
 
     if (params.redirectUrl) {
-      // Include both formats to ensure Getlate recognizes it
+      // Include both formats to ensure Publishing integration recognizes it
       requestBody.redirectUrl = params.redirectUrl;
       requestBody.redirect_url = params.redirectUrl;
     }
@@ -1272,7 +1269,7 @@ export class GetlateClient {
 
   /**
    * Get LinkedIn organizations for an account
-   * @param accountId - The Getlate account ID
+   * @param accountId - The Publishing integration account ID
    * @param tempToken - Optional access token to use as tempToken for the request
    */
   async getLinkedInOrganizations(accountId: string, tempToken?: string): Promise<GetlateLinkedInOrganization[]> {
@@ -1557,7 +1554,7 @@ export class GetlateClient {
 }
 
 /**
- * Create a Getlate client instance with user's API key
+ * Create a Publishing integration client instance with user's API key
  */
 export function createGetlateClient(apiKey: string): GetlateClient {
   return new GetlateClient(apiKey);

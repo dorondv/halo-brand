@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
     const inboxAccounts: InboxAccount[] = accounts.map((account) => {
       const platformSpecificData = account.platformSpecificData as Record<string, unknown> | null;
 
-      // For Facebook, use selectedPageId (from Getlate) or pageId as fallback
+      // For Facebook, use selectedPageId (from Publishing integration) or pageId as fallback
       const pageId = platformSpecificData?.selectedPageId || platformSpecificData?.pageId;
 
       // Get avatar with fallback: platform-specific avatar_url > avatarUrl > profilePicture > profile_picture

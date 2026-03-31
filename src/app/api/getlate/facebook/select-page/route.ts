@@ -5,7 +5,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * GET /api/getlate/facebook/select-page
+ * GET /api/publishing/facebook/select-page
  * Fetch available Facebook pages during headless OAuth flow
  */
 export async function GET(request: NextRequest) {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and fetch pages
+    // Create Publishing integration client and fetch pages
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     const pages = await getlateClient.getFacebookPagesForSelection(profileId, tempToken, connectToken);
 
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/getlate/facebook/select-page
+ * POST /api/publishing/facebook/select-page
  * Save selected Facebook page during headless OAuth flow
  */
 export async function POST(request: NextRequest) {
@@ -102,7 +102,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and save page selection
+    // Create Publishing integration client and save page selection
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     await getlateClient.selectFacebookPageForConnection(
       {

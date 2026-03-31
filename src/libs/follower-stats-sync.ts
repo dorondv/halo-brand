@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createGetlateClient } from './Getlate';
 
 /**
- * Fetch follower stats from Getlate API
+ * Fetch follower stats from Publishing integration API
  * This function fetches follower statistics and returns them for use in charts
  */
 export async function getFollowerStatsFromGetlate(
@@ -28,7 +28,7 @@ export async function getFollowerStatsFromGetlate(
   }>;
 } | null> {
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -36,10 +36,10 @@ export async function getFollowerStatsFromGetlate(
       .single();
 
     if (!userRecord?.getlate_api_key) {
-      return null; // No Getlate API key, skip
+      return null; // No Publishing integration API key, skip
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     let profileId: string | undefined;
     if (brandId && brandId !== 'all') {
       const { data: brandRecord } = await supabase
@@ -50,11 +50,11 @@ export async function getFollowerStatsFromGetlate(
         .single();
 
       if (!brandRecord?.getlate_profile_id) {
-        return null; // Brand not linked to Getlate profile, skip
+        return null; // Brand not linked to Publishing integration profile, skip
       }
       profileId = brandRecord.getlate_profile_id;
     } else {
-      // For "all brands", get the first brand with a Getlate profile
+      // For "all brands", get the first brand with a Publishing integration profile
       const { data: brands } = await supabase
         .from('brands')
         .select('getlate_profile_id')
@@ -63,7 +63,7 @@ export async function getFollowerStatsFromGetlate(
         .limit(1);
 
       if (!brands || brands.length === 0 || !brands[0]?.getlate_profile_id) {
-        return null; // No brands with Getlate profiles
+        return null; // No brands with Publishing integration profiles
       }
       profileId = brands[0].getlate_profile_id;
     }
@@ -78,7 +78,7 @@ export async function getFollowerStatsFromGetlate(
       return date;
     })();
 
-    // Fetch follower stats from Getlate API
+    // Fetch follower stats from Publishing integration API
     const followerStats = await getlateClient.getFollowerStats({
       profileId,
       fromDate: fromDate.toISOString().split('T')[0],

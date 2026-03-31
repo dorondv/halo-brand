@@ -2,13 +2,13 @@ import type { SupabaseClient, User } from '@supabase/supabase-js';
 
 /**
  * User record shape returned by ensureUserRecord.
- * Note: `getlate_api_key` is managed directly via Supabase (not in Drizzle schema)
- * but many API routes depend on it for Getlate integration.
+ * Note: the publishing provider API key column is managed directly via Supabase (not in Drizzle schema)
+ * but many API routes depend on it for the publishing integration.
  */
-interface UserRecord {
+type UserRecord = {
   id: string;
   getlate_api_key: string | null;
-}
+};
 
 /**
  * Ensure a row exists in public.users for the authenticated auth user.

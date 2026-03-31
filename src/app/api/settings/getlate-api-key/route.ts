@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * DELETE /api/settings/getlate-api-key
+ * DELETE /api/settings/publishing-api-key
  * Remove the user's integration API key (disconnect integration)
  */
 export async function DELETE(_request: NextRequest) {

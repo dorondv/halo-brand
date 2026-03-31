@@ -19,8 +19,8 @@ function localizedPath(path: string, locale: string): string {
 }
 
 /**
- * GET /api/getlate/callback
- * Handle OAuth callback from Getlate after user authorizes social account
+ * GET /api/publishing/callback
+ * Handle OAuth callback from Publishing integration after user authorizes social account
  */
 export async function GET(request: NextRequest) {
   try {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Parse URL manually to handle malformed query strings
-    // Getlate may append ?error=... instead of &error=... to our redirect URL
+    // Publishing integration may append ?error=... instead of &error=... to our redirect URL
     // This creates URLs like: /callback?brandId=xxx?error=yyy&platform=zzz
     const url = new URL(request.url);
     const urlString = request.url;
@@ -75,10 +75,10 @@ export async function GET(request: NextRequest) {
       return null;
     };
 
-    // Extract brandId first - it might be malformed if Getlate appended params with ? instead of &
+    // Extract brandId first - it might be malformed if Publishing integration appended params with ? instead of &
     let brandId: string | null = extractParam('brandId');
     if (brandId) {
-      // If brandId contains a ? or encoded ?, Getlate appended params incorrectly
+      // If brandId contains a ? or encoded ?, Publishing integration appended params incorrectly
       // Extract just the UUID (everything before the ? or %3F)
       if (brandId.includes('?')) {
         const parts = brandId.split('?');
@@ -90,7 +90,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Extract all parameters using our custom extractor
-    // Getlate API returns success params: connected, profileId, username
+    // Publishing integration API returns success params: connected, profileId, username
     // Or error params: error, platform
     // Headless mode params: profileId, tempToken, userProfile, connect_token, platform, step
     const connected = extractParam('connected');
@@ -106,7 +106,7 @@ export async function GET(request: NextRequest) {
     const locale = normalizeLocale(extractParam('locale'));
 
     // Handle OAuth errors and cancellations
-    // Check for error parameter first (Getlate returns error on failure)
+    // Check for error parameter first (Publishing integration returns error on failure)
     if (error) {
       console.error('OAuth error from Getlate:', error, 'platform:', platform, 'brandId:', brandId);
 
@@ -172,7 +172,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // Handle standard mode success case - Getlate returns: connected, profileId, username
+    // Handle standard mode success case - Publishing integration returns: connected, profileId, username
     // Note: 'connected' might be the platform name (e.g., 'facebook') instead of 'true'
     if (!connected || !profileId) {
       console.error('Missing required parameters:', { connected, profileId, username, error, platform, brandId });
@@ -201,7 +201,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.redirect(redirectUrl);
     }
 
-    // The OAuth flow is handled by Getlate, so we just need to sync accounts
+    // The OAuth flow is handled by Publishing integration, so we just need to sync accounts
     // Sync accounts for the specific brand that was connected (if brandId provided)
     // Otherwise sync all brands with matching profileId
     let brandsToSync: Array<{ id: string; getlate_profile_id: string }> = [];

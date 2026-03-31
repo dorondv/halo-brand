@@ -240,7 +240,7 @@ const baseConfig: NextConfig = {
         port: '',
         pathname: '/**',
       },
-      // Getlate CDN / API media
+      // Publishing integration CDN / API media
       {
         protocol: 'https',
         hostname: '**.getlate.dev',

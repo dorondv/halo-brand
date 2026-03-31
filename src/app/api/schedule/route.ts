@@ -17,7 +17,7 @@ export async function POST(request: Request) {
     socialAccountId: z.string().uuid(),
     scheduledFor: z.string(), // ISO timestamp
     timezone: z.string().optional(), // IANA timezone
-    use_getlate: z.boolean().optional().default(false), // Whether to use Getlate queue
+    use_getlate: z.boolean().optional().default(false), // Whether to use Publishing integration queue
   });
   const parsed = Schema.safeParse(body);
   if (!parsed.success) {
@@ -54,10 +54,10 @@ export async function POST(request: Request) {
     );
   }
 
-  // If using Getlate and post/account are linked to Getlate
+  // If using Publishing integration and post/account are linked to Publishing integration
   if (use_getlate && postData.getlate_post_id && accountData.getlate_account_id && postData.brand_id) {
     try {
-      // Get user's Getlate API key
+      // Get user's Publishing integration API key
       const { data: userRecord } = await supabase
         .from('users')
         .select('getlate_api_key')
@@ -65,7 +65,7 @@ export async function POST(request: Request) {
         .single();
 
       if (userRecord?.getlate_api_key) {
-        // Get brand's Getlate profile ID
+        // Get brand's Publishing integration profile ID
         const { data: brandRecord } = await supabase
           .from('brands')
           .select('getlate_profile_id')
@@ -84,14 +84,14 @@ export async function POST(request: Request) {
             scheduledTime = queueSlot.nextSlot;
           }
 
-          // Update post in Getlate with scheduled time
-          // Note: Getlate handles scheduling automatically when scheduled_for is set
+          // Update post in Publishing integration with scheduled time
+          // Note: Publishing integration handles scheduling automatically when scheduled_for is set
           // The post should already be created with scheduled_for, but we can verify
         }
       }
     } catch (error) {
       console.error('Error scheduling with Getlate:', error);
-      // Continue with local scheduling even if Getlate fails
+      // Continue with local scheduling even if Publishing integration fails
     }
   }
 
@@ -114,7 +114,7 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/schedule/next-slot
- * Get next available queue slot from Getlate
+ * Get next available queue slot from Publishing integration
  */
 export async function GET(request: Request) {
   const supabase = await createSupabaseServerClient();
@@ -133,7 +133,7 @@ export async function GET(request: Request) {
   }
 
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -147,7 +147,7 @@ export async function GET(request: Request) {
       );
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     const { data: brandRecord } = await supabase
       .from('brands')
       .select('getlate_profile_id')

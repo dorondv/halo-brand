@@ -292,7 +292,7 @@ export function BrandSelector() {
         }
       }
 
-      // Create brand via API to handle Getlate profile automatically
+      // Create brand via API to handle Publishing integration profile automatically
       const brandResponse = await fetch('/api/brands', {
         method: 'POST',
         headers: {

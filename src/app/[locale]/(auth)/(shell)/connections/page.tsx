@@ -299,7 +299,7 @@ export default function ConnectionsPage() {
 
       const supabase = createSupabaseBrowserClient();
 
-      // Fetch brands for this user (including Getlate profile ID)
+      // Fetch brands for this user (including Publishing integration profile ID)
       const { data, error } = await supabase
         .from('brands')
         .select('id,name,description,logo_url,getlate_profile_id')
@@ -450,7 +450,7 @@ export default function ConnectionsPage() {
       const supabase = createSupabaseBrowserClient();
       const currentBrand = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;
 
-      // Optional sync: refresh follower data from Getlate + DB. Do not replace UI with an empty list
+      // Optional sync: refresh follower data from Publishing integration + DB. Do not replace UI with an empty list
       // when the response has no rows (avoids a flash of "all disconnected" after DB already loaded).
       if (forceSync && !skipSync && currentBrand?.getlate_profile_id) {
         const syncResponse = await fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`);
@@ -467,7 +467,7 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Load accounts from database (show data from DB immediately - no waiting for Getlate)
+      // Load accounts from database (show data from DB immediately - no waiting for Publishing integration)
       // Filter by both user_id and brand_id to ensure only current user's accounts are shown
       const { data, error } = await supabase
         .from('social_accounts')
@@ -496,8 +496,8 @@ export default function ConnectionsPage() {
   }, [loadBrands]);
 
   useEffect(() => {
-    // Load accounts from DB only. Do not auto-run a Getlate sync on every brand select — that was
-    // overwriting the UI when Getlate briefly reported isConnected=false. User can refresh/sync
+    // Load accounts from DB only. Do not auto-run a Publishing integration sync on every brand select — that was
+    // overwriting the UI when Publishing integration briefly reported isConnected=false. User can refresh/sync
     // after OAuth or via explicit actions that call loadAccountsFromDB(..., true).
     if (selectedBrandId) {
       void loadAccountsFromDB(false, false);
@@ -793,7 +793,7 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Create brand via API to handle Getlate profile automatically
+      // Create brand via API to handle Publishing integration profile automatically
       setBrandCreationStage('creating_brand');
       const brandResponse = await fetch('/api/brands', {
         method: 'POST',
@@ -997,7 +997,7 @@ export default function ConnectionsPage() {
         .single();
 
       // Deactivate account instead of deleting (soft delete)
-      // Also set a flag to prevent Getlate sync from reactivating it
+      // Also set a flag to prevent Publishing integration sync from reactivating it
       // Filter by both id and user_id to ensure user can only disconnect their own accounts
       const currentPlatformData = (currentAccount?.platform_specific_data as Record<string, unknown>) || {};
       const { error } = await supabase
@@ -1023,10 +1023,10 @@ export default function ConnectionsPage() {
 
       showToast(t('account_disconnected_success'), 'success');
 
-      // Reload accounts with skipSync=true to prevent Getlate sync from reactivating it
+      // Reload accounts with skipSync=true to prevent Publishing integration sync from reactivating it
       void loadAccountsFromDB(true, false);
 
-      // Disconnect from Getlate in background so UI is not blocked.
+      // Disconnect from Publishing integration in background so UI is not blocked.
       if (getlateAccountId) {
         void fetch('/api/getlate/disconnect', {
           method: 'POST',
@@ -1447,7 +1447,7 @@ export default function ConnectionsPage() {
           }
         }
 
-        // If we have organization info and getlate_account_id, update via API
+        // If we have organization info and a provider LinkedIn account id, update via API
         if (organizationId && linkedinAccountForOrgs.getlate_account_id) {
           const response = await fetch('/api/getlate/linkedin-organizations', {
             method: 'PUT',
@@ -1475,12 +1475,12 @@ export default function ConnectionsPage() {
           }
         }
       } else {
-        // If posting as personal, clear organization data and update Getlate API
+        // If posting as personal, clear organization data and update Publishing integration API
         organizationId = undefined;
         organizationName = undefined;
         organizationUrn = undefined;
 
-        // If switching to personal, update Getlate API with account name
+        // If switching to personal, update Publishing integration API with account name
         if (linkedinAccountForOrgs.getlate_account_id) {
           // Fetch account name from social_accounts table
           const { data: accountData } = await supabase

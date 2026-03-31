@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createGetlateClient } from './Getlate';
 
 /**
- * Get analytics overview from Getlate API
+ * Get analytics overview from Publishing integration API
  * Returns totalPosts, publishedPosts, scheduledPosts, and lastSync
- * This matches exactly what Getlate API returns in the overview object
+ * This matches exactly what Publishing integration API returns in the overview object
  */
 export async function getGetlateAnalyticsOverview(
   supabase: SupabaseClient,
@@ -22,7 +22,7 @@ export async function getGetlateAnalyticsOverview(
   lastSync: string;
 } | null> {
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -30,10 +30,10 @@ export async function getGetlateAnalyticsOverview(
       .single();
 
     if (!userRecord?.getlate_api_key) {
-      return null; // No Getlate API key
+      return null; // No Publishing integration API key
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     if (!brandId) {
       return null; // Need brand ID to get overview
     }
@@ -46,12 +46,12 @@ export async function getGetlateAnalyticsOverview(
       .single();
 
     if (!brandRecord?.getlate_profile_id) {
-      return null; // Brand not linked to Getlate profile
+      return null; // Brand not linked to Publishing integration profile
     }
 
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-    // Fetch analytics overview from Getlate API
+    // Fetch analytics overview from Publishing integration API
     // Use limit=1 to minimize data transfer (we only need the overview)
     const analyticsResponse = await getlateClient.getAnalytics({
       profileId: brandRecord.getlate_profile_id,
@@ -62,7 +62,7 @@ export async function getGetlateAnalyticsOverview(
       page: 1,
     });
 
-    // Return overview data from Getlate API response
+    // Return overview data from Publishing integration API response
     if (analyticsResponse.overview) {
       return {
         totalPosts: analyticsResponse.overview.totalPosts || 0,

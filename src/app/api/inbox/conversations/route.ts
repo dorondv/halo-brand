@@ -136,8 +136,8 @@ async function fetchInstagramAccountData(
 }
 
 /**
- * Helper function to get real access token from Getlate API
- * For accounts managed by Getlate, we need to fetch the actual token from Getlate API
+ * Helper function to get real access token from Publishing integration API
+ * For accounts managed by Publishing integration, we need to fetch the actual token from Publishing integration API
  */
 const getGetlateAccessToken = async (
   getlateAccountId: string,
@@ -160,7 +160,7 @@ const getGetlateAccessToken = async (
       return null;
     }
 
-    // Fetch raw account data from Getlate
+    // Fetch raw account data from Publishing integration
     const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
     const instagramAccount = rawAccounts.find(
       (acc: any) => (acc._id || acc.id) === getlateAccountId && acc.platform === 'instagram',
@@ -219,7 +219,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 });
     }
 
-    // Fetch account details (including getlate_account_id if it exists)
+    // Fetch account details (including provider account id column when present)
     const [account] = await db
       .select()
       .from(socialAccounts)
@@ -231,7 +231,7 @@ export async function GET(request: NextRequest) {
       )
       .limit(1);
 
-    // Also fetch getlate_account_id from Supabase (it might not be in Drizzle schema)
+    // Also read provider account id from Supabase (may be absent from Drizzle types)
     const { data: accountWithGetlate } = await supabase
       .from('social_accounts')
       .select('getlate_account_id, brand_id')
@@ -249,12 +249,12 @@ export async function GET(request: NextRequest) {
     const platform = account.platform as MetaPlatform;
     const platformSpecificData = account.platformSpecificData as Record<string, unknown> | null;
 
-    // Check if we need to get access token from Getlate (for Getlate-managed accounts)
+    // Check if we need to get access token from Publishing integration (for Publishing integration-managed accounts)
     let actualAccessToken = account.accessToken;
     const isGetlateManaged = account.accessToken === 'getlate-managed' || (account.accessToken?.length || 0) < 50;
 
     if (isGetlateManaged && getlateAccountId) {
-      // Get user's Getlate API key
+      // Get user's Publishing integration API key
       const { data: userRecord } = await supabase
         .from('users')
         .select('getlate_api_key')
@@ -274,7 +274,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Create Meta client with actual access token (from Getlate if needed)
+    // Create Meta client with actual access token (from Publishing integration if needed)
     const metaClient = createMetaInboxClient(
       actualAccessToken,
       account.refreshToken || undefined,
@@ -293,7 +293,7 @@ export async function GET(request: NextRequest) {
       if (type === 'chat') {
         // Fetch chat conversations
         if (platform === 'facebook') {
-          // Try selectedPageId first (from Getlate), then pageId as fallback
+          // Try selectedPageId first (from Publishing integration), then pageId as fallback
           const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
           const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
 
@@ -309,7 +309,7 @@ export async function GET(request: NextRequest) {
           // If we don't have a valid Instagram Business Account ID, try to fetch it
           if (!igBusinessAccountId || igBusinessAccountId === account.accountId) {
             // Use pageAccessToken if available (it's a Meta token), otherwise try actualAccessToken
-            // The Getlate token might not be a valid Meta token, so prefer pageAccessToken
+            // The Publishing integration token might not be a valid Meta token, so prefer pageAccessToken
             const tokenToUse = pageAccessToken && pageAccessToken.length >= 50
               ? pageAccessToken
               : actualAccessToken;
@@ -351,7 +351,7 @@ export async function GET(request: NextRequest) {
       } else if (type === 'comment') {
         // Fetch comment conversations
         if (platform === 'facebook') {
-          // Try selectedPageId first (from Getlate), then pageId as fallback
+          // Try selectedPageId first (from Publishing integration), then pageId as fallback
           const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
           const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
 
@@ -365,14 +365,14 @@ export async function GET(request: NextRequest) {
           let pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
           let pageId = platformSpecificData?.pageId as string | undefined;
 
-          // Check if igBusinessAccountId is actually a Getlate account ID (MongoDB ObjectId format)
+          // Check if igBusinessAccountId is actually a Publishing integration account ID (MongoDB ObjectId format)
           // MongoDB ObjectIds are 24 hex characters
           const isLikelyGetlateId = igBusinessAccountId && /^[0-9a-f]{24}$/i.test(igBusinessAccountId);
 
           // We need to fetch igBusinessAccountId if:
           // 1. It's missing
           // 2. It's the same as account.accountId (fallback value)
-          // 3. It looks like a Getlate account ID (MongoDB ObjectId)
+          // 3. It looks like a Publishing integration account ID (MongoDB ObjectId)
           // We only need to fetch pageAccessToken if it's missing or invalid
           const needsIgBusinessAccountId = !igBusinessAccountId || igBusinessAccountId === account.accountId || isLikelyGetlateId;
           const needsPageAccessToken = !pageAccessToken || pageAccessToken.length < 50;
