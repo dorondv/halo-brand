@@ -106,47 +106,56 @@ const importantDates: Record<
 const getCategoryConfig = (type: string, t: (key: string) => string) => {
   const configs: Record<string, { color: string; name: string; bgColor: string }> = {
     jewish: {
-      color: 'bg-blue-100 text-blue-800 border-blue-200',
+      color:
+        'border-blue-200 !bg-blue-100 !text-blue-900 dark:border-blue-800/80 dark:!bg-blue-950/55 dark:!text-blue-100',
       name: t('category_jewish'),
       bgColor: 'bg-blue-500',
     },
     muslim: {
-      color: 'bg-green-100 text-green-800 border-green-200',
+      color:
+        'border-green-200 !bg-green-100 !text-green-900 dark:border-green-800/80 dark:!bg-green-950/55 dark:!text-green-100',
       name: t('category_muslim'),
       bgColor: 'bg-green-500',
     },
     christian: {
-      color: 'bg-yellow-100 text-yellow-800 border-yellow-200',
+      color:
+        'border-yellow-200 !bg-yellow-100 !text-yellow-900 dark:border-yellow-800/80 dark:!bg-yellow-950/45 dark:!text-yellow-100',
       name: t('category_christian'),
       bgColor: 'bg-yellow-500',
     },
     commercial: {
-      color: 'bg-pink-100 text-pink-800 border-pink-200',
+      color:
+        'border-pink-200 !bg-pink-100 !text-pink-900 dark:border-pink-800/80 dark:!bg-pink-950/50 dark:!text-pink-100',
       name: t('category_commercial'),
       bgColor: 'bg-pink-500',
     },
     international: {
-      color: 'bg-purple-100 text-purple-800 border-purple-200',
+      color:
+        'border-purple-200 !bg-purple-100 !text-purple-900 dark:border-purple-800/80 dark:!bg-purple-950/50 dark:!text-purple-100',
       name: t('category_international'),
       bgColor: 'bg-purple-500',
     },
     sports: {
-      color: 'bg-red-100 text-red-800 border-red-200',
+      color:
+        'border-red-200 !bg-red-100 !text-red-900 dark:border-red-800/80 dark:!bg-red-950/50 dark:!text-red-100',
       name: t('category_sports'),
       bgColor: 'bg-red-500',
     },
     civil: {
-      color: 'bg-gray-100 text-gray-800 border-gray-200',
+      color:
+        'border-gray-200 !bg-gray-100 !text-gray-900 dark:border-slate-600 dark:!bg-slate-800/90 dark:!text-slate-100',
       name: t('category_civil'),
       bgColor: 'bg-gray-500',
     },
     national: {
-      color: 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      color:
+        'border-indigo-200 !bg-indigo-100 !text-indigo-900 dark:border-indigo-800/80 dark:!bg-indigo-950/50 dark:!text-indigo-100',
       name: t('category_national'),
       bgColor: 'bg-indigo-500',
     },
     banking: {
-      color: 'bg-amber-100 text-amber-800 border-amber-200',
+      color:
+        'border-amber-200 !bg-amber-100 !text-amber-950 dark:border-amber-800/80 dark:!bg-amber-950/45 dark:!text-amber-100',
       name: t('category_banking'),
       bgColor: 'bg-amber-500',
     },
@@ -553,10 +562,10 @@ export default function CalendarPage() {
     const currentTimePos = getCurrentTimePosition();
 
     return (
-      <div className="flex h-[calc(100vh-300px)] min-h-[600px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white">
+      <div className="flex h-[calc(100vh-300px)] min-h-[600px] flex-col overflow-hidden rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         {/* Week Header */}
-        <div className="sticky top-0 z-10 grid grid-cols-[80px_repeat(7,1fr)] border-b border-slate-200 bg-white">
-          <div className="border-r border-slate-200 p-3"></div>
+        <div className="sticky top-0 z-10 grid grid-cols-[80px_repeat(7,1fr)] border-b border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900/95">
+          <div className="border-r border-slate-200 p-3 dark:border-slate-700"></div>
           {weekDays.map((day) => {
             const dayName = dayNames[getDay(day)];
             const isSelected = selectedDate && isSameDay(day, selectedDate);
@@ -567,8 +576,8 @@ export default function CalendarPage() {
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'cursor-pointer border-r border-slate-200 p-3 text-center transition-colors last:border-r-0 hover:bg-slate-50',
-                  isSelected ? 'bg-pink-50' : isTodayDate ? 'bg-pink-50' : '',
+                  'cursor-pointer border-r border-slate-200 p-3 text-center transition-colors last:border-r-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800',
+                  isSelected || isTodayDate ? 'bg-pink-50 dark:bg-pink-950/35' : '',
                 )}
                 onClick={() => {
                   setSelectedDate(day);
@@ -585,21 +594,21 @@ export default function CalendarPage() {
                 role="button"
                 tabIndex={0}
               >
-                <div className="text-xs font-medium text-slate-500">{dayName}</div>
+                <div className="text-xs font-medium text-slate-500 dark:text-slate-300">{dayName}</div>
                 <div
                   className={cn(
                     'mt-1 inline-block text-lg font-semibold',
                     isSelected
-                      ? 'rounded-full bg-pink-600 px-3 py-1 text-white'
+                      ? 'rounded-full bg-pink-600 px-3 py-1 text-white dark:bg-pink-500'
                       : isTodayDate
-                        ? 'rounded-full bg-pink-600 px-3 py-1 text-white'
-                        : 'text-slate-900',
+                        ? 'rounded-full bg-pink-600 px-3 py-1 text-white dark:bg-pink-500'
+                        : 'text-slate-900 dark:text-slate-100',
                   )}
                 >
                   {format(day, 'd')}
                 </div>
                 {dayPosts.length > 0 && (
-                  <div className="mt-1 text-xs font-medium text-pink-600">{dayPosts.length}</div>
+                  <div className="mt-1 text-xs font-medium text-pink-600 dark:text-pink-400">{dayPosts.length}</div>
                 )}
               </div>
             );
@@ -609,16 +618,16 @@ export default function CalendarPage() {
         {/* Time Grid */}
         <div className="flex flex-1 overflow-auto">
           {/* Time Column */}
-          <div className="sticky left-0 z-10 w-[80px] border-r border-slate-200 bg-slate-50">
+          <div className="sticky left-0 z-10 w-[80px] border-r border-slate-200 bg-slate-50 dark:border-slate-700 dark:bg-slate-900">
             {timeSlots.map((time, idx) => {
               const isCurrentHour = currentTimePos && currentTimePos.hourIndex === idx;
               return (
                 <div
                   key={time}
-                  className="relative border-b border-slate-100 p-2"
+                  className="relative border-b border-slate-100 p-2 dark:border-slate-700"
                   style={{ minHeight: '60px' }}
                 >
-                  <div className="text-xs font-medium text-slate-600">{time}</div>
+                  <div className="text-xs font-medium text-slate-600 dark:text-slate-300">{time}</div>
                   {isCurrentHour && (
                     <div
                       className="absolute right-0 left-0 z-20 flex items-center"
@@ -638,11 +647,15 @@ export default function CalendarPage() {
             {weekDays.map((day) => {
               const dayPosts = getPostsForDate(day);
               const isTodayDate = isToday(day);
+              const isDaySelected = selectedDate && isSameDay(day, selectedDate);
 
               return (
                 <div
                   key={day.toISOString()}
-                  className="border-r border-slate-200 last:border-r-0"
+                  className={cn(
+                    'border-r border-slate-200 last:border-r-0 dark:border-slate-700',
+                    isDaySelected || isTodayDate ? 'bg-pink-50/90 dark:bg-pink-950/30' : '',
+                  )}
                 >
                   {timeSlots.map((time, timeIdx) => {
                     const slotHour = 8 + timeIdx;
@@ -670,12 +683,12 @@ export default function CalendarPage() {
                       <div
                         key={`${day.toISOString()}-${time}`}
                         className={cn(
-                          'group relative min-h-[60px] border-b border-slate-100 p-1 transition-colors',
+                          'group relative min-h-[60px] border-b border-slate-100 p-1 transition-colors dark:border-slate-700/80',
                           isPastSlot
-                            ? 'cursor-not-allowed bg-slate-50 opacity-50'
+                            ? 'cursor-not-allowed bg-slate-50 opacity-50 dark:bg-slate-950/70 dark:opacity-100'
                             : isEmptySlot
-                              ? 'cursor-pointer hover:bg-pink-50'
-                              : 'hover:bg-slate-50',
+                              ? 'cursor-pointer hover:bg-pink-50 dark:hover:bg-pink-950/25'
+                              : 'hover:bg-slate-50 dark:hover:bg-slate-800/80',
                         )}
                         onClick={() => {
                           // Don't allow clicking on past slots
@@ -720,12 +733,12 @@ export default function CalendarPage() {
                       >
                         {isEmptySlot && !isPastSlot && (
                           <div className="flex h-full items-center justify-center opacity-0 transition-opacity group-hover:opacity-100">
-                            <Plus className="h-5 w-5 text-pink-400" />
+                            <Plus className="h-5 w-5 text-pink-400 dark:text-pink-500" />
                           </div>
                         )}
                         {isPastSlot && isEmptySlot && (
                           <div className="flex h-full items-center justify-center">
-                            <span className="text-xs text-slate-400">{t('past')}</span>
+                            <span className="text-xs font-medium text-slate-500 dark:text-slate-400">{t('past')}</span>
                           </div>
                         )}
                         {slotPosts.map(post => (
@@ -799,7 +812,7 @@ export default function CalendarPage() {
       <>
         <div className="mb-4 grid grid-cols-7 gap-4">
           {dayNames.map(day => (
-            <div key={day} className="py-2 text-center font-medium text-slate-500">
+            <div key={day} className="py-2 text-center font-medium text-slate-500 dark:text-slate-300">
               {day}
             </div>
           ))}
@@ -827,14 +840,14 @@ export default function CalendarPage() {
                 whileHover={{ scale: 1.05 }}
                 className={`aspect-square rounded-xl border-2 p-2 transition-all duration-300 ${
                   isSelected
-                    ? 'cursor-pointer border-blue-500 bg-blue-50'
+                    ? 'cursor-pointer border-blue-500 bg-blue-50 dark:border-blue-400 dark:bg-blue-950/40'
                     : isTodayDate
-                      ? 'cursor-pointer border-emerald-300 bg-emerald-50'
+                      ? 'cursor-pointer border-emerald-300 bg-emerald-50 dark:border-emerald-500 dark:bg-emerald-950/35'
                       : hasImportantDate
                         ? `cursor-pointer ${config?.color.split(' ')[0]} border-${config?.bgColor.split('-')[1]}-300`
                         : dayPosts.length > 0
-                          ? 'cursor-pointer border-orange-200 bg-orange-50 hover:border-orange-300'
-                          : 'cursor-pointer border-white/30 hover:border-slate-200 hover:bg-white/50'
+                          ? 'cursor-pointer border-orange-200 bg-orange-50 hover:border-orange-300 dark:border-orange-600 dark:bg-orange-950/35 dark:hover:border-orange-500'
+                          : 'cursor-pointer border-white/30 hover:border-slate-200 hover:bg-white/50 dark:border-slate-600 dark:hover:border-slate-500 dark:hover:bg-slate-800/90'
                 }`}
                 onClick={() => {
                   // Allow clicking on past dates to view posts and events
@@ -865,14 +878,14 @@ export default function CalendarPage() {
                   <div
                     className={`mb-1 text-sm font-medium ${
                       isTodayDate
-                        ? 'text-emerald-600'
+                        ? 'text-emerald-600 dark:text-emerald-400'
                         : isSelected
-                          ? 'text-blue-600'
+                          ? 'text-blue-600 dark:text-blue-400'
                           : hasImportantDate
                             ? `text-${config?.bgColor.split('-')[1]}-700`
                             : isSameMonth(date, currentDate)
-                              ? 'text-slate-900'
-                              : 'text-slate-400'
+                              ? 'text-slate-900 dark:text-slate-100'
+                              : 'text-slate-400 dark:text-slate-500'
                     }`}
                   >
                     {format(date, 'd')}
@@ -898,7 +911,7 @@ export default function CalendarPage() {
                       </div>
                     ))}
                     {dayPosts.length > (hasImportantDate ? 1 : 2) && (
-                      <div className="text-center text-xs text-slate-500">
+                      <div className="text-center text-xs text-slate-500 dark:text-slate-400">
                         +
                         {' '}
                         {dayPosts.length - (hasImportantDate ? 1 : 2)}
@@ -932,13 +945,13 @@ export default function CalendarPage() {
               key={month.toISOString()}
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              className="cursor-pointer rounded-xl border border-white/20 bg-white/70 p-4 backdrop-blur-sm transition-all duration-300 hover:shadow-lg"
+              className="cursor-pointer rounded-xl border border-white/20 bg-white/70 p-4 backdrop-blur-sm transition-all duration-300 hover:shadow-lg dark:border-slate-600 dark:bg-slate-800/90 dark:hover:border-slate-500"
               onClick={() => {
                 setCurrentDate(month);
                 setViewMode('month');
               }}
             >
-              <h3 className="mb-3 text-center font-bold text-slate-900">
+              <h3 className="mb-3 text-center font-bold text-slate-900 dark:text-slate-100">
                 {format(month, 'MMMM')}
               </h3>
               <div className="max-h-32 space-y-2 overflow-y-auto">
@@ -954,7 +967,7 @@ export default function CalendarPage() {
                   );
                 })}
                 {monthEvents.length > 5 && (
-                  <div className="text-center text-xs text-slate-500">
+                  <div className="text-center text-xs text-slate-500 dark:text-slate-400">
                     +
                     {' '}
                     {monthEvents.length - 5}
@@ -1029,7 +1042,7 @@ export default function CalendarPage() {
           </div>
 
           <div className={cn('flex flex-wrap gap-4', isRTL ? 'flex-row-reverse' : '')}>
-            <div className="flex overflow-hidden rounded-lg border border-pink-200 bg-white/50">
+            <div className="flex overflow-hidden rounded-lg border border-pink-200 bg-white/50 dark:border-slate-600 dark:bg-slate-800/90">
               <Button
                 variant={viewMode === 'week' ? 'default' : 'ghost'}
                 onClick={() => {
@@ -1040,7 +1053,7 @@ export default function CalendarPage() {
                 className={`rounded-none ${
                   viewMode === 'week'
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
-                    : 'hover:bg-pink-50'
+                    : 'hover:bg-pink-50 dark:text-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <CalendarIcon className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
@@ -1056,7 +1069,7 @@ export default function CalendarPage() {
                 className={`rounded-none ${
                   viewMode === 'month'
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
-                    : 'hover:bg-pink-50'
+                    : 'hover:bg-pink-50 dark:text-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <Calendar1 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
@@ -1072,7 +1085,7 @@ export default function CalendarPage() {
                 className={`rounded-none ${
                   viewMode === 'year'
                     ? 'bg-pink-500 text-white hover:bg-pink-600'
-                    : 'hover:bg-pink-50'
+                    : 'hover:bg-pink-50 dark:text-slate-200 dark:hover:bg-slate-700'
                 }`}
               >
                 <Grid3x3 className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
@@ -1083,7 +1096,7 @@ export default function CalendarPage() {
             <Button
               variant="outline"
               onClick={() => setShowImportantDates(!showImportantDates)}
-              className="border-pink-200 bg-white/70 text-pink-700 hover:bg-pink-50"
+              className="border-pink-200 bg-white/70 text-pink-700 hover:bg-pink-50 dark:border-slate-600 dark:bg-slate-800 dark:text-pink-300 dark:hover:bg-slate-700"
             >
               <Sparkles className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
               {showImportantDates ? t('hide_events') : t('show_events')}
@@ -1093,11 +1106,11 @@ export default function CalendarPage() {
 
         <div className="grid gap-8 lg:grid-cols-4">
           <div className="lg:col-span-3">
-            <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
-              <CardHeader className="border-b border-white/10">
+            <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
+              <CardHeader className="border-b border-white/10 dark:border-slate-700">
                 <div className="flex items-center justify-between">
-                  <CardTitle className="flex items-center gap-2">
-                    <CalendarIcon className="h-6 w-6 text-pink-500" />
+                  <CardTitle className="flex items-center gap-2 text-slate-900 dark:text-slate-100">
+                    <CalendarIcon className="h-6 w-6 text-pink-500 dark:text-pink-400" />
                     {viewMode === 'week'
                       ? `${format(startOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 }), 'MMM d')} - ${format(endOfWeek(currentDate, { weekStartsOn: isRTL ? 6 : 0 }), 'MMM d, yyyy')}`
                       : viewMode === 'month'
@@ -1110,7 +1123,7 @@ export default function CalendarPage() {
                         variant="outline"
                         size="sm"
                         onClick={goToThisWeek}
-                        className="hover:bg-blue-50"
+                        className="hover:bg-blue-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
                         {t('this_week') || 'This Week'}
                       </Button>
@@ -1119,7 +1132,7 @@ export default function CalendarPage() {
                       variant="outline"
                       size="icon"
                       onClick={() => navigateTime(isRTL ? 1 : -1)}
-                      className="hover:bg-blue-50"
+                      className="hover:bg-blue-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <ChevronLeft className="h-4 w-4" />
                     </Button>
@@ -1127,7 +1140,7 @@ export default function CalendarPage() {
                       variant="outline"
                       size="icon"
                       onClick={() => navigateTime(isRTL ? -1 : 1)}
-                      className="hover:bg-blue-50"
+                      className="hover:bg-blue-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                     >
                       <ChevronRight className="h-4 w-4" />
                     </Button>
@@ -1137,7 +1150,7 @@ export default function CalendarPage() {
               <CardContent className={viewMode === 'week' ? 'p-0' : 'p-6'}>
                 {isLoading
                   ? (
-                      <div className="py-8 text-center text-slate-500">{t('loading')}</div>
+                      <div className="py-8 text-center text-slate-500 dark:text-slate-400">{t('loading')}</div>
                     )
                   : viewMode === 'week'
                     ? (
@@ -1153,12 +1166,12 @@ export default function CalendarPage() {
               </CardContent>
             </Card>
 
-            <Card className="mt-6 border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+            <Card className="mt-6 border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
               <CardHeader>
                 <div className={cn('flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                  <CardTitle>{t('legend_title')}</CardTitle>
+                  <CardTitle className="text-slate-900 dark:text-slate-100">{t('legend_title')}</CardTitle>
                   {viewMode === 'year' && (
-                    <div className="text-sm text-slate-600">
+                    <div className="text-sm text-slate-600 dark:text-slate-400">
                       {t('total_events_year', { count: totalYearEvents, year: currentDate.getFullYear() })}
                     </div>
                   )}
@@ -1179,7 +1192,13 @@ export default function CalendarPage() {
                     return (
                       <div
                         key={item.type}
-                        className={cn('flex cursor-pointer items-center gap-2 rounded-lg p-2 transition-all duration-300', isRTL ? 'flex-row-reverse' : '', isSelected ? 'bg-white/70 shadow-sm' : 'opacity-50 hover:opacity-100')}
+                        className={cn(
+                          'flex cursor-pointer items-center gap-2 rounded-lg p-2 transition-all duration-300',
+                          isRTL ? 'flex-row-reverse' : '',
+                          isSelected
+                            ? 'bg-white/70 shadow-sm dark:bg-slate-800 dark:shadow-none'
+                            : 'opacity-50 hover:opacity-100',
+                        )}
                         onClick={() => toggleCategory(item.type)}
                         onKeyDown={(e) => {
                           if (e.key === 'Enter' || e.key === ' ') {
@@ -1192,9 +1211,9 @@ export default function CalendarPage() {
                       >
                         <div className={`h-4 w-4 rounded ${config.bgColor}`}></div>
                         <div className="flex flex-col">
-                          <span className="text-sm text-slate-600">{config.name}</span>
+                          <span className="text-sm text-slate-600 dark:text-slate-300">{config.name}</span>
                           {viewMode === 'year' && eventCount !== null && eventCount > 0 && (
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-slate-400 dark:text-slate-500">
                               {eventCount}
                               {' '}
                               {t('events')}
@@ -1211,9 +1230,9 @@ export default function CalendarPage() {
 
           <div className="space-y-6">
             {viewMode === 'month' && (
-              <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+              <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
                 <CardHeader>
-                  <CardTitle>
+                  <CardTitle className="text-slate-900 dark:text-slate-100">
                     {selectedDate
                       ? format(selectedDate, 'MMMM d, yyyy')
                       : t('select_date')}
@@ -1230,17 +1249,17 @@ export default function CalendarPage() {
                                 return null;
                               }
                               return (
-                                <div className="flex-shrink-0 rounded-lg border border-purple-200 bg-purple-50 p-3">
+                                <div className="flex-shrink-0 rounded-lg border border-purple-200 bg-purple-50 p-3 dark:border-purple-800/60 dark:bg-purple-950/40">
                                   <div className={cn('mb-2 flex items-center', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                     <Badge className={categoryConfig.color}>
                                       {categoryConfig.name}
                                     </Badge>
                                   </div>
-                                  <h4 className="font-semibold text-purple-900">
+                                  <h4 className="font-semibold text-purple-900 dark:text-purple-100">
                                     {selectedDateImportant.name}
                                   </h4>
                                   {selectedDateImportant.description && (
-                                    <p className="mt-2 text-sm text-purple-700">
+                                    <p className="mt-2 text-sm text-purple-700 dark:text-purple-200/90">
                                       {selectedDateImportant.description}
                                     </p>
                                   )}
@@ -1250,18 +1269,18 @@ export default function CalendarPage() {
 
                             {selectedDatePosts.length > 0 && (
                               <div className="flex min-h-0 flex-1 flex-col space-y-3 overflow-y-auto">
-                                <h4 className="flex-shrink-0 font-semibold text-slate-900">{t('your_posts')}</h4>
+                                <h4 className="flex-shrink-0 font-semibold text-slate-900 dark:!text-slate-100">{t('your_posts')}</h4>
                                 <div className="space-y-3 pr-2">
                                   {selectedDatePosts.map((post, idx) => (
                                     <div
                                       key={post.id || `selected-post-${selectedDate?.toISOString()}-${idx}`}
-                                      className="rounded-xl border border-white/30 p-4"
+                                      className="rounded-xl border border-white/30 p-4 dark:border-slate-600 dark:bg-slate-800/60"
                                     >
-                                      <p className="mb-2 line-clamp-2 font-medium text-slate-900">
+                                      <p className="mb-2 line-clamp-2 font-medium text-slate-900 dark:!text-slate-50">
                                         {post.content}
                                       </p>
                                       <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
-                                        <Badge variant="secondary" className="text-xs">
+                                        <Badge variant="secondary" className="text-xs dark:border-slate-600 dark:bg-slate-700 dark:!text-slate-100">
                                           {format(new Date(post.scheduled_time), 'h:mm a')}
                                         </Badge>
                                         <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
@@ -1279,9 +1298,9 @@ export default function CalendarPage() {
                                                     />
                                                   )
                                                 : (
-                                                    <Building2 className="h-4 w-4 text-slate-500" />
+                                                    <Building2 className="h-4 w-4 text-slate-500 dark:text-slate-400" />
                                                   )}
-                                              <span className="text-xs text-slate-600">{post.brand_name}</span>
+                                              <span className="text-xs text-slate-600 dark:text-slate-300">{post.brand_name}</span>
                                             </div>
                                           )}
                                           {/* Platform Icons */}
@@ -1300,8 +1319,8 @@ export default function CalendarPage() {
                                                       className={cn(
                                                         'flex h-5 w-5 items-center justify-center rounded-full transition-colors',
                                                         platformUrl
-                                                          ? 'bg-pink-100 text-pink-600 hover:bg-pink-200 cursor-pointer'
-                                                          : 'bg-slate-100 text-slate-600',
+                                                          ? 'bg-pink-100 text-pink-600 hover:bg-pink-200 cursor-pointer dark:bg-pink-950/60 dark:text-pink-300 dark:hover:bg-pink-900/60'
+                                                          : 'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300',
                                                       )}
                                                       title={platformUrl ? `${platformName} - Click to view post` : platformName}
                                                     >
@@ -1341,18 +1360,18 @@ export default function CalendarPage() {
                           </>
                         )
                       : (
-                          <div className="py-4 text-center text-slate-500">
-                            <CalendarIcon className="mx-auto mb-2 h-8 w-8 opacity-50" />
+                          <div className="py-4 text-center text-slate-500 dark:text-slate-400">
+                            <CalendarIcon className="mx-auto mb-2 h-8 w-8 opacity-50 dark:opacity-60" />
                             <p className="text-sm">{t('click_date_events')}</p>
                           </div>
                         )}
 
                     {/* Time Picker Section - Only show for non-past dates */}
                     {selectedDate && (!isPast(selectedDate) || isToday(selectedDate)) && (
-                      <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4">
+                      <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50 p-4 dark:border-slate-600 dark:bg-slate-800/80">
                         <div className={cn('mb-3 flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                          <Clock className="h-4 w-4 text-pink-500" />
-                          <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700">
+                          <Clock className="h-4 w-4 text-pink-500 dark:text-pink-400" />
+                          <Label htmlFor="schedule-time" className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                             {t('select_time')}
                           </Label>
                         </div>
@@ -1370,8 +1389,8 @@ export default function CalendarPage() {
                               }
                             }}
                             className={cn(
-                              'w-full border-slate-300 bg-white focus:border-pink-400 focus:ring-pink-400',
-                              timeError ? 'border-red-300 focus:border-red-400 focus:ring-red-400' : '',
+                              'w-full border-slate-300 bg-white focus:border-pink-400 focus:ring-pink-400 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100 dark:placeholder:text-slate-500',
+                              timeError ? 'border-red-300 focus:border-red-400 focus:ring-red-400 dark:border-red-500' : '',
                             )}
                           />
                         </div>
@@ -1394,10 +1413,10 @@ export default function CalendarPage() {
                         </Link>
                         {timeError
                           ? (
-                              <p className="mt-2 text-xs text-red-600">{timeError}</p>
+                              <p className="mt-2 text-xs text-red-600 dark:text-red-400">{timeError}</p>
                             )
                           : (
-                              <p className="mt-2 text-xs text-slate-500">
+                              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                                 {selectedDate && selectedTime
                                   ? format(
                                       new Date(`${format(selectedDate, 'yyyy-MM-dd')}T${selectedTime}`),
@@ -1415,10 +1434,15 @@ export default function CalendarPage() {
             )}
 
             {viewMode === 'month' && (
-              <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+              <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
                 <CardHeader>
-                  <CardTitle className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                    <Sparkles className="h-5 w-5 text-pink-500" />
+                  <CardTitle
+                    className={cn(
+                      'flex items-center gap-2 text-slate-900 dark:text-slate-100',
+                      isRTL ? 'flex-row-reverse' : '',
+                    )}
+                  >
+                    <Sparkles className="h-5 w-5 text-pink-500 dark:text-pink-400" />
                     {t('important_events_month')}
                   </CardTitle>
                 </CardHeader>
@@ -1462,7 +1486,7 @@ export default function CalendarPage() {
                                           {format(event.date, 'M')}
                                         </Badge>
                                       </div>
-                                      <h4 className="mb-1 text-sm font-semibold">{event.name}</h4>
+                                      <h4 className="mb-1 text-sm font-semibold text-slate-900 dark:text-slate-100">{event.name}</h4>
                                       {event.description && (
                                         <p className="mt-1 line-clamp-2 text-xs opacity-80">
                                           {event.description}
@@ -1476,7 +1500,7 @@ export default function CalendarPage() {
                         </div>
                       )
                     : (
-                        <div className="py-6 text-center text-sm text-slate-400">
+                        <div className="py-6 text-center text-sm text-slate-400 dark:text-slate-300">
                           {t('no_events_month')}
                         </div>
                       )}
@@ -1489,11 +1513,11 @@ export default function CalendarPage() {
 
       {/* Post Details Dialog */}
       <Dialog open={showPostDialog} onOpenChange={setShowPostDialog}>
-        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col p-0">
+        <DialogContent className="flex max-h-[90vh] max-w-2xl flex-col border-slate-200 p-0 dark:border-slate-700">
           <DialogClose />
-          <DialogHeader className="flex-shrink-0 border-b border-slate-200 px-6 py-4">
+          <DialogHeader className="flex-shrink-0 border-b border-slate-200 px-6 py-4 dark:border-slate-700">
             <DialogTitle className="flex items-center gap-2">
-              <CalendarIcon className="h-5 w-5 text-pink-500" />
+              <CalendarIcon className="h-5 w-5 text-pink-500 dark:text-pink-400" />
               {t('post_details') || 'Post Details'}
             </DialogTitle>
           </DialogHeader>
@@ -1501,11 +1525,11 @@ export default function CalendarPage() {
             <div className="flex min-h-0 flex-1 flex-col space-y-4 overflow-y-auto px-6 py-4">
               {/* Post Content */}
               <div className="flex-shrink-0">
-                <Label className="text-sm font-semibold text-slate-700">
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   {t('content') || 'Content'}
                 </Label>
-                <div className="mt-1 max-h-[40vh] min-h-[60px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3">
-                  <p className="text-sm break-words whitespace-pre-wrap text-slate-900">
+                <div className="mt-1 max-h-[40vh] min-h-[60px] overflow-y-auto rounded-lg border border-slate-200 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/80">
+                  <p className="text-sm break-words whitespace-pre-wrap text-slate-900 dark:text-slate-100">
                     {selectedPost.content}
                   </p>
                 </div>
@@ -1513,10 +1537,10 @@ export default function CalendarPage() {
 
               {/* Scheduled Time */}
               <div>
-                <Label className="text-sm font-semibold text-slate-700">
+                <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                   {t('scheduled_time') || 'Scheduled Time'}
                 </Label>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
                   {format(
                     new Date(selectedPost.scheduled_time),
                     'PPp',
@@ -1528,7 +1552,7 @@ export default function CalendarPage() {
               {/* Platforms */}
               {selectedPost.platforms && selectedPost.platforms.length > 0 && (
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">
+                  <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {t('platforms') || 'Platforms'}
                   </Label>
                   <div className="mt-2 flex flex-wrap gap-2">
@@ -1544,11 +1568,11 @@ export default function CalendarPage() {
                           className={cn(
                             'flex items-center gap-1.5',
                             platformUrl
-                              ? 'cursor-pointer bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 transition-colors'
-                              : '',
+                              ? 'cursor-pointer bg-pink-50 text-pink-700 border-pink-200 hover:bg-pink-100 transition-colors dark:bg-pink-950/50 dark:text-pink-300 dark:border-pink-800 dark:hover:bg-pink-900/50'
+                              : 'dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200',
                           )}
                         >
-                          <PlatformIcon platform={platformName} className={cn('h-4 w-4', platformUrl && 'text-pink-600')} />
+                          <PlatformIcon platform={platformName} className={cn('h-4 w-4', platformUrl && 'text-pink-600 dark:text-pink-400')} />
                           <span className="capitalize">{platformName}</span>
                         </Badge>
                       );
@@ -1575,7 +1599,7 @@ export default function CalendarPage() {
                     })}
                   </div>
                   {selectedPost.published_at && (
-                    <p className="mt-2 text-xs text-slate-500">
+                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
                       {(t as any)('published_at') || 'Published'}
                       :
                       {format(
@@ -1591,7 +1615,7 @@ export default function CalendarPage() {
               {/* Brand Info */}
               {selectedPost.brand_name && (
                 <div>
-                  <Label className="text-sm font-semibold text-slate-700">
+                  <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
                     {t('brand') || 'Brand'}
                   </Label>
                   <div className="mt-2 flex items-center gap-2">
@@ -1606,19 +1630,19 @@ export default function CalendarPage() {
                           />
                         )
                       : (
-                          <Building2 className="h-6 w-6 text-slate-500" />
+                          <Building2 className="h-6 w-6 text-slate-500 dark:text-slate-400" />
                         )}
-                    <span className="text-sm text-slate-900">{selectedPost.brand_name}</span>
+                    <span className="text-sm text-slate-900 dark:text-slate-100">{selectedPost.brand_name}</span>
                   </div>
                 </div>
               )}
 
               {/* Actions */}
-              <div className="flex flex-shrink-0 gap-2 border-t border-slate-200 bg-white px-6 py-4">
+              <div className="flex flex-shrink-0 gap-2 border-t border-slate-200 bg-white px-6 py-4 dark:border-slate-700 dark:bg-slate-900/90">
                 <Button
                   variant="outline"
                   onClick={() => setShowPostDialog(false)}
-                  className="w-full"
+                  className="w-full dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
                 >
                   {t('close') || 'Close'}
                 </Button>
