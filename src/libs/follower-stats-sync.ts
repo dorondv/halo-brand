@@ -1,6 +1,15 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createGetlateClient } from './Getlate';
 
+/** Match dashboard / analytics normalization (twitter → x). */
+function normalizePlatform(platform: string): string {
+  const normalized = platform.toLowerCase();
+  if (normalized === 'twitter') {
+    return 'x';
+  }
+  return normalized;
+}
+
 /**
  * Fetch follower stats from Publishing integration API
  * This function fetches follower statistics and returns them for use in charts
@@ -13,6 +22,8 @@ export async function getFollowerStatsFromGetlate(
     fromDate?: Date;
     toDate?: Date;
     granularity?: 'daily' | 'weekly' | 'monthly';
+    /** When set (not `all`), only aggregate time series for accounts on this platform */
+    platform?: string | null;
   },
 ): Promise<{
   followerTrend: Array<{ date: string; followers: number }>;
@@ -90,12 +101,28 @@ export async function getFollowerStatsFromGetlate(
       return null;
     }
 
-    // Aggregate follower stats across all accounts
+    const platformFilter
+      = options?.platform && options.platform !== 'all'
+        ? normalizePlatform(options.platform)
+        : null;
+
+    let allowedAccountIds: Set<string> | null = null;
+    if (platformFilter && followerStats.accounts?.length) {
+      allowedAccountIds = new Set(
+        followerStats.accounts
+          .filter(a => normalizePlatform(a.platform) === platformFilter)
+          .map(a => a._id),
+      );
+    }
+
+    // Aggregate follower stats across accounts (all, or only those matching `platform`)
     // The stats object has account IDs as keys, each with an array of { date, followers }
     const followerMap = new Map<string, number>(); // date -> total followers
 
-    // Process all account stats
-    for (const accountStats of Object.values(followerStats.stats)) {
+    for (const [accountId, accountStats] of Object.entries(followerStats.stats)) {
+      if (allowedAccountIds && !allowedAccountIds.has(accountId)) {
+        continue;
+      }
       if (!Array.isArray(accountStats)) {
         continue;
       }
@@ -104,7 +131,7 @@ export async function getFollowerStatsFromGetlate(
         const date = stat.date;
         const followers = stat.followers || 0;
 
-        // Sum followers across all accounts for each date
+        // Sum followers across included accounts for each date
         const currentTotal = followerMap.get(date) || 0;
         followerMap.set(date, currentTotal + followers);
       }

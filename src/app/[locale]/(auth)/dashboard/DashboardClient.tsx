@@ -73,6 +73,8 @@ function PlatformCardsContent({
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
     router.replace(url, { scroll: false });
+    // Ensure server-rendered charts and metrics refetch for the new `platform` query param
+    router.refresh();
   };
 
   return (
