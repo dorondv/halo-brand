@@ -160,8 +160,8 @@ export default function CalendarPage() {
   const isRTL = locale === 'he';
   const router = useRouter();
   const { selectedBrandId } = useBrand();
-  // Initialize currentDate based on view mode - default to week view showing current week
-  const [currentDate, setCurrentDate] = useState(() => startOfWeek(new Date(), { weekStartsOn: isRTL ? 6 : 0 }));
+  // Default view is month — anchor on current month (week start can fall in the previous month)
+  const [currentDate, setCurrentDate] = useState(() => startOfMonth(new Date()));
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
   // Get default time for scheduling - current time, or 5 minutes from now if current time is too close
@@ -1244,7 +1244,7 @@ export default function CalendarPage() {
                     className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                 </div>
-                <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                <div className="flex gap-2">
                   <Input
                     id="manual-event-title"
                     value={newManualEventTitle}
@@ -1257,7 +1257,7 @@ export default function CalendarPage() {
                     }}
                     placeholder={t('manual_event_placeholder')}
                     aria-label={t('manual_event_placeholder')}
-                    className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                    className="min-w-0 flex-1 border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
                   />
                   <Button
                     type="button"
