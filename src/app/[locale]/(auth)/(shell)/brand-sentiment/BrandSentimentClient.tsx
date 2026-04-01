@@ -243,13 +243,13 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
   if (!selectedBrandId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-white p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-white p-6 dark:from-slate-950 dark:to-slate-900">
         <div className="text-center">
-          <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-          <h2 className="mb-2 text-xl font-semibold text-gray-600">
+          <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400 dark:text-slate-500" />
+          <h2 className="mb-2 text-xl font-semibold text-gray-600 dark:text-slate-200">
             {t('select_brand')}
           </h2>
-          <p className="text-gray-500">
+          <p className="text-gray-500 dark:text-slate-400">
             {t('select_brand_hint')}
           </p>
         </div>
@@ -264,10 +264,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
           <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
             {t('title')}
           </h1>
-          <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
+          <p className="mt-2 text-lg text-slate-500 dark:text-slate-300">{t('subtitle')}</p>
         </motion.div>
 
-        <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+        <Card className="glass-effect border-white/20 shadow-xl">
           <CardHeader>
             <CardTitle>{t('settings_title')}</CardTitle>
             <CardDescription>
@@ -304,8 +304,8 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
         </Card>
 
         {error && (
-          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-100 p-4 text-red-700">
-            <AlertCircle className="h-5 w-5" />
+          <div className="flex items-center gap-2 rounded-lg border border-red-200 bg-red-100 p-4 text-red-700 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-300">
+            <AlertCircle className="h-5 w-5 shrink-0" />
             <p>{error}</p>
           </div>
         )}
@@ -316,7 +316,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
               {/* 30 Days Chart */}
               {analysisResult.search_trends_daily && (
-                <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                <Card className="glass-effect border-white/20 shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="text-blue-500" />
@@ -372,7 +372,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
               {/* 12 Months Chart */}
               {analysisResult.search_trends_monthly && (
-                <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+                <Card className="glass-effect border-white/20 shadow-xl">
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
                       <TrendingUp className="text-green-500" />
@@ -431,7 +431,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
             {/* Overall Score and Distribution */}
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl lg:col-span-1 dark:border-gray-700 dark:bg-gray-800">
+              <Card className="glass-effect border-white/20 shadow-xl lg:col-span-1">
                 <CardHeader>
                   <CardTitle>{t('overall_sentiment_score')}</CardTitle>
                 </CardHeader>
@@ -462,13 +462,13 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                     </svg>
                     <div className="absolute inset-0 flex flex-col items-center justify-center">
                       <span className="text-4xl font-bold text-slate-800 dark:text-slate-100">{overallScore}</span>
-                      <span className="text-sm text-slate-500">/ 100</span>
+                      <span className="text-sm text-slate-500 dark:text-slate-400">/ 100</span>
                     </div>
                   </div>
                 </CardContent>
               </Card>
 
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl lg:col-span-2 dark:border-gray-700 dark:bg-gray-800">
+              <Card className="glass-effect border-white/20 shadow-xl lg:col-span-2">
                 <CardHeader>
                   <CardTitle>{t('sentiment_distribution')}</CardTitle>
                 </CardHeader>
@@ -504,8 +504,15 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           />
                         ))}
                       </Pie>
-                      <Tooltip />
-                      <Legend />
+                      <Tooltip
+                        contentStyle={{
+                          backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                          border: isDark ? '1px solid #4b5563' : '1px solid #e5e7eb',
+                          borderRadius: '8px',
+                          color: isDark ? '#e5e7eb' : '#1f2937',
+                        }}
+                      />
+                      <Legend wrapperStyle={{ color: isDark ? '#e5e7eb' : '#374151' }} />
                     </PieChart>
                   </ResponsiveContainer>
                 </CardContent>
@@ -513,7 +520,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
             </div>
 
             <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+              <Card className="glass-effect border-white/20 shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ThumbsUp className="text-green-500" />
@@ -523,20 +530,20 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                 <CardContent>
                   {analysisResult.positive_themes && analysisResult.positive_themes.length > 0
                     ? (
-                        <ul className="list-disc space-y-2 pl-5 text-slate-700">
+                        <ul className="list-disc space-y-2 pl-5 text-slate-700 dark:text-slate-300">
                           {analysisResult.positive_themes.map(theme => (
                             <li key={`positive-theme-${theme}`}>{theme}</li>
                           ))}
                         </ul>
                       )
                     : (
-                        <p className="text-sm text-gray-500 italic">
+                        <p className="text-sm text-gray-500 italic dark:text-slate-400">
                           {t('no_positive_topics')}
                         </p>
                       )}
                 </CardContent>
               </Card>
-              <Card className="rounded-lg border border-gray-200 bg-white shadow-xl dark:border-gray-700 dark:bg-gray-800">
+              <Card className="glass-effect border-white/20 shadow-xl">
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
                     <ThumbsDown className="text-red-500" />
@@ -546,14 +553,14 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                 <CardContent>
                   {analysisResult.negative_themes && analysisResult.negative_themes.length > 0
                     ? (
-                        <ul className="list-disc space-y-2 pl-5 text-slate-700">
+                        <ul className="list-disc space-y-2 pl-5 text-slate-700 dark:text-slate-300">
                           {analysisResult.negative_themes.map(theme => (
                             <li key={`negative-theme-${theme}`}>{theme}</li>
                           ))}
                         </ul>
                       )
                     : (
-                        <p className="text-sm text-gray-500 italic">
+                        <p className="text-sm text-gray-500 italic dark:text-slate-400">
                           {t('no_negative_topics')}
                         </p>
                       )}
@@ -575,11 +582,11 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                 <CardContent className="space-y-6">
                   {/* Overall Sentiment Section */}
                   {analysisResult.report.overall_sentiment_section && (
-                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6 dark:border-gray-700 dark:bg-gray-800/80">
-                      <h3 className="mb-4 text-xl font-semibold text-slate-800">
+                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6 dark:border-slate-600 dark:bg-slate-900/60">
+                      <h3 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">
                         {isRTL ? '📊 סנטימנט כללי באינטרנט וביקורות' : '📊 Overall Web Sentiment & Reviews'}
                       </h3>
-                      <div className="prose prose-sm max-w-none whitespace-pre-wrap text-slate-700">
+                      <div className="prose prose-sm dark:prose-invert max-w-none whitespace-pre-wrap text-slate-700 dark:text-slate-300">
                         {analysisResult.report.overall_sentiment_section}
                       </div>
                     </div>
@@ -587,21 +594,21 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
                   {/* Positive Feedback */}
                   {analysisResult.report.positive_feedback && (
-                    <div className="rounded-lg border border-green-200 bg-green-50/50 p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-green-800">
+                    <div className="rounded-lg border border-green-200/80 bg-green-50/50 p-6 dark:border-green-900/50 dark:bg-green-950/25">
+                      <h3 className="mb-4 text-xl font-semibold text-green-800 dark:text-green-300">
                         {analysisResult.report.positive_feedback.title || (isRTL ? '👍 משוב חיובי' : '👍 Positive Feedback')}
                       </h3>
                       {analysisResult.report.positive_feedback.items && analysisResult.report.positive_feedback.items.length > 0 && (
                         <div className="space-y-4">
                           {analysisResult.report.positive_feedback.items.map((item, index) => (
-                            <div key={`positive-${index}`} className="rounded-lg border border-green-200 bg-white p-4">
+                            <div key={`positive-${index}`} className="rounded-lg border border-green-200 bg-white p-4 dark:border-green-900/40 dark:bg-slate-950/50">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
                                   {item.title && (
-                                    <h4 className="mb-2 font-semibold text-green-800">{item.title}</h4>
+                                    <h4 className="mb-2 font-semibold text-green-800 dark:text-green-300">{item.title}</h4>
                                   )}
                                   {item.description && (
-                                    <p className="text-sm whitespace-pre-wrap text-slate-700">{item.description}</p>
+                                    <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{item.description}</p>
                                   )}
                                 </div>
                                 {item.url && (
@@ -609,7 +616,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                     href={item.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex-shrink-0 text-green-600 transition-colors hover:text-green-800"
+                                    className="flex-shrink-0 text-green-600 transition-colors hover:text-green-800 dark:text-green-400 dark:hover:text-green-300"
                                     title={t('open_link')}
                                   >
                                     <ExternalLink className="h-4 w-4" />
@@ -625,21 +632,21 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
                   {/* Critical Feedback */}
                   {analysisResult.report.critical_feedback && (
-                    <div className="rounded-lg border border-orange-200 bg-orange-50/50 p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-orange-800">
+                    <div className="rounded-lg border border-slate-200 bg-slate-50/90 p-6 dark:border-slate-600 dark:bg-slate-900/70">
+                      <h3 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">
                         {analysisResult.report.critical_feedback.title || (isRTL ? '👎 משוב ביקורתי או ניטרלי' : '👎 Critical or Neutral Feedback')}
                       </h3>
                       {analysisResult.report.critical_feedback.items && analysisResult.report.critical_feedback.items.length > 0 && (
                         <div className="space-y-4">
                           {analysisResult.report.critical_feedback.items.map((item, index) => (
-                            <div key={`critical-${index}`} className="rounded-lg border border-orange-200 bg-white p-4">
+                            <div key={`critical-${index}`} className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-600 dark:bg-slate-950/60">
                               <div className="flex items-start justify-between gap-2">
                                 <div className="flex-1">
                                   {item.title && (
-                                    <h4 className="mb-2 font-semibold text-orange-800">{item.title}</h4>
+                                    <h4 className="mb-2 font-semibold text-slate-800 dark:text-slate-200">{item.title}</h4>
                                   )}
                                   {item.description && (
-                                    <p className="text-sm whitespace-pre-wrap text-slate-700">{item.description}</p>
+                                    <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{item.description}</p>
                                   )}
                                 </div>
                                 {item.url && (
@@ -647,7 +654,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                     href={item.url}
                                     target="_blank"
                                     rel="noopener noreferrer"
-                                    className="flex-shrink-0 text-orange-600 transition-colors hover:text-orange-800"
+                                    className="flex-shrink-0 text-pink-600 transition-colors hover:text-pink-800 dark:text-pink-400 dark:hover:text-pink-300"
                                     title={t('open_link')}
                                   >
                                     <ExternalLink className="h-4 w-4" />
@@ -663,21 +670,21 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
                   {/* Summary */}
                   {analysisResult.report.summary && (
-                    <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-blue-800">
+                    <div className="rounded-lg border border-blue-200/80 bg-blue-50/50 p-6 dark:border-blue-900/50 dark:bg-blue-950/25">
+                      <h3 className="mb-4 text-xl font-semibold text-blue-800 dark:text-blue-300">
                         {isRTL ? '⭐ סיכום סנטימנט המותג' : '⭐ Summary of Brand Sentiment'}
                       </h3>
                       <div className="space-y-3">
                         {analysisResult.report.summary.positive && (
-                          <div className="rounded-lg border border-green-200 bg-white p-4">
-                            <h4 className="mb-2 font-semibold text-green-800">{t('positive')}</h4>
-                            <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.positive}</p>
+                          <div className="rounded-lg border border-green-200 bg-white p-4 dark:border-green-900/40 dark:bg-slate-950/50">
+                            <h4 className="mb-2 font-semibold text-green-800 dark:text-green-300">{t('positive')}</h4>
+                            <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{analysisResult.report.summary.positive}</p>
                           </div>
                         )}
                         {analysisResult.report.summary.negative && (
-                          <div className="rounded-lg border border-red-200 bg-white p-4">
-                            <h4 className="mb-2 font-semibold text-red-800">{t('negative_mixed')}</h4>
-                            <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.summary.negative}</p>
+                          <div className="rounded-lg border border-red-200 bg-white p-4 dark:border-red-900/40 dark:bg-slate-950/50">
+                            <h4 className="mb-2 font-semibold text-red-800 dark:text-red-300">{t('negative_mixed')}</h4>
+                            <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{analysisResult.report.summary.negative}</p>
                           </div>
                         )}
                       </div>
@@ -686,35 +693,35 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
                   {/* Positioning */}
                   {analysisResult.report.positioning && (
-                    <div className="rounded-lg border border-purple-200 bg-purple-50/50 p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-purple-800">
+                    <div className="rounded-lg border border-purple-200/80 bg-purple-50/50 p-6 dark:border-purple-900/50 dark:bg-purple-950/25">
+                      <h3 className="mb-4 text-xl font-semibold text-purple-800 dark:text-purple-300">
                         {isRTL ? '📌 מיצוב כללי בתעשייה' : '📌 General Positioning in Industry'}
                       </h3>
-                      <p className="text-sm whitespace-pre-wrap text-slate-700">{analysisResult.report.positioning}</p>
+                      <p className="text-sm whitespace-pre-wrap text-slate-700 dark:text-slate-300">{analysisResult.report.positioning}</p>
                     </div>
                   )}
 
                   {/* Sentiment Snapshot */}
                   {analysisResult.report.sentiment_snapshot && analysisResult.report.sentiment_snapshot.length > 0 && (
-                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6 dark:border-gray-700 dark:bg-gray-800/80">
-                      <h3 className="mb-4 text-xl font-semibold text-slate-800">
+                    <div className="rounded-lg border border-gray-200 bg-white/80 p-6 dark:border-slate-600 dark:bg-slate-900/60">
+                      <h3 className="mb-4 text-xl font-semibold text-slate-800 dark:text-slate-100">
                         {isRTL ? '📊 תמונת סנטימנט ברמה גבוהה' : '📊 High-Level Sentiment Snapshot'}
                       </h3>
                       <div className="overflow-x-auto">
                         <table className="w-full border-collapse">
                           <thead>
-                            <tr className="border-b border-gray-300">
-                              <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                            <tr className="border-b border-gray-300 dark:border-slate-600">
+                              <th className={`p-3 text-left font-semibold text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
                                 {t('source')}
                               </th>
-                              <th className={`p-3 text-left font-semibold text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                              <th className={`p-3 text-left font-semibold text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
                                 {t('sentiment_summary')}
                               </th>
                             </tr>
                           </thead>
                           <tbody>
                             {analysisResult.report.sentiment_snapshot.map((snapshot, index) => (
-                              <tr key={`snapshot-${index}`} className="border-b border-gray-200">
+                              <tr key={`snapshot-${index}`} className="border-b border-gray-200 dark:border-slate-700">
                                 <td className={`p-3 font-medium text-slate-800 dark:text-slate-200 ${isRTL ? 'text-right' : 'text-left'}`}>
                                   {snapshot.url
                                     ? (
@@ -722,7 +729,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                           href={snapshot.url}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className="flex items-center gap-2 text-blue-600 transition-colors hover:text-blue-800 hover:underline"
+                                          className="flex items-center gap-2 text-blue-600 transition-colors hover:text-blue-800 hover:underline dark:text-blue-400 dark:hover:text-blue-300"
                                         >
                                           <span>{snapshot.source || '-'}</span>
                                           <ExternalLink className="h-3 w-3" />
@@ -732,7 +739,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                         snapshot.source || '-'
                                       )}
                                 </td>
-                                <td className={`p-3 text-sm text-slate-700 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                <td className={`p-3 text-sm text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
                                   {snapshot.sentiment_summary || '-'}
                                 </td>
                               </tr>
@@ -745,8 +752,8 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
 
                   {/* Key Takeaways */}
                   {analysisResult.report.key_takeaways && analysisResult.report.key_takeaways.length > 0 && (
-                    <div className="rounded-lg border border-indigo-200 bg-indigo-50/50 p-6">
-                      <h3 className="mb-4 text-xl font-semibold text-indigo-800">
+                    <div className="rounded-lg border border-indigo-200/80 bg-indigo-50/50 p-6 dark:border-indigo-900/50 dark:bg-indigo-950/25">
+                      <h3 className="mb-4 text-xl font-semibold text-indigo-800 dark:text-indigo-300">
                         {isRTL ? '📌 נקודות מפתח' : '📌 Key Takeaways'}
                       </h3>
                       <ul className="space-y-2">
@@ -778,7 +785,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           return (
                             <li key={`takeaway-${index}`} className="flex items-start gap-2">
                               <span className="mt-0.5 flex-shrink-0 text-lg leading-none">{emoji}</span>
-                              <span className="flex-1 text-sm leading-relaxed font-normal text-slate-700 normal-case">{textWithoutEmoji}</span>
+                              <span className="flex-1 text-sm leading-relaxed font-normal text-slate-700 normal-case dark:text-slate-300">{textWithoutEmoji}</span>
                             </li>
                           );
                         })}
