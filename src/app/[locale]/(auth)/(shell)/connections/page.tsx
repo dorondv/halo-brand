@@ -2055,7 +2055,7 @@ export default function ConnectionsPage() {
             <DialogHeader>
               <DialogTitle>{t('are_you_sure')}</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-white">
               {t('disconnect_warning', { handle: accountToDisconnect?.handle || '' })}
             </p>
             <DialogFooter className={cn(isRTL ? 'flex-row-reverse' : '')}>
