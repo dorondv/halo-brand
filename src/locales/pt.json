@@ -501,6 +501,7 @@
     "category_international": "Internacional",
     "category_custom": "Eventos personalizados",
     "add_manual_event": "Adicionar evento de marketing",
+    "manual_event_date": "Data do evento",
     "manual_event_placeholder": "Nome do evento",
     "remove_manual_event": "Remover evento personalizado",
     "category_national": "Nacional",

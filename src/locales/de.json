@@ -502,6 +502,7 @@
     "category_international": "International",
     "category_custom": "Eigene Ereignisse",
     "add_manual_event": "Marketing-Termin hinzufügen",
+    "manual_event_date": "Terminsdatum",
     "manual_event_placeholder": "Ereignisname",
     "remove_manual_event": "Eigenes Ereignis entfernen",
     "category_national": "National",
