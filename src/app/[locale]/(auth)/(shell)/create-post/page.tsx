@@ -4339,7 +4339,7 @@ export default function CreatePostPage() {
                                     <p className="text-sm text-slate-600 dark:text-slate-200">{t('select_platform_to_preview')}</p>
                                   </div>
                                 )}
-                            <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50 p-3 text-xs text-slate-600 dark:border-slate-600 dark:bg-slate-900/80 dark:text-slate-100">
+                            <div className="mt-4 rounded-lg bg-slate-100/90 p-3 text-xs text-slate-700 shadow-sm dark:bg-slate-800/90 dark:text-slate-200">
                               <div className="flex items-start gap-2">
                                 <MessageCircle className="mt-0.5 h-4 w-4 shrink-0 text-slate-500 dark:text-slate-300" />
                                 <span>
@@ -4590,8 +4590,8 @@ export default function CreatePostPage() {
                             )}
 
                         {/* Disclaimer */}
-                        <div className="mt-4 rounded-lg border border-slate-200/80 bg-slate-50 p-3 dark:border-slate-600 dark:bg-slate-900/80">
-                          <p className="flex items-start gap-2 text-xs text-slate-600 dark:text-slate-100">
+                        <div className="mt-4 rounded-lg bg-slate-100/90 p-3 shadow-sm dark:bg-slate-800/90">
+                          <p className="flex items-start gap-2 text-xs text-slate-700 dark:text-slate-200">
                             <span className="mt-0.5 text-slate-500 dark:text-slate-300">ℹ️</span>
                             <span>{t('preview_disclaimer')}</span>
                           </p>

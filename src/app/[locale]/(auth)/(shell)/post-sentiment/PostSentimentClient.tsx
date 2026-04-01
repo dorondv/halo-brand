@@ -29,6 +29,7 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from 'recharts';
+import { useTheme } from '@/components/theme/theme-context';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -53,10 +54,10 @@ const SUPPORTED_PLATFORMS = ['instagram', 'facebook', 'tiktok'] as const;
 const platformDetails: Record<string, { icon: React.ComponentType<{ className?: string }>; name: string; color: string }> = {
   facebook: { icon: Facebook, name: 'Facebook', color: 'text-blue-600' },
   instagram: { icon: Instagram, name: 'Instagram', color: 'text-pink-500' },
-  tiktok: { icon: TikTokIcon, name: 'TikTok', color: 'text-black' },
-  youtube: { icon: Youtube, name: 'YouTube', color: 'text-red-600' },
-  twitter: { icon: XIcon, name: 'X', color: 'text-gray-800' },
-  x: { icon: XIcon, name: 'X', color: 'text-gray-800' },
+  tiktok: { icon: TikTokIcon, name: 'TikTok', color: 'text-black dark:text-slate-100' },
+  youtube: { icon: Youtube, name: 'YouTube', color: 'text-red-600 dark:text-red-400' },
+  twitter: { icon: XIcon, name: 'X', color: 'text-gray-800 dark:text-slate-200' },
+  x: { icon: XIcon, name: 'X', color: 'text-gray-800 dark:text-slate-200' },
   linkedin: { icon: Linkedin, name: 'LinkedIn', color: 'text-sky-700' },
 };
 
@@ -111,6 +112,7 @@ export function PostSentimentClient() {
   const t = useTranslations('PostSentiment');
   const locale = useLocale();
   const isRTL = locale === 'he';
+  const { isDark } = useTheme();
   const { selectedBrandId } = useBrand();
   const [posts, setPosts] = useState<Post[]>([]);
   const [selectedPlatform, setSelectedPlatform] = useState('all');
@@ -451,13 +453,13 @@ export function PostSentimentClient() {
 
   if (!selectedBrandId) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-white p-6">
+      <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-gray-50 to-white p-6 dark:from-slate-950 dark:to-slate-900">
         <div className="text-center">
-          <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-          <h2 className="mb-2 text-xl font-semibold text-gray-600">
+          <Briefcase className="mx-auto mb-4 h-16 w-16 text-gray-400 dark:text-slate-500" />
+          <h2 className="mb-2 text-xl font-semibold text-gray-600 dark:text-slate-200">
             {isRTL ? 'בחר מותג' : 'Select a Brand'}
           </h2>
-          <p className="text-gray-500">{isRTL ? 'אנא בחר מותג כדי לנתח פוסטים' : 'Please select a brand to analyze posts'}</p>
+          <p className="text-gray-500 dark:text-slate-400">{isRTL ? 'אנא בחר מותג כדי לנתח פוסטים' : 'Please select a brand to analyze posts'}</p>
         </div>
       </div>
     );
@@ -478,10 +480,12 @@ export function PostSentimentClient() {
           <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
             {t('title')}
           </h1>
-          <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
+          <p className="mt-2 text-lg text-slate-500 dark:text-slate-300">{t('subtitle')}</p>
           {/* Disclaimer about platform support */}
-          <div className={`mt-4 flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50/50 p-3 text-sm text-amber-800 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
-            <AlertCircle className={`h-5 w-5 flex-shrink-0 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+          <div
+            className={`mt-4 flex items-start gap-2 rounded-lg border border-slate-200/90 bg-slate-100/90 p-3 text-sm text-slate-700 dark:border-slate-600 dark:bg-slate-800/90 dark:text-slate-200 ${isRTL ? 'flex-row-reverse text-right' : ''}`}
+          >
+            <AlertCircle className={`h-5 w-5 flex-shrink-0 text-slate-500 dark:text-slate-300 ${isRTL ? 'ml-2' : 'mr-2'}`} />
             <p>{t('platform_disclaimer')}</p>
           </div>
         </motion.div>
@@ -497,13 +501,13 @@ export function PostSentimentClient() {
               <CardContent className={`space-y-4 ${isRTL ? 'text-right' : ''}`}>
                 {/* Platform Filter */}
                 <Tabs value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                  <TabsList className={`inline-flex h-auto items-center justify-start gap-1 rounded-lg bg-gray-100/50 p-1 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <TabsList className={`inline-flex h-auto items-center justify-start gap-1 rounded-lg bg-gray-100/50 p-1 dark:bg-slate-800/80 ${isRTL ? 'flex-row-reverse' : ''}`}>
                     <TabsTrigger
                       value="all"
                       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                         selectedPlatform === 'all'
-                          ? 'bg-white text-pink-600 shadow-sm'
-                          : 'bg-transparent text-gray-600 hover:bg-white/50 hover:text-gray-900'
+                          ? 'bg-white text-pink-600 shadow-sm dark:bg-slate-700 dark:text-pink-400'
+                          : 'bg-transparent text-gray-600 hover:bg-white/50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-slate-100'
                       }`}
                     >
                       {t('all_platforms')}
@@ -522,8 +526,8 @@ export function PostSentimentClient() {
                           className={
                             `flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
                               isActive
-                                ? 'bg-white text-pink-600 shadow-sm'
-                                : 'bg-transparent text-gray-600 hover:bg-white/50 hover:text-gray-900'
+                                ? 'bg-white text-pink-600 shadow-sm dark:bg-slate-700 dark:text-pink-400'
+                                : 'bg-transparent text-gray-600 hover:bg-white/50 hover:text-gray-900 dark:text-slate-300 dark:hover:bg-slate-700/60 dark:hover:text-slate-100'
                             }`
                           }
                         >
@@ -565,20 +569,20 @@ export function PostSentimentClient() {
                               className={
                                 `rounded-lg border p-3 transition-all duration-300 ${
                                   isSelected
-                                    ? 'border-pink-500 bg-pink-50'
-                                    : 'border-gray-200 hover:border-pink-300'
+                                    ? 'border-pink-500 bg-pink-50 dark:border-pink-500/80 dark:bg-pink-950/35'
+                                    : 'border-gray-200 hover:border-pink-300 dark:border-slate-600 dark:bg-slate-900/50 dark:hover:border-pink-500/60'
                                 }`
                               }
                             >
                               <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-50">
-                                  <Icon className={`h-4 w-4 ${config.color}`} />
+                                <div className="flex h-8 w-8 items-center justify-center rounded-full bg-pink-50 dark:bg-pink-950/50">
+                                  <Icon className={`h-4 w-4 ${config.color} dark:text-pink-300`} />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="mb-1 line-clamp-2 text-sm font-medium text-gray-900 dark:text-gray-100">
                                     {post.content}
                                   </p>
-                                  <p className="text-xs text-gray-500">
+                                  <p className="text-xs text-gray-500 dark:text-slate-400">
                                     {format(new Date(post.created_at), 'dd/MM/yyyy')}
                                     {' '}
                                     •
@@ -595,7 +599,7 @@ export function PostSentimentClient() {
                                     handleAnalyzePost(post);
                                   }}
                                   disabled={isAnalyzing && selectedPost?.id === post.id}
-                                  className={`flex items-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                  className={`flex items-center gap-1.5 rounded-lg border border-pink-200 bg-pink-50 px-3 py-1.5 text-xs font-medium text-pink-700 transition-colors hover:bg-pink-100 disabled:cursor-not-allowed disabled:opacity-50 dark:border-pink-800 dark:bg-pink-950/40 dark:text-pink-300 dark:hover:bg-pink-950/60 ${isRTL ? 'flex-row-reverse' : ''}`}
                                   title={t('analyze_button')}
                                 >
                                   {isAnalyzing && selectedPost?.id === post.id
@@ -626,19 +630,19 @@ export function PostSentimentClient() {
           <div className="lg:col-span-2">
             {!selectedPost
               ? (
-                  <div className="flex h-96 items-center justify-center rounded-xl bg-gray-50">
+                  <div className="flex h-96 items-center justify-center rounded-xl border border-slate-200/60 bg-gray-50 dark:border-slate-700 dark:bg-slate-900/70">
                     <div className="text-center">
-                      <MessageSquareText className="mx-auto mb-4 h-16 w-16 text-gray-400" />
-                      <p className="text-gray-500">{t('select_post')}</p>
+                      <MessageSquareText className="mx-auto mb-4 h-16 w-16 text-gray-400 dark:text-slate-500" />
+                      <p className="text-gray-500 dark:text-slate-300">{t('select_post')}</p>
                     </div>
                   </div>
                 )
               : isAnalyzing
                 ? (
-                    <div className="flex h-96 items-center justify-center rounded-xl bg-white shadow-lg">
+                    <div className="flex h-96 items-center justify-center rounded-xl border border-slate-200/60 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900/80">
                       <div className="text-center">
                         <Loader2 className="mx-auto mb-4 h-12 w-12 animate-spin text-pink-500" />
-                        <p className="text-gray-600">{t('analyzing')}</p>
+                        <p className="text-gray-600 dark:text-slate-300">{t('analyzing')}</p>
                       </div>
                     </div>
                   )
@@ -648,9 +652,9 @@ export function PostSentimentClient() {
                         <CardContent className="pt-6">
                           <div className={`flex flex-col gap-4 ${isRTL ? 'text-right' : ''}`}>
                             <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                              <AlertCircle className={`h-5 w-5 flex-shrink-0 ${errorStatus === 403 ? 'text-amber-500' : 'text-red-500'}`} />
+                              <AlertCircle className={`h-5 w-5 flex-shrink-0 ${errorStatus === 403 ? 'text-slate-500 dark:text-slate-400' : 'text-red-500'}`} />
                               <div className="flex-1">
-                                <p className={`font-medium ${errorStatus === 403 ? 'text-amber-800' : 'text-red-700'}`}>
+                                <p className={`font-medium ${errorStatus === 403 ? 'text-slate-800 dark:text-slate-200' : 'text-red-700 dark:text-red-300'}`}>
                                   {error}
                                 </p>
                                 {errorStatus === 403 && (
@@ -686,7 +690,7 @@ export function PostSentimentClient() {
                                           href={selectedPost.platformPostUrl}
                                           target="_blank"
                                           rel="noopener noreferrer"
-                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/40 dark:text-pink-300 dark:hover:bg-pink-950/60 ${isRTL ? 'flex-row-reverse' : ''}`}
                                         >
                                           <ExternalLink className="h-4 w-4" />
                                           {t('view_on_platform')}
@@ -695,7 +699,7 @@ export function PostSentimentClient() {
                                     : (
                                         <Link
                                           href={`/${locale}/dashboard?postId=${selectedPost.id}`}
-                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 ${isRTL ? 'flex-row-reverse' : ''}`}
+                                          className={`flex items-center gap-2 rounded-lg border border-pink-200 bg-pink-50 px-4 py-2 text-sm font-medium text-pink-700 transition-colors hover:bg-pink-100 dark:border-pink-800 dark:bg-pink-950/40 dark:text-pink-300 dark:hover:bg-pink-950/60 ${isRTL ? 'flex-row-reverse' : ''}`}
                                         >
                                           <ExternalLink className="h-4 w-4" />
                                           {t('view_post')}
@@ -717,7 +721,7 @@ export function PostSentimentClient() {
                             <CardContent>
                               <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                 <div className="flex-1">
-                                  <h3 className="text-lg font-semibold capitalize">
+                                  <h3 className="text-lg font-semibold text-slate-900 capitalize dark:text-slate-100">
                                     {analysis.overall_sentiment === 'positive'
                                       ? t('positive')
                                       : analysis.overall_sentiment === 'negative'
@@ -726,7 +730,7 @@ export function PostSentimentClient() {
                                           ? t('mixed')
                                           : t('neutral')}
                                   </h3>
-                                  <p className="text-gray-600">
+                                  <p className="text-gray-600 dark:text-slate-300">
                                     {t('engagement_score')}
                                     :
                                     {' '}
@@ -735,13 +739,13 @@ export function PostSentimentClient() {
                                   </p>
                                 </div>
                                 <div className="flex items-center gap-2">
-                                  <div className="relative h-3 w-32 overflow-hidden rounded-full bg-gray-200">
+                                  <div className="relative h-3 w-32 overflow-hidden rounded-full bg-gray-200 dark:bg-slate-700">
                                     <div
                                       className="h-full bg-pink-500 transition-all"
                                       style={{ width: `${analysis.engagement_score || 0}%` }}
                                     />
                                   </div>
-                                  <span className="min-w-[3rem] text-right text-sm font-medium text-gray-700">
+                                  <span className="min-w-[3rem] text-right text-sm font-medium text-gray-700 dark:text-slate-200">
                                     {analysis.engagement_score || 0}
                                     %
                                   </span>
@@ -775,7 +779,14 @@ export function PostSentimentClient() {
                                         <Cell key={entry.name} fill={entry.color} />
                                       ))}
                                     </Pie>
-                                    <Tooltip />
+                                    <Tooltip
+                                      contentStyle={{
+                                        backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                                        border: isDark ? '1px solid #4b5563' : '1px solid #e5e7eb',
+                                        borderRadius: '8px',
+                                        color: isDark ? '#e5e7eb' : '#1f2937',
+                                      }}
+                                    />
                                   </PieChart>
                                 </ResponsiveContainer>
                               </CardContent>
@@ -800,7 +811,7 @@ export function PostSentimentClient() {
                                   </h4>
                                   <div className="flex flex-wrap gap-2">
                                     {(analysis.common_emotions || []).map(emotion => (
-                                      <Badge key={emotion} className="bg-pink-100 text-pink-700">
+                                      <Badge key={emotion} className="bg-pink-100 text-pink-700 dark:bg-pink-950/50 dark:text-pink-300">
                                         {emotion}
                                       </Badge>
                                     ))}
@@ -829,8 +840,8 @@ export function PostSentimentClient() {
                             <CardContent>
                               {(analysis.sample_comments || []).length === 0
                                 ? (
-                                    <div className="py-8 text-center text-gray-500">
-                                      <MessageSquare className="mx-auto mb-2 h-12 w-12 text-gray-300" />
+                                    <div className="py-8 text-center text-gray-500 dark:text-slate-400">
+                                      <MessageSquare className="mx-auto mb-2 h-12 w-12 text-gray-300 dark:text-slate-600" />
                                       <p>{isRTL ? 'אין תגובות זמינות' : 'No comments available'}</p>
                                     </div>
                                   )
@@ -839,12 +850,12 @@ export function PostSentimentClient() {
                                       {(analysis.sample_comments || []).map((comment, index) => (
                                         <div
                                           key={`comment-${index}-${comment.text.slice(0, 20)}-${comment.author}`}
-                                          className="rounded-lg border bg-white/50 p-4 transition-all hover:bg-white/70"
+                                          className="rounded-lg border border-slate-200/80 bg-white/50 p-4 transition-all hover:bg-white/70 dark:border-slate-600 dark:bg-slate-800/60 dark:hover:bg-slate-800/90"
                                         >
                                           <div className={`flex items-start gap-3 ${isRTL ? 'flex-row-reverse' : ''}`}>
                                             <div className="flex-1">
                                               <div className="mb-2 flex items-center gap-2">
-                                                <span className="font-semibold text-gray-900">
+                                                <span className="font-semibold text-gray-900 dark:text-slate-100">
                                                   @
                                                   {comment.author}
                                                 </span>
@@ -852,10 +863,10 @@ export function PostSentimentClient() {
                                                   variant="outline"
                                                   className={`ml-auto ${
                                                     comment.sentiment === 'positive'
-                                                      ? 'border-green-200 bg-green-50 text-green-700'
+                                                      ? 'border-green-200 bg-green-50 text-green-700 dark:border-green-800 dark:bg-green-950/40 dark:text-green-300'
                                                       : comment.sentiment === 'negative'
-                                                        ? 'border-red-200 bg-red-50 text-red-700'
-                                                        : 'border-gray-200 bg-gray-50 text-gray-700'
+                                                        ? 'border-red-200 bg-red-50 text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300'
+                                                        : 'border-gray-200 bg-gray-50 text-gray-700 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200'
                                                   }`}
                                                 >
                                                   {comment.sentiment === 'positive'
