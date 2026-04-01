@@ -191,6 +191,10 @@ export default function CalendarPage() {
   const [manualEvents, setManualEvents] = useState<ManualCalendarEvent[]>([]);
   const [manualEventsHydrated, setManualEventsHydrated] = useState(false);
   const [newManualEventTitle, setNewManualEventTitle] = useState('');
+  const [manualEventDate, setManualEventDate] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), n.getDate());
+  });
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>(() => [...ALL_CALENDAR_EVENT_TYPES]);
 
@@ -219,6 +223,14 @@ export default function CalendarPage() {
       /* ignore */
     }
   }, [manualEvents, manualEventsHydrated]);
+
+  useEffect(() => {
+    if (selectedDate) {
+      setManualEventDate(
+        new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate()),
+      );
+    }
+  }, [selectedDate]);
 
   const buildImportantEventsForDate = useCallback(
     (date: Date): CalendarImportantEvent[] => {
@@ -953,12 +965,12 @@ export default function CalendarPage() {
   const periodImportantDates = getImportantDatesForPeriod(currentDate);
 
   const addManualEvent = () => {
-    if (!selectedDate || !newManualEventTitle.trim()) {
+    if (!newManualEventTitle.trim()) {
       return;
     }
     const entry: ManualCalendarEvent = {
       id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `me-${Date.now()}-${Math.random()}`,
-      dateISO: format(selectedDate, 'yyyy-MM-dd'),
+      dateISO: format(manualEventDate, 'yyyy-MM-dd'),
       name: newManualEventTitle.trim(),
     };
     setManualEvents(prev => [...prev, entry]);
@@ -967,6 +979,23 @@ export default function CalendarPage() {
 
   const removeManualEvent = (id: string) => {
     setManualEvents(prev => prev.filter(e => e.id !== id));
+  };
+
+  const handleManualEventDatePickerChange = (value: string) => {
+    if (!value) {
+      return;
+    }
+    const parts = value.split('-').map(Number);
+    const y = parts[0];
+    const m = parts[1];
+    const d = parts[2];
+    if (y === undefined || m === undefined || d === undefined) {
+      return;
+    }
+    const next = new Date(y, m - 1, d);
+    setManualEventDate(next);
+    setSelectedDate(next);
+    setSelectedTime(getDefaultTime(next));
   };
 
   // Calculate min time for time picker (if selecting today, must be at least 5 minutes from now)
@@ -1196,6 +1225,53 @@ export default function CalendarPage() {
           </div>
 
           <div className="space-y-6">
+            <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base text-slate-900 dark:text-slate-100">
+                  {t('add_manual_event')}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3 pt-0">
+                <div className="space-y-2">
+                  <Label htmlFor="manual-event-date" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    {t('manual_event_date')}
+                  </Label>
+                  <Input
+                    id="manual-event-date"
+                    type="date"
+                    value={format(manualEventDate, 'yyyy-MM-dd')}
+                    onChange={e => handleManualEventDatePickerChange(e.target.value)}
+                    className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                </div>
+                <div className={cn('flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
+                  <Input
+                    id="manual-event-title"
+                    value={newManualEventTitle}
+                    onChange={e => setNewManualEventTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addManualEvent();
+                      }
+                    }}
+                    placeholder={t('manual_event_placeholder')}
+                    aria-label={t('manual_event_placeholder')}
+                    className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
+                  />
+                  <Button
+                    type="button"
+                    size="sm"
+                    className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                    onClick={addManualEvent}
+                    disabled={!newManualEventTitle.trim()}
+                  >
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
             {viewMode === 'month' && (
               <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/85">
                 <CardHeader>
@@ -1367,38 +1443,6 @@ export default function CalendarPage() {
                             <p className="text-sm">{t('click_date_events')}</p>
                           </div>
                         )}
-
-                    {selectedDate && (
-                      <div className="flex-shrink-0 rounded-lg border border-slate-200 bg-slate-50/90 p-3 dark:border-slate-600 dark:bg-slate-800/60">
-                        <Label htmlFor="manual-event-title" className="text-sm font-semibold text-slate-800 dark:text-slate-200">
-                          {t('add_manual_event')}
-                        </Label>
-                        <div className={cn('mt-2 flex gap-2', isRTL ? 'flex-row-reverse' : '')}>
-                          <Input
-                            id="manual-event-title"
-                            value={newManualEventTitle}
-                            onChange={e => setNewManualEventTitle(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                e.preventDefault();
-                                addManualEvent();
-                              }
-                            }}
-                            placeholder={t('manual_event_placeholder')}
-                            className="border-slate-300 bg-white dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100"
-                          />
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="shrink-0 bg-emerald-600 text-white hover:bg-emerald-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
-                            onClick={addManualEvent}
-                            disabled={!newManualEventTitle.trim()}
-                          >
-                            <Plus className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    )}
 
                     {/* Time Picker Section - Only show for non-past dates */}
                     {selectedDate && (!isPast(selectedDate) || isToday(selectedDate)) && (
