@@ -2576,8 +2576,8 @@ export default function CreatePostPage() {
             {/* Posts Counter */}
             <Card className={`border ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
-                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="flex-1">
+                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('posts_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.postsThisMonth}
@@ -2591,7 +2591,7 @@ export default function CreatePostPage() {
                       </Link>
                     )}
                   </div>
-                  <div className={`rounded-full p-2 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'bg-red-100' : 'bg-green-100'}`}>
+                  <div className={`shrink-0 rounded-full p-2 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'bg-red-100' : 'bg-green-100'}`}>
                     <MessageCircle className={`h-5 w-5 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600' : 'text-green-600'}`} />
                   </div>
                 </div>
@@ -2601,8 +2601,8 @@ export default function CreatePostPage() {
             {/* AI Generations Counter */}
             <Card className={`border ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
-                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="flex-1">
+                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_content_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiGenerationsThisMonth}
@@ -2616,7 +2616,7 @@ export default function CreatePostPage() {
                       </Link>
                     )}
                   </div>
-                  <div className={`rounded-full p-2 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'bg-red-100' : 'bg-blue-100'}`}>
+                  <div className={`shrink-0 rounded-full p-2 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'bg-red-100' : 'bg-blue-100'}`}>
                     <Wand2 className={`h-5 w-5 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600' : 'text-blue-600'}`} />
                   </div>
                 </div>
@@ -2626,8 +2626,8 @@ export default function CreatePostPage() {
             {/* AI Images Allowed Counter */}
             <Card className={`border ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
               <CardContent className="p-4">
-                <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="flex-1">
+                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <div className="min-w-0 flex-1">
                     <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_images_this_month')}</p>
                     <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                       {usage.aiImageGenerationsThisMonth}
@@ -2641,7 +2641,7 @@ export default function CreatePostPage() {
                       </Link>
                     )}
                   </div>
-                  <div className={`rounded-full p-2 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'bg-red-100' : 'bg-pink-100'}`}>
+                  <div className={`shrink-0 rounded-full p-2 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'bg-red-100' : 'bg-pink-100'}`}>
                     <ImageIcon className={`h-5 w-5 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600' : 'text-pink-600'}`} />
                   </div>
                 </div>
@@ -3186,8 +3186,8 @@ export default function CreatePostPage() {
                                     {limits && (
                                       <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                         <CardContent className="p-3">
-                                          <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                            <div className="flex-1">
+                                          <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                            <div className="min-w-0 flex-1">
                                               <p className="text-xs font-medium text-slate-600 dark:text-slate-200">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
                                               <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                 {usage.imagesInCurrentPost}
@@ -3196,7 +3196,7 @@ export default function CreatePostPage() {
                                                 {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
                                               </p>
                                             </div>
-                                            <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
+                                            <div className={`shrink-0 rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
                                               <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-300'}`} />
                                             </div>
                                           </div>
@@ -4010,8 +4010,8 @@ export default function CreatePostPage() {
                                                   {limits && (
                                                     <Card className={`border ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
                                                       <CardContent className="p-3">
-                                                        <div className={`flex items-center justify-between ${isRTL ? 'flex-row-reverse' : ''}`}>
-                                                          <div className="flex-1">
+                                                        <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                                          <div className="min-w-0 flex-1">
                                                             <p className="text-xs font-medium text-slate-600 dark:text-slate-200">{isRTL ? 'תמונות בפוסט' : 'Images in Post'}</p>
                                                             <p className={`text-lg font-bold ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
                                                               {usage.imagesInCurrentPost}
@@ -4020,7 +4020,7 @@ export default function CreatePostPage() {
                                                               {limits.maxImagesPerPost === 999999 ? '∞' : limits.maxImagesPerPost}
                                                             </p>
                                                           </div>
-                                                          <div className={`rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
+                                                          <div className={`shrink-0 rounded-full p-1.5 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'bg-red-100 dark:bg-red-950/50' : 'bg-purple-100 dark:bg-purple-950/40'}`}>
                                                             <ImageIcon className={`h-4 w-4 ${usage.imagesInCurrentPost >= limits.maxImagesPerPost ? 'text-red-600 dark:text-red-400' : 'text-purple-600 dark:text-purple-300'}`} />
                                                           </div>
                                                         </div>
