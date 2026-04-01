@@ -196,6 +196,7 @@ export default async function Dashboard({ searchParams }: DashboardProps) {
       fromDate: rangeFrom,
       toDate: rangeTo,
       granularity: granularity === 'day' ? 'daily' : granularity === 'week' ? 'weekly' : granularity === 'month' ? 'monthly' : 'daily',
+      platform: selectedPlatform && selectedPlatform !== 'all' ? selectedPlatform : undefined,
     }),
     getGetlateAnalyticsOverview(supabase, userId, selectedBrandId, {
       fromDate: rangeFrom.toISOString().split('T')[0],
