@@ -2006,7 +2006,7 @@ export default function ConnectionsPage() {
               <DialogTitle>{t('delete_brand_title')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-slate-600">
+              <p className="text-slate-600 dark:text-white">
                 {t('delete_brand_message', { name: brandToDelete?.name || '' })}
               </p>
             </div>
@@ -2114,11 +2114,20 @@ export default function ConnectionsPage() {
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
-                              <p className="font-semibold text-gray-800 dark:text-gray-100">{page.name}</p>
+                              <p
+                                className={cn(
+                                  'font-semibold',
+                                  isSelected
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-gray-800 dark:text-gray-100',
+                                )}
+                              >
+                                {page.name}
+                              </p>
                             </button>
                           );
                         })}
@@ -2470,11 +2479,20 @@ export default function ConnectionsPage() {
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
-                              <p className="font-semibold text-gray-800 dark:text-gray-100">{page.name}</p>
+                              <p
+                                className={cn(
+                                  'font-semibold',
+                                  isSelected
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-gray-800 dark:text-gray-100',
+                                )}
+                              >
+                                {page.name}
+                              </p>
                             </button>
                           );
                         })}
@@ -2596,16 +2614,25 @@ export default function ConnectionsPage() {
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
                               <div className="flex items-center gap-2">
-                                <Building2 className="h-5 w-5 text-gray-600" />
+                                <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                                 <div>
-                                  <p className="font-semibold text-gray-800 dark:text-gray-100">{org.name}</p>
+                                  <p
+                                    className={cn(
+                                      'font-semibold',
+                                      isSelected
+                                        ? 'text-gray-900 dark:text-white'
+                                        : 'text-gray-800 dark:text-gray-100',
+                                    )}
+                                  >
+                                    {org.name}
+                                  </p>
                                   {org.urn && (
-                                    <p className="text-xs text-gray-500">{org.urn}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{org.urn}</p>
                                   )}
                                 </div>
                               </div>
