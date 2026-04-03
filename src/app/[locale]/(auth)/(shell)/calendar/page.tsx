@@ -959,8 +959,11 @@ export default function CalendarPage() {
   };
 
   const selectedDatePosts = selectedDate ? getPostsForDate(selectedDate) : [];
+  /** International dates only for the schedule panel — custom marketing events stay on the grid / monthly list */
   const selectedImportantEvents = selectedDate
-    ? buildImportantEventsForDate(selectedDate).filter(ev => selectedCategories.includes(ev.type))
+    ? buildImportantEventsForDate(selectedDate).filter(
+        ev => ev.type === 'international' && selectedCategories.includes(ev.type),
+      )
     : [];
   const periodImportantDates = getImportantDatesForPeriod(currentDate);
 
@@ -1278,7 +1281,7 @@ export default function CalendarPage() {
                   <CardTitle className="text-slate-900 dark:text-slate-100">
                     {selectedDate
                       ? format(selectedDate, 'MMMM d, yyyy')
-                      : t('select_date')}
+                      : t('schedule_post')}
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="flex max-h-[calc(100vh-300px)] flex-col overflow-hidden">

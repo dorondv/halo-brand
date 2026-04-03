@@ -502,6 +502,7 @@
     "category_custom": "Eventos personalizados",
     "add_manual_event": "Adicionar evento de marketing",
     "manual_event_date": "Data do evento",
+    "manual_event_pick_calendar_day": "Selecione primeiro um dia no calendário.",
     "manual_event_placeholder": "Nome do evento",
     "remove_manual_event": "Remover evento personalizado",
     "category_national": "Nacional",
