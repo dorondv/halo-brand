@@ -404,6 +404,7 @@
     "error_create_failed": "Fehler beim Erstellen von Beiträgen für eine Marke. Bitte überprüfen Sie Ihre Kontoverbindungen.",
     "error_post_id_failed": "Fehler beim Abrufen der Beitrags-ID",
     "error_create_post_failed": "Fehler beim Erstellen des Beitrags",
+    "error_schedule_datetime_required": "Bitte wählen Sie ein Datum und eine Uhrzeit für die Planung.",
     "platforms_title": "Plattformen auswählen",
     "platform_account": "Konto",
     "platform_accounts": "Konten",

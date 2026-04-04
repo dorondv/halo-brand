@@ -404,6 +404,7 @@
     "error_create_failed": "נכשל ביצירת פוסטים עבור כל המותגים. אנא בדוק את החיבורים שלך.",
     "error_post_id_failed": "נכשל בקבלת מזהה הפוסט",
     "error_create_post_failed": "נכשל ביצירת הפוסט",
+    "error_schedule_datetime_required": "אנא בחר תאריך ושעה לתזמון הפוסט.",
     "platforms_title": "בחר פלטפורמות",
     "platform_account": "חשבון",
     "platform_accounts": "חשבונות",

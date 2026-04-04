@@ -403,6 +403,7 @@
     "error_create_failed": "Error al crear publicaciones para cualquier marca. Por favor verifica tus conexiones de cuenta.",
     "error_post_id_failed": "Error al obtener ID de publicación",
     "error_create_post_failed": "Error al crear publicación",
+    "error_schedule_datetime_required": "Selecciona fecha y hora para programar la publicación.",
     "platforms_title": "Seleccionar Plataformas",
     "platform_account": "cuenta",
     "platform_accounts": "cuentas",
