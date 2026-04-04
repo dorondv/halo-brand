@@ -61,6 +61,29 @@ export function AdminUsers() {
     }
   }, [toast, t]);
 
+  const planDisplayName = useCallback(
+    (planType: string | null) => {
+      if (!planType) {
+        return '—';
+      }
+      switch (planType) {
+        case 'free':
+          return t('plan_free');
+        case 'basic':
+          return t('plan_basic');
+        case 'pro':
+          return t('plan_pro');
+        case 'business':
+          return t('plan_business');
+        case 'trial':
+          return t('plan_trial');
+        default:
+          return planType;
+      }
+    },
+    [t],
+  );
+
   useEffect(() => {
     void fetchUsers();
   }, [fetchUsers]);
@@ -75,7 +98,7 @@ export function AdminUsers() {
           user.role,
           new Date(user.registrationDate).toLocaleDateString(),
           user.userStatus,
-          user.planType || '—',
+          planDisplayName(user.planType),
           user.totalPaid.toFixed(2),
           user.couponUsed ? 'Yes' : 'No',
         ].join(',')),
@@ -309,12 +332,13 @@ export function AdminUsers() {
   };
 
   const getStatusBadge = (status: string) => {
+    // Keys must match getUserStatus() in subscriptionService exactly
     const badges: Record<string, { color: string; bg: string }> = {
-      'Active User (Paid)': {
-        color: 'text-green-700 dark:text-green-400',
-        bg: 'bg-green-100 dark:bg-green-900/30',
+      'Active user (Paid)': {
+        color: 'text-green-800 dark:text-green-300',
+        bg: 'bg-green-100 dark:bg-green-900/40',
       },
-      'Free Trial': {
+      'Free trial': {
         color: 'text-blue-700 dark:text-blue-400',
         bg: 'bg-blue-100 dark:bg-blue-900/30',
       },
@@ -322,7 +346,7 @@ export function AdminUsers() {
         color: 'text-red-700 dark:text-red-400',
         bg: 'bg-red-100 dark:bg-red-900/30',
       },
-      'Free Access': {
+      'Free access': {
         color: 'text-purple-700 dark:text-purple-400',
         bg: 'bg-purple-100 dark:bg-purple-900/30',
       },
@@ -497,11 +521,11 @@ export function AdminUsers() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="free">Free</SelectItem>
-                                <SelectItem value="basic">Basic</SelectItem>
-                                <SelectItem value="pro">Pro</SelectItem>
-                                <SelectItem value="business">Business</SelectItem>
-                                <SelectItem value="trial">Trial</SelectItem>
+                                <SelectItem value="free">{t('plan_free')}</SelectItem>
+                                <SelectItem value="basic">{t('plan_basic')}</SelectItem>
+                                <SelectItem value="pro">{t('plan_pro')}</SelectItem>
+                                <SelectItem value="business">{t('plan_business')}</SelectItem>
+                                <SelectItem value="trial">{t('plan_trial')}</SelectItem>
                               </SelectContent>
                             </Select>
                             <button
@@ -532,7 +556,7 @@ export function AdminUsers() {
                           <div className="flex items-center gap-2">
                             {user.planType
                               ? (
-                                  <span className="capitalize">{user.planType}</span>
+                                  <span>{planDisplayName(user.planType)}</span>
                                 )
                               : (
                                   <span className="text-gray-400">—</span>

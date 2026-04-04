@@ -53,6 +53,26 @@ export function AdminSubscriptions() {
     void fetchSubscriptions();
   }, [fetchSubscriptions]);
 
+  const planDisplayName = useCallback(
+    (planType: string) => {
+      switch (planType) {
+        case 'free':
+          return t('plan_free');
+        case 'basic':
+          return t('plan_basic');
+        case 'pro':
+          return t('plan_pro');
+        case 'business':
+          return t('plan_business');
+        case 'trial':
+          return t('plan_trial');
+        default:
+          return planType;
+      }
+    },
+    [t],
+  );
+
   const handleCancel = async (subscription: Subscription) => {
     // eslint-disable-next-line no-alert
     if (!confirm(`Cancel subscription for ${subscription.user.email}?`)) {
@@ -250,7 +270,7 @@ export function AdminSubscriptions() {
                     </div>
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
-                    <span className="capitalize">{subscription.planType}</span>
+                    <span>{planDisplayName(subscription.planType)}</span>
                   </td>
                   <td className="px-6 py-4 whitespace-nowrap">{getStatusBadge(subscription)}</td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-900 dark:text-white">
