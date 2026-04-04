@@ -884,7 +884,9 @@
     "attach_file": "Attach file or image",
     "cancel_reply": "Cancel reply",
     "replying_to": "Replying to",
-    "you": "You"
+    "you": "You",
+    "inbox_chat_unsupported_hint": "Direct messages are not available for this platform in the unified inbox.",
+    "inbox_comment_unsupported_hint": "Post comments are not available for this platform in the unified inbox."
   },
   "Payment": {
     "back_to_pricing": "Back to Pricing Page",

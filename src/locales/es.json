@@ -884,7 +884,9 @@
     "attach_file": "Adjuntar archivo o imagen",
     "cancel_reply": "Cancelar respuesta",
     "replying_to": "Respondiendo a",
-    "you": "Tú"
+    "you": "Tú",
+    "inbox_chat_unsupported_hint": "Los mensajes directos no están disponibles para esta plataforma en el buzón unificado.",
+    "inbox_comment_unsupported_hint": "Los comentarios en publicaciones no están disponibles para esta plataforma en el buzón unificado."
   },
   "Payment": {
     "back_to_pricing": "Volver a la Página de Precios",

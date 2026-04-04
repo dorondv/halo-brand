@@ -885,7 +885,9 @@
     "attach_file": "צרף קובץ או תמונה",
     "cancel_reply": "בטל מענה",
     "replying_to": "משיב ל",
-    "you": "אתה"
+    "you": "אתה",
+    "inbox_chat_unsupported_hint": "הודעות ישירות אינן זמינות לפלטפורמה זו בתיבת הדואר המאוחדת.",
+    "inbox_comment_unsupported_hint": "תגובות לפוסטים אינן זמינות לפלטפורמה זו בתיבת הדואר המאוחדת."
   },
   "Payment": {
     "back_to_pricing": "חזרה לעמוד התמחור",

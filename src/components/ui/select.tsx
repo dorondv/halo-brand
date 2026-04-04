@@ -127,7 +127,7 @@ export function SelectContent({ children, className, dir }: { children: React.Re
   );
 }
 
-export function SelectItem({ children, value, dir, ...props }: { children: React.ReactNode; value: string; dir?: 'ltr' | 'rtl' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function SelectItem({ children, value, dir, disabled, ...props }: { children: React.ReactNode; value: string; dir?: 'ltr' | 'rtl'; disabled?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const ctx = React.use(SelectContext);
   if (!ctx) {
     throw new Error('SelectItem must be used within Select');
@@ -139,15 +139,20 @@ export function SelectItem({ children, value, dir, ...props }: { children: React
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => {
+        if (disabled) {
+          return;
+        }
         ctx.onValueChange(value);
         ctx.setOpen(false);
       }}
       dir={dir}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700',
+        'relative flex w-full select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700',
         isSelected && 'bg-gray-100 dark:bg-gray-700 font-medium',
         isRTL ? 'text-right' : 'text-left',
+        disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent' : 'cursor-pointer',
       )}
       style={isRTL ? { textAlign: 'right' } : { textAlign: 'left' }}
       {...props}
