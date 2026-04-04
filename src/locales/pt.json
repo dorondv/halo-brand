@@ -884,7 +884,9 @@
     "attach_file": "Anexar arquivo ou imagem",
     "cancel_reply": "Cancelar resposta",
     "replying_to": "Respondendo a",
-    "you": "Você"
+    "you": "Você",
+    "inbox_chat_unsupported_hint": "Mensagens diretas não estão disponíveis para esta plataforma na caixa de entrada unificada.",
+    "inbox_comment_unsupported_hint": "Comentários em posts não estão disponíveis para esta plataforma na caixa de entrada unificada."
   },
   "Payment": {
     "back_to_pricing": "Voltar à Página de Preços",

@@ -2693,10 +2693,8 @@ export default function CreatePostPage() {
                 )
               : (
                   <form onSubmit={handleSubmit} className="space-y-6 pb-24">
-                    {/* Metricool-style Layout: Split Panel - Content takes half, buttons full width */}
-                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-                      {/* Left Panel - Post Creation (Half Width) */}
-                      <div className="space-y-4">
+                    {/* Platform bar is full-width above the split so Shared Content + Preview cards align */}
+                    <div className="space-y-4">
                         {/* Platform Selection Bar (Metricool-style horizontal bar) - Only Connected Platforms */}
                         <div className="flex items-center gap-2 overflow-x-auto pb-2">
                           {PLATFORM_ORDER
@@ -2752,6 +2750,9 @@ export default function CreatePostPage() {
                             })}
                         </div>
 
+                    <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
+                      {/* Left Panel - Post Creation (Half Width) */}
+                      <div className="space-y-4">
                         {/* Unified Content Editor (Metricool-style) - Always visible when platforms selected */}
                         {selectedPlatforms.length > 0 && (
                           <Card className="border-0 shadow-lg">
@@ -4350,6 +4351,7 @@ export default function CreatePostPage() {
                           </CardContent>
                         </Card>
                       </div>
+                    </div>
                     </div>
 
                     {/* Bottom Actions - Full Width Footer (Below both panels) */}

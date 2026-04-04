@@ -44,6 +44,10 @@ type AccountListProps = {
   locale: string;
   inboxType: 'chat' | 'comment';
   onInboxTypeChange: (type: 'chat' | 'comment') => void;
+  /** When false, Messages mode is not available for the selected account's platform */
+  supportsInboxChat?: boolean;
+  /** When false, Comments mode is not available for the selected account's platform */
+  supportsInboxComment?: boolean;
 };
 
 export function AccountList({
@@ -55,6 +59,8 @@ export function AccountList({
   locale,
   inboxType,
   onInboxTypeChange,
+  supportsInboxChat = true,
+  supportsInboxComment = true,
 }: AccountListProps) {
   const t = useTranslations('Inbox');
   const isRTL = locale === 'he';
@@ -82,7 +88,18 @@ export function AccountList({
             value={inboxType}
             onValueChange={v => onInboxTypeChange(v as 'chat' | 'comment')}
           >
-            <SelectTrigger id="inbox-type-select" dir={isRTL ? 'rtl' : 'ltr'} className="h-9 text-sm">
+            <SelectTrigger
+              id="inbox-type-select"
+              dir={isRTL ? 'rtl' : 'ltr'}
+              className="h-9 text-sm"
+              title={
+                !supportsInboxChat && inboxType === 'comment'
+                  ? t('inbox_chat_unsupported_hint')
+                  : !supportsInboxComment && inboxType === 'chat'
+                    ? t('inbox_comment_unsupported_hint')
+                    : undefined
+              }
+            >
               <SelectValue
                 options={[
                   { value: 'chat', name: t('inbox_type_chat') },
@@ -91,8 +108,22 @@ export function AccountList({
               />
             </SelectTrigger>
             <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-              <SelectItem value="chat" dir={isRTL ? 'rtl' : 'ltr'}>{t('inbox_type_chat')}</SelectItem>
-              <SelectItem value="comment" dir={isRTL ? 'rtl' : 'ltr'}>{t('inbox_type_comment')}</SelectItem>
+              <SelectItem
+                value="chat"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                disabled={!supportsInboxChat}
+                title={!supportsInboxChat ? t('inbox_chat_unsupported_hint') : undefined}
+              >
+                {t('inbox_type_chat')}
+              </SelectItem>
+              <SelectItem
+                value="comment"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                disabled={!supportsInboxComment}
+                title={!supportsInboxComment ? t('inbox_comment_unsupported_hint') : undefined}
+              >
+                {t('inbox_type_comment')}
+              </SelectItem>
             </SelectContent>
           </Select>
         </div>

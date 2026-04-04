@@ -885,7 +885,9 @@
     "attach_file": "Datei oder Bild anhängen",
     "cancel_reply": "Antwort abbrechen",
     "replying_to": "Antwort an",
-    "you": "Sie"
+    "you": "Sie",
+    "inbox_chat_unsupported_hint": "Direktnachrichten sind für diese Plattform im einheitlichen Posteingang nicht verfügbar.",
+    "inbox_comment_unsupported_hint": "Beitragskommentare sind für diese Plattform im einheitlichen Posteingang nicht verfügbar."
   },
   "Payment": {
     "back_to_pricing": "Zurück zur Preisseite",

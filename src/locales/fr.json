@@ -884,7 +884,9 @@
     "attach_file": "Joindre un fichier ou une image",
     "cancel_reply": "Annuler la réponse",
     "replying_to": "Réponse à",
-    "you": "Vous"
+    "you": "Vous",
+    "inbox_chat_unsupported_hint": "Les messages directs ne sont pas disponibles pour cette plateforme dans la boîte de réception unifiée.",
+    "inbox_comment_unsupported_hint": "Les commentaires de publication ne sont pas disponibles pour cette plateforme dans la boîte de réception unifiée."
   },
   "Payment": {
     "back_to_pricing": "Retour à la Page des Tarifs",

@@ -1,6 +1,7 @@
 'use client';
 
 import type { Conversation, InboxAccount, Message } from '@/libs/meta-inbox';
+import { platformSupportsInboxChat, platformSupportsInboxComments } from '@/libs/inboxPlatformSupport';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/libs/cn';
@@ -81,6 +82,15 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
 
   const refreshAccountConversations = useCallback(async (accountId: string) => {
     try {
+      const acc = accounts.find(a => a.id === accountId);
+      if (acc) {
+        const modeOk = inboxType === 'chat'
+          ? platformSupportsInboxChat(acc.platform)
+          : platformSupportsInboxComments(acc.platform);
+        if (!modeOk) {
+          return;
+        }
+      }
       const params = new URLSearchParams({
         accountId,
         type: inboxType,
@@ -106,10 +116,16 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
     } catch (error) {
       console.error('[UnifiedInbox] Error refreshing conversations:', error);
     }
-  }, [inboxType]);
+  }, [accounts, inboxType]);
 
   const loadMoreConversations = useCallback(async () => {
     if (!selectedAccount) {
+      return;
+    }
+    const modeOk = inboxType === 'chat'
+      ? platformSupportsInboxChat(selectedAccount.platform)
+      : platformSupportsInboxComments(selectedAccount.platform);
+    if (!modeOk) {
       return;
     }
     const accountId = selectedAccount.id;
@@ -171,6 +187,17 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
     void (async () => {
       const results = await Promise.allSettled(
         accounts.map(async (acc) => {
+          const modeOk = inboxType === 'chat'
+            ? platformSupportsInboxChat(acc.platform)
+            : platformSupportsInboxComments(acc.platform);
+          if (!modeOk) {
+            return {
+              id: acc.id,
+              conversations: [] as Conversation[],
+              nextCursor: null,
+              hasMore: false,
+            };
+          }
           const params = new URLSearchParams({
             accountId: acc.id,
             type: inboxType,
@@ -211,6 +238,20 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
       cancelled = true;
     };
   }, [accounts, inboxType]);
+
+  // If the selected account does not support the current inbox mode, switch to a supported one
+  useEffect(() => {
+    if (!selectedAccount) {
+      return;
+    }
+    const chatOk = platformSupportsInboxChat(selectedAccount.platform);
+    const commentOk = platformSupportsInboxComments(selectedAccount.platform);
+    if (inboxType === 'chat' && !chatOk && commentOk) {
+      setInboxType('comment');
+    } else if (inboxType === 'comment' && !commentOk && chatOk) {
+      setInboxType('chat');
+    }
+  }, [selectedAccount, inboxType]);
 
   useEffect(() => {
     setSelectedConversation(null);
@@ -393,6 +434,15 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
     }
   };
 
+  const supportsInboxChat = useMemo(
+    () => (selectedAccount ? platformSupportsInboxChat(selectedAccount.platform) : true),
+    [selectedAccount],
+  );
+  const supportsInboxComment = useMemo(
+    () => (selectedAccount ? platformSupportsInboxComments(selectedAccount.platform) : true),
+    [selectedAccount],
+  );
+
   return (
     <div className={cn('flex h-full w-full overflow-hidden bg-white dark:bg-gray-900', isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
       {isRTL
@@ -448,6 +498,8 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                 locale={locale}
                 inboxType={inboxType}
                 onInboxTypeChange={setInboxType}
+                supportsInboxChat={supportsInboxChat}
+                supportsInboxComment={supportsInboxComment}
               />
             </>
           )
@@ -463,6 +515,8 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
                 locale={locale}
                 inboxType={inboxType}
                 onInboxTypeChange={setInboxType}
+                supportsInboxChat={supportsInboxChat}
+                supportsInboxComment={supportsInboxComment}
               />
 
               {/* Middle Section - Conversations */}
