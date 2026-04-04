@@ -56,6 +56,20 @@ export async function POST(request: Request) {
 
   const payload = parse.data;
 
+  // Treat empty/whitespace scheduled_for as absent so Getlate never receives scheduledFor: ""
+  // together with publishNow: true (that combination can cause duplicate publishes).
+  const scheduledForIso
+    = typeof payload.scheduled_for === 'string' && payload.scheduled_for.trim() !== ''
+      ? payload.scheduled_for.trim()
+      : undefined;
+
+  if (scheduledForIso) {
+    const scheduledDate = new Date(scheduledForIso);
+    if (Number.isNaN(scheduledDate.getTime())) {
+      return NextResponse.json({ error: 'Invalid scheduled_for datetime' }, { status: 422 });
+    }
+  }
+
   const postMediaUrls = collectPostPayloadMediaUrls(payload);
   const invalidMediaUrl = postMediaUrls.find(u => !isAllowedOptionalPostMediaUrl(u));
   if (invalidMediaUrl) {
@@ -339,7 +353,7 @@ export async function POST(request: Request) {
               // Send mediaItems at root level (Publishing integration API format)
               // Platform-specific mediaItems are in platformSpecificData.mediaItems
               mediaItems,
-              scheduledFor: payload.scheduled_for,
+              ...(scheduledForIso ? { scheduledFor: scheduledForIso } : {}),
               timezone: payload.timezone,
               platforms: getlatePlatformsArray,
               // Add hashtags if provided
@@ -347,7 +361,7 @@ export async function POST(request: Request) {
               // Publish immediately if not scheduled
               // Note: Publishing integration API publishes asynchronously - the post is created immediately
               // but publishing to social platforms happens in the background
-              publishNow: !payload.scheduled_for,
+              publishNow: !scheduledForIso,
             });
 
             getlatePostId = getlatePost.id || (getlatePost as any)._id;
@@ -366,7 +380,7 @@ export async function POST(request: Request) {
               });
               // Continue with local post creation - the post exists in Publishing integration
               // User can retry publishing from Publishing integration dashboard if needed
-            } else if (!payload.scheduled_for && getlatePost.status !== 'published') {
+            } else if (!scheduledForIso && getlatePost.status !== 'published') {
               // For immediate publishing, if status is not 'published', it's still processing
               console.warn('[Getlate Post Creation] Post created, publishing in progress:', {
                 getlatePostId,
@@ -416,7 +430,7 @@ export async function POST(request: Request) {
   // 1. If scheduled_for is provided, status is 'scheduled'
   // 2. Otherwise, status is 'published' (immediate post, not draft)
   // Note: Posts created immediately should be 'published', not 'draft'
-  const postStatus: 'draft' | 'scheduled' | 'published' = payload.scheduled_for ? 'scheduled' : 'published';
+  const postStatus: 'draft' | 'scheduled' | 'published' = scheduledForIso ? 'scheduled' : 'published';
 
   // Create post in local database
   const { data: inserted, error } = await supabase.from('posts').insert([

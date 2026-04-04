@@ -154,6 +154,21 @@ type Post = {
   metadata?: any;
 };
 
+function getPostDisplayInstant(post: Post): Date | null {
+  const raw = post.scheduled_time || post.published_at;
+  if (!raw) {
+    return null;
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+/** Week grid only renders 8:00–22:00; map other hours into those columns */
+function getWeekGridHour(instant: Date): number {
+  const h = instant.getHours();
+  return Math.min(22, Math.max(8, h));
+}
+
 export default function CalendarPage() {
   const t = useTranslations('Calendar');
   const locale = useLocale();
@@ -353,7 +368,7 @@ export default function CalendarPage() {
         });
 
         if (isMounted) {
-          setPosts(calendarPosts.filter(post => post.scheduled_time));
+          setPosts(calendarPosts.filter(post => getPostDisplayInstant(post)));
           setIsLoading(false);
         }
       } catch {
@@ -441,9 +456,10 @@ export default function CalendarPage() {
   };
 
   const getPostsForDate = (date: Date) => {
-    const filtered = posts.filter(
-      post => post.scheduled_time && isSameDay(new Date(post.scheduled_time), date),
-    );
+    const filtered = posts.filter((post) => {
+      const instant = getPostDisplayInstant(post);
+      return instant && isSameDay(instant, date);
+    });
     // Ensure all posts have unique IDs
     return filtered.map((post, index) => ({
       ...post,
@@ -533,14 +549,18 @@ export default function CalendarPage() {
             const dayName = dayNames[getDay(day)];
             const isSelected = selectedDate && isSameDay(day, selectedDate);
             const isTodayDate = isToday(day);
-            const dayPosts = getPostsForDate(day);
+            const importantEventsRaw = buildImportantEventsForDate(day);
+            const importantEvents = importantEventsRaw.filter(ev => selectedCategories.includes(ev.type));
+            const hasImportantDate = importantEvents.length > 0 && showImportantDates;
 
             return (
               <div
                 key={day.toISOString()}
                 className={cn(
-                  'cursor-pointer border-r border-slate-200 p-3 text-center transition-colors last:border-r-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800',
+                  'cursor-pointer border-r border-slate-200 p-2 text-center transition-colors last:border-r-0 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800',
                   isSelected || isTodayDate ? 'bg-pink-50 dark:bg-pink-950/35' : '',
+                  hasImportantDate && !(isSelected || isTodayDate) ? 'bg-emerald-50/80 dark:bg-emerald-950/35' : '',
+                  hasImportantDate ? 'border-t-2 border-emerald-500 dark:border-emerald-400' : '',
                 )}
                 onClick={() => {
                   setSelectedDate(day);
@@ -570,8 +590,31 @@ export default function CalendarPage() {
                 >
                   {format(day, 'd')}
                 </div>
-                {dayPosts.length > 0 && (
-                  <div className="mt-1 text-xs font-medium text-pink-600 dark:text-pink-400">{dayPosts.length}</div>
+                {hasImportantDate && (
+                  <div className="mt-1.5 space-y-0.5">
+                    {importantEvents.slice(0, 2).map((ev, evIdx) => {
+                      const evConfig = getCategoryConfig(ev.type, t as any);
+                      return (
+                        <div
+                          key={`wk-h-${ev.name}-${evIdx}-${ev.id || ''}`}
+                          className={cn(
+                            'rounded px-0.5 py-0.5 text-[9px] font-medium leading-tight',
+                            evConfig?.color,
+                            'line-clamp-2',
+                          )}
+                          title={ev.name}
+                        >
+                          {ev.name}
+                        </div>
+                      );
+                    })}
+                    {importantEvents.length > 2 && (
+                      <div className="text-[9px] font-medium text-slate-600 dark:text-slate-400">
+                        +
+                        {importantEvents.length - 2}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -611,6 +654,9 @@ export default function CalendarPage() {
               const dayPosts = getPostsForDate(day);
               const isTodayDate = isToday(day);
               const isDaySelected = selectedDate && isSameDay(day, selectedDate);
+              const importantEventsRaw = buildImportantEventsForDate(day);
+              const importantEvents = importantEventsRaw.filter(ev => selectedCategories.includes(ev.type));
+              const hasImportantDate = importantEvents.length > 0 && showImportantDates;
 
               return (
                 <div
@@ -618,6 +664,7 @@ export default function CalendarPage() {
                   className={cn(
                     'border-r border-slate-200 last:border-r-0 dark:border-slate-700',
                     isDaySelected || isTodayDate ? 'bg-pink-50/90 dark:bg-pink-950/30' : '',
+                    hasImportantDate && !(isDaySelected || isTodayDate) ? 'bg-emerald-50/50 dark:bg-emerald-950/25' : '',
                   )}
                 >
                   {timeSlots.map((time, timeIdx) => {
@@ -628,10 +675,13 @@ export default function CalendarPage() {
                     const slotDate = new Date(normalizedDay);
                     slotDate.setHours(slotHour, 0, 0, 0);
 
-                    // Find posts for this time slot
+                    // Find posts for this time slot (grid is 8–22; clamp other hours into those columns)
                     const slotPosts = dayPosts.filter((post) => {
-                      const postDate = new Date(post.scheduled_time);
-                      return postDate.getHours() === slotHour;
+                      const instant = getPostDisplayInstant(post);
+                      if (!instant) {
+                        return false;
+                      }
+                      return getWeekGridHour(instant) === slotHour;
                     });
 
                     const isEmptySlot = slotPosts.length === 0;

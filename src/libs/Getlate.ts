@@ -497,6 +497,14 @@ export class GetlateClient {
     // Convert mediaUrls to mediaItems format if needed
     const requestData: any = { ...data };
 
+    // Empty scheduledFor with publishNow true can confuse the API (duplicate publishes)
+    if (
+      requestData.scheduledFor !== undefined
+      && String(requestData.scheduledFor).trim() === ''
+    ) {
+      delete requestData.scheduledFor;
+    }
+
     // If mediaUrls is provided but mediaItems is not, convert it
     if (requestData.mediaUrls && !requestData.mediaItems && Array.isArray(requestData.mediaUrls)) {
       requestData.mediaItems = requestData.mediaUrls.map((url: string) => {

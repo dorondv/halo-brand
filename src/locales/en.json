@@ -403,6 +403,7 @@
     "error_create_failed": "Failed to create posts for any brand. Please check your account connections.",
     "error_post_id_failed": "Failed to get post ID",
     "error_create_post_failed": "Failed to create post",
+    "error_schedule_datetime_required": "Please select a date and time to schedule your post.",
     "platforms_title": "Select Platforms",
     "platform_account": "account",
     "platform_accounts": "accounts",
