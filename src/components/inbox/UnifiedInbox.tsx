@@ -174,70 +174,86 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
     }
   }, [selectedAccount, inboxType, paginationByAccount, isLoadingMoreConversations]);
 
-  // Prefetch threads (chat or post comments) for every connected account when accounts or inbox type changes
+  // Chat vs comment lists are different; drop cached threads when switching mode
+  useEffect(() => {
+    setConversationsByAccount({});
+    setPaginationByAccount({});
+  }, [inboxType]);
+
+  // Load conversation threads only for the selected account (not every connected account)
   useEffect(() => {
     if (accounts.length === 0) {
       setConversationsByAccount({});
       setPaginationByAccount({});
       return;
     }
+    if (!selectedAccount) {
+      return;
+    }
+
+    const modeOk = inboxType === 'chat'
+      ? platformSupportsInboxChat(selectedAccount.platform)
+      : platformSupportsInboxComments(selectedAccount.platform);
+    if (!modeOk) {
+      setConversationsByAccount(prev => ({
+        ...prev,
+        [selectedAccount.id]: [],
+      }));
+      setPaginationByAccount(prev => ({
+        ...prev,
+        [selectedAccount.id]: { nextCursor: null, hasMore: false },
+      }));
+      return;
+    }
+
+    const accountId = selectedAccount.id;
     let cancelled = false;
+    const ac = new AbortController();
+
     setIsLoadingConversations(true);
-    setPaginationByAccount({});
     void (async () => {
-      const results = await Promise.allSettled(
-        accounts.map(async (acc) => {
-          const modeOk = inboxType === 'chat'
-            ? platformSupportsInboxChat(acc.platform)
-            : platformSupportsInboxComments(acc.platform);
-          if (!modeOk) {
-            return {
-              id: acc.id,
-              conversations: [] as Conversation[],
-              nextCursor: null,
-              hasMore: false,
-            };
-          }
-          const params = new URLSearchParams({
-            accountId: acc.id,
-            type: inboxType,
-            filter: 'all',
-            limit: '50',
-          });
-          const res = await fetch(`/api/inbox/conversations?${params.toString()}`);
-          const data = res.ok
-            ? await res.json()
-            : { conversations: [], nextCursor: null, hasMore: false };
-          return {
-            id: acc.id,
-            conversations: (data.conversations || []) as Conversation[],
+      try {
+        const params = new URLSearchParams({
+          accountId,
+          type: inboxType,
+          filter: 'all',
+          limit: '50',
+        });
+        const res = await fetch(`/api/inbox/conversations?${params.toString()}`, { signal: ac.signal });
+        const data = res.ok
+          ? await res.json()
+          : { conversations: [], nextCursor: null, hasMore: false };
+        if (cancelled) {
+          return;
+        }
+        setConversationsByAccount(prev => ({
+          ...prev,
+          [accountId]: (data.conversations || []) as Conversation[],
+        }));
+        setPaginationByAccount(prev => ({
+          ...prev,
+          [accountId]: {
             nextCursor: data.nextCursor ?? null,
             hasMore: !!data.hasMore,
-          };
-        }),
-      );
-      if (cancelled) {
-        return;
-      }
-      const next: Record<string, Conversation[]> = {};
-      const nextPag: Record<string, { nextCursor: string | null; hasMore: boolean }> = {};
-      for (const r of results) {
-        if (r.status === 'fulfilled') {
-          next[r.value.id] = r.value.conversations;
-          nextPag[r.value.id] = {
-            nextCursor: r.value.nextCursor,
-            hasMore: r.value.hasMore,
-          };
+          },
+        }));
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') {
+          return;
+        }
+        console.error('[UnifiedInbox] Error loading conversations:', error);
+      } finally {
+        if (!cancelled) {
+          setIsLoadingConversations(false);
         }
       }
-      setConversationsByAccount(next);
-      setPaginationByAccount(nextPag);
-      setIsLoadingConversations(false);
     })();
+
     return () => {
       cancelled = true;
+      ac.abort();
     };
-  }, [accounts, inboxType]);
+  }, [accounts.length, selectedAccount, inboxType]);
 
   // If the selected account does not support the current inbox mode, switch to a supported one
   useEffect(() => {
