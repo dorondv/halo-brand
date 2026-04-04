@@ -361,6 +361,10 @@ export function checkSubscriptionAccess(subscription: Subscription | null): {
   };
 }
 
+export function isPaidPlanType(planType: string): boolean {
+  return planType === 'basic' || planType === 'pro' || planType === 'business';
+}
+
 /**
  * Get user status based on subscription
  */
@@ -390,11 +394,22 @@ export function getUserStatus(subscription: Subscription | null): 'Free trial' |
     return 'Churned';
   }
 
-  if (subscription.status === 'active' && subscription.paypalSubscriptionId) {
+  // Paid via PayPal OR admin-assigned / legacy row with paid plan type (no paypal_subscription_id)
+  if (
+    subscription.status === 'active'
+    && (subscription.paypalSubscriptionId || isPaidPlanType(subscription.planType))
+  ) {
     return 'Active user (Paid)';
   }
 
-  if (subscription.status === 'trialing' && subscription.paypalSubscriptionId) {
+  if (
+    subscription.status === 'trialing'
+    && (
+      subscription.paypalSubscriptionId
+      || isPaidPlanType(subscription.planType)
+      || subscription.planType === 'trial'
+    )
+  ) {
     return 'Free trial';
   }
 
@@ -410,6 +425,27 @@ export function getUserStatus(subscription: Subscription | null): 'Free trial' |
   }
 
   return 'Churned';
+}
+
+/**
+ * Whether to apply DB plan limits for this subscription. Matches {@link getUserStatus} / admin panel,
+ * not a raw `endDate` check alone — a past `end_date` left from an old free/trial row must not
+ * revoke Basic/Pro/Business limits while status is still active and the admin UI still shows "Active user (Paid)".
+ */
+export function subscriptionShouldApplyPaidPlanLimits(
+  subscription: Parameters<typeof getUserStatus>[0],
+): boolean {
+  if (!subscription || subscription.planType === 'free') {
+    return false;
+  }
+  if (isPaidPlanType(subscription.planType)) {
+    const label = getUserStatus(subscription);
+    return label === 'Active user (Paid)' || label === 'Free trial';
+  }
+  const now = new Date();
+  const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
+  const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
+  return isSubscriptionActive && isNotExpired;
 }
 
 /**
