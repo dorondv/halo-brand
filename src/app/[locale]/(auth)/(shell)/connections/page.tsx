@@ -1697,21 +1697,31 @@ export default function ConnectionsPage() {
                 )
               : isCreatingBrand
                 ? (
-                    <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6 dark:border-pink-800/50 dark:from-gray-800 dark:to-gray-800">
+                    <div
+                      className={cn(
+                        'space-y-6 rounded-xl border p-6 text-slate-800',
+                        'border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50',
+                        'dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:[background-image:none]',
+                      )}
+                    >
                       <div className="space-y-2">
-                        <Label htmlFor="brandName">{t('brand_name')}</Label>
+                        <Label htmlFor="brandName" className="text-slate-800 dark:text-slate-100">
+                          {t('brand_name')}
+                        </Label>
                         <Input
                           id="brandName"
                           placeholder={t('brand_name_placeholder')}
                           value={newBrandName}
                           onChange={e => setNewBrandName(e.target.value)}
-                          className="bg-white dark:bg-gray-800"
+                          className="border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                           dir={isRTL ? 'rtl' : 'ltr'}
                           disabled={isBrandCreationBusy}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="brandLogo">{t('logo_optional')}</Label>
+                        <Label htmlFor="brandLogo" className="text-slate-800 dark:text-slate-100">
+                          {t('logo_optional')}
+                        </Label>
                         <div className="relative">
                           <input
                             type="file"
@@ -1719,10 +1729,12 @@ export default function ConnectionsPage() {
                             accept="image/*"
                             onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
                             className={cn(
-                              'block w-full text-sm bg-white dark:bg-gray-800 rounded-md border border-gray-300 dark:border-gray-600',
-                              'file:border-0 file:bg-white dark:file:bg-gray-700 file:text-gray-700 dark:file:text-gray-200 file:text-sm file:font-medium',
-                              'file:cursor-pointer hover:file:bg-gray-50 dark:hover:file:bg-gray-600',
-                              'text-gray-500 dark:text-gray-400',
+                              'block w-full rounded-md border text-sm file:leading-tight',
+                              'border-gray-300 bg-white text-slate-800',
+                              'dark:border-slate-500 dark:bg-slate-900 dark:text-slate-200',
+                              'file:border-0 file:text-sm file:font-medium file:cursor-pointer',
+                              'file:bg-slate-100 file:text-slate-800 file:hover:bg-slate-200',
+                              'dark:file:bg-slate-700 dark:file:text-slate-50 dark:hover:file:bg-slate-600',
                               isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
                             )}
                             dir={isRTL ? 'rtl' : 'ltr'}
@@ -1744,7 +1756,7 @@ export default function ConnectionsPage() {
                             setNewBrandName('');
                             setBrandLogoFile(null);
                           }}
-                          className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
+                          className="border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                           disabled={isBrandCreationBusy}
                         >
                           {t('cancel')}

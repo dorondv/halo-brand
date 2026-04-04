@@ -383,7 +383,7 @@ export function BrandSelector() {
         {/* Add Brand Button */}
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 bg-white hover:bg-gray-50"
+          className="w-full justify-start gap-2 bg-white hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           onClick={() => setIsModalOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -401,9 +401,18 @@ export function BrandSelector() {
               {t('brand_create_modal_description')}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6">
+          <div
+            className={cn(
+              'space-y-6 rounded-xl border p-6 text-slate-800',
+              'border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50',
+              /* bg-gradient sets background-image; must clear it in dark mode or the panel stays light */
+              'dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:[background-image:none]',
+            )}
+          >
             <div className="space-y-2">
-              <Label htmlFor="brand-name">{tIntegrations('brand_name')}</Label>
+              <Label htmlFor="brand-name" className="text-slate-800 dark:text-slate-100">
+                {tIntegrations('brand_name')}
+              </Label>
               <Input
                 id="brand-name"
                 placeholder={tIntegrations('brand_name_placeholder')}
@@ -414,13 +423,15 @@ export function BrandSelector() {
                     void handleCreateBrand();
                   }
                 }}
-                className="bg-white"
+                className="border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                 dir={isRTL ? 'rtl' : 'ltr'}
                 disabled={isCreating || isUploadingLogo}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="brand-logo">{tIntegrations('logo_optional')}</Label>
+              <Label htmlFor="brand-logo" className="text-slate-800 dark:text-slate-100">
+                {tIntegrations('logo_optional')}
+              </Label>
               <div className="relative">
                 <input
                   type="file"
@@ -428,10 +439,12 @@ export function BrandSelector() {
                   accept="image/*"
                   onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
                   className={cn(
-                    'block w-full text-sm bg-white rounded-md border border-gray-300',
-                    'file:border-0 file:bg-white file:text-gray-700 file:text-sm file:font-medium',
-                    'file:cursor-pointer hover:file:bg-gray-50',
-                    'text-gray-500',
+                    'block w-full rounded-md border text-sm file:leading-tight',
+                    'border-gray-300 bg-white text-slate-800',
+                    'dark:border-slate-500 dark:bg-slate-900 dark:text-slate-200',
+                    'file:border-0 file:text-sm file:font-medium file:cursor-pointer',
+                    'file:bg-slate-100 file:text-slate-800 file:hover:bg-slate-200',
+                    'dark:file:bg-slate-700 dark:file:text-slate-50 dark:hover:file:bg-slate-600',
                     isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
                   )}
                   dir={isRTL ? 'rtl' : 'ltr'}
@@ -447,7 +460,7 @@ export function BrandSelector() {
                   setBrandName('');
                   setBrandLogoFile(null);
                 }}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                 disabled={isCreating || isUploadingLogo}
               >
                 {tIntegrations('cancel')}

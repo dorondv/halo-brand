@@ -90,7 +90,7 @@ export function DialogContent({ children, className, ...props }: React.HTMLAttri
   return (
     <div
       className={cn(
-        'relative w-full rounded-lg bg-white dark:bg-gray-800 dark:border dark:border-gray-700 p-6 shadow-xl mx-auto',
+        'relative w-full rounded-lg bg-white p-6 text-gray-900 shadow-xl mx-auto dark:border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100',
         className,
       )}
       // Use pointer down to avoid triggering eslint jsx-a11y/click-events-have-key-events
@@ -120,7 +120,7 @@ export function DialogTitle({ children, className, ...props }: React.HTMLAttribu
 
 export function DialogDescription({ children, className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('text-sm text-gray-500 dark:text-gray-400 mt-1', className)} {...props}>
+    <p className={cn('mt-1 text-sm text-gray-500 dark:text-slate-300', className)} {...props}>
       {children}
     </p>
   );
@@ -137,7 +137,7 @@ export function DialogClose({ className, ...props }: React.ButtonHTMLAttributes<
       type="button"
       onClick={() => ctx.onOpenChange(false)}
       className={cn(
-        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500 text-gray-600 dark:text-gray-400',
+        'absolute top-4 right-4 rounded-sm text-gray-600 opacity-80 hover:bg-slate-100 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white',
         className,
       )}
       {...props}
