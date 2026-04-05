@@ -434,8 +434,14 @@ export default function ConnectionsPage() {
     });
   }, []);
 
-  const loadAccountsFromDB = useCallback(async (skipSync = false, forceSync = false) => {
-    if (!selectedBrandId) {
+  const loadAccountsFromDB = useCallback(async (
+    skipSync = false,
+    forceSync = false,
+    /** OAuth return URL includes brandId before React state updates; use this so the list loads immediately */
+    brandIdOverride?: string | null,
+  ) => {
+    const effectiveBrandId = brandIdOverride ?? selectedBrandId;
+    if (!effectiveBrandId) {
       setAccounts([]);
       return;
     }
@@ -448,12 +454,12 @@ export default function ConnectionsPage() {
       }
 
       const supabase = createSupabaseBrowserClient();
-      const currentBrand = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;
+      const currentBrand = brands.find(b => b.id === effectiveBrandId) ?? null;
 
       // Optional sync: refresh follower data from Publishing integration + DB. Do not replace UI with an empty list
       // when the response has no rows (avoids a flash of "all disconnected" after DB already loaded).
       if (forceSync && !skipSync && currentBrand?.getlate_profile_id) {
-        const syncResponse = await fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`);
+        const syncResponse = await fetch(`/api/getlate/accounts?brandId=${effectiveBrandId}`);
         if (syncResponse.ok) {
           const syncData = await syncResponse.json().catch(() => ({ accounts: [] }));
           if (Array.isArray(syncData.accounts)) {
@@ -473,7 +479,7 @@ export default function ConnectionsPage() {
         .from('social_accounts')
         .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id,updated_at')
         .eq('user_id', userId)
-        .eq('brand_id', selectedBrandId)
+        .eq('brand_id', effectiveBrandId)
         .eq('is_active', true)
         .order('updated_at', { ascending: false });
 
@@ -659,17 +665,16 @@ export default function ConnectionsPage() {
       // The callback route already synced accounts, so we need to reload from DB
       const brandIdFromUrl = searchParams.get('brandId');
 
-      // If brandId is in URL, sync it to context
-      if (brandIdFromUrl && brands.length > 0) {
-        const brandToSelect = brands.find(b => b.id === brandIdFromUrl);
-        if (brandToSelect && selectedBrandId !== brandIdFromUrl) {
-          setSelectedBrandId(brandIdFromUrl);
-        }
+      // Sync OAuth return brand into context (do not wait for `brands` — that blocked updates when brands were still loading)
+      if (brandIdFromUrl && selectedBrandId !== brandIdFromUrl) {
+        setSelectedBrandId(brandIdFromUrl);
       }
 
-      void loadAccountsFromDB(true, false);
+      // Pass brandId from URL so loads run against the correct brand in the same tick as the toast (setState is async)
+      const reloadBrandId = brandIdFromUrl ?? selectedBrandId;
+      void loadAccountsFromDB(true, false, reloadBrandId);
       if (!synced) {
-        void loadAccountsFromDB(false, true);
+        void loadAccountsFromDB(false, true, reloadBrandId);
       }
 
       return () => {
