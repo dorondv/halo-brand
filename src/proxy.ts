@@ -3,6 +3,7 @@ import { createServerClient } from '@supabase/ssr';
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 
+import { AppConfig } from './utils/AppConfig';
 import { routing } from './libs/I18nRouting';
 
 // Disable automatic locale detection from browser headers
@@ -13,57 +14,41 @@ const handleI18nRouting = (createMiddleware as any)(routing, {
   localeDetection: false, // Disable automatic browser locale detection
 });
 
-// Check if a pathname is a public route
+// Supported locales from AppConfig (single source of truth)
+const locales = AppConfig.locales;
+const localePattern = new RegExp(`^/(${locales.join('|')})(/|$)`);
+
+// Public paths that don't require authentication (without locale prefix)
+const PUBLIC_PATHS = ['/', '/sign-in', '/sign-up'];
+
+// Auth-related paths where authenticated users should be redirected to dashboard
+const AUTH_PATHS = ['/sign-in', '/sign-up'];
+
+/**
+ * Check if a pathname is a public route.
+ * Strips the locale prefix dynamically and checks against PUBLIC_PATHS.
+ */
 function isPublicRoute(pathname: string): boolean {
-  // Normalize pathname (remove trailing slash except for root)
   const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
 
-  // Root route (marketing page) - can be / or /en/ or /he/ or /es/ or /fr/ or /de/
-  if (normalized === '/' || normalized === '/en' || normalized === '/he' || normalized === '/es' || normalized === '/fr' || normalized === '/de') {
-    return true;
-  }
+  // Strip locale prefix to get the bare path
+  const barePath = normalized.replace(localePattern, '/') || '/';
 
-  // Sign-in routes - /sign-in, /en/sign-in, /he/sign-in, /es/sign-in, /fr/sign-in, /de/sign-in
-  if (
-    normalized === '/sign-in'
-    || normalized === '/en/sign-in'
-    || normalized === '/he/sign-in'
-    || normalized === '/es/sign-in'
-    || normalized === '/fr/sign-in'
-    || normalized === '/de/sign-in'
-    || normalized.startsWith('/sign-in/')
-    || normalized.startsWith('/en/sign-in/')
-    || normalized.startsWith('/he/sign-in/')
-    || normalized.startsWith('/es/sign-in/')
-    || normalized.startsWith('/fr/sign-in/')
-    || normalized.startsWith('/de/sign-in/')
-  ) {
-    return true;
-  }
-
-  // Sign-up routes - /sign-up, /en/sign-up, /he/sign-up, /es/sign-up, /fr/sign-up, /de/sign-up
-  if (
-    normalized === '/sign-up'
-    || normalized === '/en/sign-up'
-    || normalized === '/he/sign-up'
-    || normalized === '/es/sign-up'
-    || normalized === '/fr/sign-up'
-    || normalized === '/de/sign-up'
-    || normalized.startsWith('/sign-up/')
-    || normalized.startsWith('/en/sign-up/')
-    || normalized.startsWith('/he/sign-up/')
-    || normalized.startsWith('/es/sign-up/')
-    || normalized.startsWith('/fr/sign-up/')
-    || normalized.startsWith('/de/sign-up/')
-  ) {
-    return true;
-  }
-
-  return false;
+  return PUBLIC_PATHS.some(p => barePath === p || barePath.startsWith(`${p}/`));
 }
 
-// Create Supabase client for middleware (Edge runtime compatible)
-function createSupabaseMiddlewareClient(request: NextRequest, response: NextResponse) {
+/**
+ * Check if the pathname is an auth-related path (sign-in, sign-up)
+ */
+function isAuthPath(pathname: string): boolean {
+  const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
+  const barePath = normalized.replace(localePattern, '/') || '/';
+
+  return AUTH_PATHS.some(p => barePath === p || barePath.startsWith(`${p}/`));
+}
+
+// Create Supabase client for proxy (Edge runtime compatible)
+function createSupabaseProxyClient(request: NextRequest, response: NextResponse) {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
@@ -78,6 +63,8 @@ function createSupabaseMiddlewareClient(request: NextRequest, response: NextResp
       },
       setAll(cookiesToSet) {
         cookiesToSet.forEach(({ name, value, options }) => {
+          // Set on both the request (for downstream middleware/routing) and the response
+          request.cookies.set(name, value);
           response.cookies.set(name, value, options);
         });
       },
@@ -85,7 +72,16 @@ function createSupabaseMiddlewareClient(request: NextRequest, response: NextResp
   });
 }
 
-export async function middleware(req: NextRequest) {
+/**
+ * Copy cookies set by Supabase auth refresh from the temp response to the final response.
+ */
+function copyCookies(from: NextResponse, to: NextResponse): void {
+  from.cookies.getAll().forEach((cookie) => {
+    to.cookies.set(cookie.name, cookie.value);
+  });
+}
+
+export async function proxy(req: NextRequest) {
   const pathname = req.nextUrl.pathname;
 
   // Skip i18n routing and auth check for API routes - they handle their own auth
@@ -108,17 +104,17 @@ export async function middleware(req: NextRequest) {
 
   // Extract locale from pathname for redirects
   // With 'as-needed' prefix mode, Hebrew (default) doesn't have a prefix
-  const localeMatch = pathname.match(/^\/(en|he|es|fr|de)(\/|$)/);
+  const localeMatch = pathname.match(localePattern);
   const hasLocalePrefix = !!localeMatch;
-  const locale = localeMatch ? localeMatch[1] : 'he'; // Default to Hebrew
+  const locale = localeMatch ? localeMatch[1] : AppConfig.defaultLocale;
 
   // Helper to build locale-prefixed URL
   const buildLocalizedUrl = (path: string) => {
-    if (locale === 'he' && !hasLocalePrefix) {
-      // Hebrew default locale - no prefix
+    if (locale === AppConfig.defaultLocale && !hasLocalePrefix) {
+      // Default locale - no prefix
       return new URL(path, req.url);
     }
-    // English or Hebrew with prefix
+    // Non-default locale or default with explicit prefix
     return new URL(`/${locale}${path}`, req.url);
   };
 
@@ -127,7 +123,7 @@ export async function middleware(req: NextRequest) {
     try {
       // Create a temporary response for Supabase client
       const tempResponse = NextResponse.next();
-      const supabase = createSupabaseMiddlewareClient(req, tempResponse);
+      const supabase = createSupabaseProxyClient(req, tempResponse);
 
       // Check if user is authenticated
       const {
@@ -139,35 +135,39 @@ export async function middleware(req: NextRequest) {
       if (error || !user) {
         return NextResponse.redirect(buildLocalizedUrl('/sign-in'));
       }
+
+      // Auth succeeded — continue with i18n routing, preserving refreshed cookies
+      const i18nResponse = handleI18nRouting(req);
+      copyCookies(tempResponse, i18nResponse);
+      return i18nResponse;
     } catch (error) {
       // If auth check fails, redirect to sign-in for safety
       console.error('Auth check failed in middleware:', error);
       return NextResponse.redirect(buildLocalizedUrl('/sign-in'));
     }
-  } else {
-    // For public routes, check if user is already authenticated
-    // If authenticated and on sign-in/sign-up, redirect to dashboard
-    if (pathname.includes('/sign-in') || pathname.includes('/sign-up')) {
-      try {
-        const tempResponse = NextResponse.next();
-        const supabase = createSupabaseMiddlewareClient(req, tempResponse);
+  }
 
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
+  // For public auth routes, check if user is already authenticated
+  if (isAuthPath(pathname)) {
+    try {
+      const tempResponse = NextResponse.next();
+      const supabase = createSupabaseProxyClient(req, tempResponse);
 
-        // If authenticated and trying to access sign-in/sign-up, redirect to dashboard
-        if (user) {
-          return NextResponse.redirect(buildLocalizedUrl('/dashboard'));
-        }
-      } catch {
-        // If auth check fails on public route, continue (don't block)
-        // This allows the page to handle the error gracefully
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      // If authenticated and trying to access sign-in/sign-up, redirect to dashboard
+      if (user) {
+        return NextResponse.redirect(buildLocalizedUrl('/dashboard'));
       }
+    } catch {
+      // If auth check fails on public route, continue (don't block)
+      // This allows the page to handle the error gracefully
     }
   }
 
-  // Continue with i18n routing for all routes
+  // Continue with i18n routing for all public routes
   return handleI18nRouting(req);
 }
 

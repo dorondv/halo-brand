@@ -5,7 +5,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * POST /api/getlate/googlebusiness/select-location
+ * POST /api/publishing/googlebusiness/select-location
  * Save selected Google Business location during headless OAuth flow
  */
 export async function POST(request: NextRequest) {
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and save location selection
+    // Create Publishing integration client and save location selection
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     await getlateClient.selectGoogleBusinessLocation(
       {

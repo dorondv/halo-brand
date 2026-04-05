@@ -1,13 +1,16 @@
 import type { NextRequest } from 'next/server';
-import { eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
-import { marketingEvents, users } from '@/models/Schema';
+import { marketingEvents } from '@/models/Schema';
 import { extractIPAddress, getCountryFromIP } from '@/utils/geoDetection';
 
 /**
  * POST /api/marketing/events
- * Track marketing events (public endpoint, no auth required)
+ * Track marketing events (public endpoint, no auth required).
+ *
+ * Security: This endpoint only INSERTS into the marketing_events table.
+ * It does NOT write to the users table — that must be done via authenticated
+ * endpoints to prevent arbitrary user record modifications.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -43,45 +46,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // If user is signing up, update user record with UTM/geo data
-    if (eventType === 'signup_complete' && userId) {
-      try {
-        const firstTouch = utm || geo
-          ? {
-              utmSource: utm?.utm_source,
-              utmMedium: utm?.utm_medium,
-              utmCampaign: utm?.utm_campaign,
-              utmTerm: utm?.utm_term,
-              utmContent: utm?.utm_content,
-              firstReferrer: referrer,
-              firstLandingUrl: url,
-              geoCountry: country,
-              geoTz: geo?.timezone,
-              geoLang: geo?.language,
-            }
-          : {};
-
-        // Only update fields that are not null/undefined
-        const updateFields: Record<string, string> = {};
-        Object.entries(firstTouch).forEach(([key, value]) => {
-          if (value !== null && value !== undefined) {
-            updateFields[key] = value;
-          }
-        });
-
-        if (Object.keys(updateFields).length > 0) {
-          await db
-            .update(users)
-            .set(updateFields)
-            .where(eq(users.id, userId));
-        }
-      } catch (error) {
-        // Don't fail the event tracking if user update fails
-        console.error('Failed to update user with marketing data:', error);
-      }
-    }
-
-    // Create marketing event
+    // Create marketing event (insert only — no user record modifications)
     const event = await db
       .insert(marketingEvents)
       .values({

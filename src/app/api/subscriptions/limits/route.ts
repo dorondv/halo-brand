@@ -174,11 +174,11 @@ export async function GET(request: Request) {
 
     const brandsCount = brandsCountResult[0]?.count || 0;
 
-    // Count social accounts from Getlate API by profile (brand) - per brand if brandId is provided
+    // Count social accounts from Publishing integration API by profile (brand) - per brand if brandId is provided
     let socialAccountsCount = 0;
 
     if (brandId) {
-      // Validate that the brand belongs to the user and get Getlate profile ID via Supabase
+      // Validate that the brand belongs to the user and get Publishing integration profile ID via Supabase
       const { data: brandRecord } = await supabase
         .from('brands')
         .select('id, getlate_profile_id')
@@ -187,9 +187,9 @@ export async function GET(request: Request) {
         .maybeSingle();
 
       if (brandRecord?.getlate_profile_id) {
-        // Brand belongs to user and has Getlate profile, fetch accounts from Getlate API
+        // Brand belongs to user and has Publishing integration profile, fetch accounts from Publishing integration API
         try {
-          // Get user's Getlate API key
+          // Get user's Publishing integration API key
           const { data: userRecord } = await supabase
             .from('users')
             .select('getlate_api_key')
@@ -200,13 +200,13 @@ export async function GET(request: Request) {
             const getlateClient = createGetlateClient(userRecord.getlate_api_key);
             const getlateAccounts = await getlateClient.getAccounts(brandRecord.getlate_profile_id);
 
-            // Count active/connected accounts from Getlate API
+            // Count active/connected accounts from Publishing integration API
             // Filter to only count connected accounts (isConnected or isActive)
             socialAccountsCount = getlateAccounts.filter(account =>
               account.isConnected !== false && account.isActive !== false,
             ).length;
           } else {
-            // Fallback to database count if no Getlate API key
+            // Fallback to database count if no Publishing integration API key
             const socialAccountsCountResult = await db
               .select({ count: sql<number>`count(*)::int` })
               .from(socialAccounts)
@@ -229,7 +229,7 @@ export async function GET(request: Request) {
           socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
         }
       } else if (brandRecord) {
-        // Brand belongs to user but no Getlate profile, count from database
+        // Brand belongs to user but no Publishing integration profile, count from database
         const socialAccountsCountResult = await db
           .select({ count: sql<number>`count(*)::int` })
           .from(socialAccounts)

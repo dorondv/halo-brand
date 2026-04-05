@@ -4,7 +4,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * GET /api/getlate/googlebusiness/locations
+ * GET /api/publishing/googlebusiness/locations
  * Fetch available Google Business locations during headless OAuth flow
  */
 export async function GET(request: NextRequest) {
@@ -39,7 +39,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and fetch locations
+    // Create Publishing integration client and fetch locations
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     const locations = await getlateClient.getGoogleBusinessLocations(profileId, tempToken, connectToken);
 

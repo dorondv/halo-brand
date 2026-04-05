@@ -2,9 +2,9 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { syncAnalyticsFromGetlate } from './analytics-sync';
 
 /**
- * Get user's posts with analytics (no caching - real-time data)
+ * Get user's posts with analytics (real-time data)
  */
-export async function getCachedPosts(
+export async function getPosts(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,
@@ -80,9 +80,9 @@ export async function getCachedPosts(
 }
 
 /**
- * Get user's social accounts (no caching - real-time data)
+ * Get user's social accounts (real-time data)
  */
-export async function getCachedAccounts(
+export async function getAccounts(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,
@@ -103,11 +103,11 @@ export async function getCachedAccounts(
 }
 
 /**
- * Background sync analytics from Getlate (non-blocking)
+ * Background sync analytics from Publishing integration (non-blocking)
  * This should be called separately, not blocking the main page load
  * Note: Supabase client must be created outside the cache scope
  *
- * Rate Limit: 30 requests per hour per user (Getlate Analytics API)
+ * Rate Limit: 30 requests per hour per user (Publishing integration Analytics API)
  * Strategy: Fetch comprehensive data with pagination, but respect rate limits
  */
 export async function syncAnalyticsInBackground(
@@ -137,7 +137,7 @@ export async function syncAnalyticsInBackground(
           toDate: toDate.toISOString().split('T')[0],
         });
       } else {
-        // Sync for all brands with Getlate profiles
+        // Sync for all brands with Publishing integration profiles
         // IMPORTANT: Rate limit is 30 req/hour, so we sync sequentially with delays
         // to avoid hitting the limit when syncing multiple brands
         const { data: brands } = await supabase
@@ -193,10 +193,10 @@ export async function syncAnalyticsInBackground(
 }
 
 /**
- * Get demographics data from analytics metadata (no caching - real-time data)
+ * Get demographics data from analytics metadata (real-time data)
  * Returns empty arrays if no data available
  */
-export async function getCachedDemographics(
+export async function getDemographics(
   supabase: SupabaseClient,
   userId: string,
   brandId: string | null,

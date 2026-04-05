@@ -5,7 +5,7 @@ import { createSupabaseServerClient } from '@/libs/Supabase';
 export async function GET(request: NextRequest) {
   const requestUrl = new URL(request.url);
   const code = requestUrl.searchParams.get('code');
-  const next = requestUrl.searchParams.get('next') || '/dashboard';
+  const requestedNext = requestUrl.searchParams.get('next') || '/dashboard';
 
   if (code) {
     const supabase = await createSupabaseServerClient();
@@ -16,5 +16,12 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.redirect(new URL(next, request.url));
+  const safeNext = requestedNext.startsWith('/') ? requestedNext : '/dashboard';
+  const redirectUrl = new URL(safeNext, request.url);
+
+  if (redirectUrl.origin !== requestUrl.origin) {
+    return NextResponse.redirect(new URL('/dashboard', request.url));
+  }
+
+  return NextResponse.redirect(redirectUrl);
 }

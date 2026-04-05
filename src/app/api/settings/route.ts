@@ -16,7 +16,7 @@ export async function GET() {
     // Get user record with personal info
     const { data: userRecord, error: userRecordError } = await supabase
       .from('users')
-      .select('first_name, last_name, id_number, avatar_url')
+      .select('first_name, last_name, avatar_url')
       .eq('id', user.id)
       .single();
 
@@ -70,7 +70,6 @@ export async function GET() {
         data: {
           first_name: userRecord?.first_name || '',
           last_name: userRecord?.last_name || '',
-          id_number: userRecord?.id_number || '',
           avatar_url: userRecord?.avatar_url || null,
           country: newSettings.country,
           language: newSettings.language,
@@ -85,7 +84,6 @@ export async function GET() {
       data: {
         first_name: userRecord?.first_name || '',
         last_name: userRecord?.last_name || '',
-        id_number: userRecord?.id_number || '',
         avatar_url: userRecord?.avatar_url || null,
         country: settingsRecord.country || 'il',
         language: settingsRecord.language || 'he',
@@ -117,7 +115,6 @@ export async function PUT(request: NextRequest) {
     const {
       first_name,
       last_name,
-      id_number,
       avatar_url,
       country,
       language,
@@ -133,9 +130,6 @@ export async function PUT(request: NextRequest) {
     if (last_name !== undefined) {
       userUpdateData.last_name = last_name;
     }
-    if (id_number !== undefined) {
-      userUpdateData.id_number = id_number;
-    }
     if (avatar_url !== undefined) {
       userUpdateData.avatar_url = avatar_url;
     }
@@ -146,7 +140,7 @@ export async function PUT(request: NextRequest) {
         .from('users')
         .update(userUpdateData)
         .eq('id', user.id)
-        .select('first_name, last_name, id_number, avatar_url')
+        .select('first_name, last_name, avatar_url')
         .single();
 
       if (userUpdateError) {
@@ -161,7 +155,7 @@ export async function PUT(request: NextRequest) {
       // Fetch existing user data if no updates
       const { data: userData } = await supabase
         .from('users')
-        .select('first_name, last_name, id_number, avatar_url')
+        .select('first_name, last_name, avatar_url')
         .eq('id', user.id)
         .single();
       updatedUser = userData;
@@ -264,7 +258,6 @@ export async function PUT(request: NextRequest) {
       data: {
         first_name: updatedUser?.first_name || '',
         last_name: updatedUser?.last_name || '',
-        id_number: updatedUser?.id_number || '',
         avatar_url: updatedUser?.avatar_url || null,
         country: updatedSettings.country || 'il',
         language: updatedSettings.language || 'he',

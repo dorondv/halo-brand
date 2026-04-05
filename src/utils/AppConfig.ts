@@ -4,8 +4,8 @@ const localePrefix: LocalePrefixMode = 'as-needed';
 
 // FIXME: Update this configuration file based on your project information
 export const AppConfig = {
-  name: 'Nextjs Starter',
-  locales: ['he', 'en', 'es', 'fr', 'de'], // Hebrew first as default
+  name: 'Branda Social',
+  locales: ['he', 'en', 'es', 'fr', 'de', 'pt'], // Hebrew first as default
   defaultLocale: 'he', // Hebrew is the default locale
   localePrefix,
 };

@@ -73,6 +73,8 @@ function PlatformCardsContent({
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
     router.replace(url, { scroll: false });
+    // Ensure server-rendered charts and metrics refetch for the new `platform` query param
+    router.refresh();
   };
 
   return (
@@ -87,7 +89,7 @@ function PlatformCardsContent({
             key={platform.platform}
             type="button"
             onClick={() => handlePlatformClick(platform.platform)}
-            className="w-full min-w-0 cursor-pointer text-left transition-transform hover:scale-105"
+            className="w-full min-w-0 cursor-pointer text-left transition-transform duration-300 ease-out motion-safe:hover:scale-[1.03]"
           >
             <PlatformCard
               platform={platform.platform}

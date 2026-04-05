@@ -30,8 +30,8 @@ export async function GET(req: Request) {
   });
   const parsed = QuerySchema.parse({ postId, brandId, platform, start, end, use_getlate });
 
-  // Auto-detect if brand has Getlate profile and sync analytics
-  // If brandId is provided, check if it has Getlate profile and sync automatically
+  // Auto-detect if brand has Publishing integration profile and sync analytics
+  // If brandId is provided, check if it has Publishing integration profile and sync automatically
   let shouldSyncFromGetlate = parsed.use_getlate;
   if (!shouldSyncFromGetlate && parsed.brandId) {
     const { data: brandCheck } = await supabase
@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     shouldSyncFromGetlate = !!brandCheck?.getlate_profile_id;
   }
 
-  // Sync analytics from Getlate if needed
+  // Sync analytics from Publishing integration if needed
   if (shouldSyncFromGetlate && parsed.brandId) {
     await syncAnalyticsFromGetlate(supabase, user.id, parsed.brandId, {
       postId: parsed.postId,

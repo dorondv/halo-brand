@@ -1,13 +1,14 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { Env } from '@/libs/Env';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * POST /api/getlate/connect
- * Initiate OAuth connection flow for a social account via Getlate
+ * POST /api/publishing/connect
+ * Initiate OAuth connection flow for a social account via Publishing integration
  */
 export async function POST(request: NextRequest) {
   try {
@@ -32,14 +33,8 @@ export async function POST(request: NextRequest) {
 
     const { platform, brandId, redirectUrl } = parse.data;
 
-    // Get user record to fetch API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -72,7 +67,7 @@ export async function POST(request: NextRequest) {
       userRecord.getlate_api_key = serviceApiKey;
     }
 
-    // Get brand to fetch Getlate profile ID
+    // Get brand to fetch Publishing integration profile ID
     const { data: brandRecord, error: brandError } = await supabase
       .from('brands')
       .select('id, getlate_profile_id')
@@ -91,13 +86,13 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Create Getlate client and initiate OAuth flow
+    // Create Publishing integration client and initiate OAuth flow
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-    // Normalize platform (x -> twitter for Getlate API)
+    // Normalize platform (x -> twitter for Publishing integration API)
     const getlatePlatform = platform === 'x' ? 'twitter' : platform;
 
-    // Build the redirect URL - this is where Getlate will redirect after OAuth
+    // Build the redirect URL - this is where Publishing integration will redirect after OAuth
     // Use the origin from headers if nextUrl.origin is not available
     const origin = request.nextUrl.origin
       || request.headers.get('origin')
@@ -105,14 +100,14 @@ export async function POST(request: NextRequest) {
       || 'http://localhost:3000';
 
     // Default redirect URL points to our callback handler
-    // Getlate will append success/error parameters: ?connected=platform&profileId=...&username=...
+    // Publishing integration will append success/error parameters: ?connected=platform&profileId=...&username=...
     const defaultRedirectUrl = `${origin}/api/getlate/callback?brandId=${brandId}`;
     const finalRedirectUrl = redirectUrl || defaultRedirectUrl;
 
     // Validate redirect URL is a proper URL
+    let parsedRedirectUrl: URL;
     try {
-      // eslint-disable-next-line no-new
-      new URL(finalRedirectUrl);
+      parsedRedirectUrl = new URL(finalRedirectUrl);
     } catch {
       return NextResponse.json(
         { error: 'Invalid redirect URL format' },
@@ -120,9 +115,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    const appOrigin = new URL(origin);
+    if (parsedRedirectUrl.origin !== appOrigin.origin) {
+      return NextResponse.json(
+        { error: 'Redirect URL must match app origin' },
+        { status: 400 },
+      );
+    }
+
     // Use the official /connect endpoint with redirect_url parameter
     // Enable headless mode for Facebook, LinkedIn, and Google Business Profile
-    // This allows users to complete connections without redirecting to getlate.dev
+    // Lets users finish OAuth without leaving the app for the vendor-hosted consent page
     const supportsHeadless = getlatePlatform === 'facebook' || getlatePlatform === 'linkedin' || getlatePlatform === 'googlebusiness';
     const connectResult = await getlateClient.connectAccount(
       getlatePlatform as any,

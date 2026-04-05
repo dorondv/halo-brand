@@ -5,7 +5,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * POST /api/getlate/linkedin/select-organization
+ * POST /api/publishing/linkedin/select-organization
  * Save selected LinkedIn organization or personal account during headless OAuth flow
  */
 export async function POST(request: NextRequest) {
@@ -57,7 +57,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and save organization selection
+    // Create Publishing integration client and save organization selection
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     await getlateClient.selectLinkedInOrganizationForConnection(
       {

@@ -49,6 +49,8 @@ export function ChatwootWidget({
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const readyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const readyIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  /** Skip duplicate setUser when auth refreshes with the same identity (TOKEN_REFRESHED fires often). */
+  const lastIdentityKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const token = websiteToken;
@@ -189,6 +191,11 @@ export function ChatwootWidget({
           const userEmail = session.user.email || '';
           const avatarUrl = userRecord?.avatar_url || session.user.user_metadata?.avatar_url;
 
+          const identityKey = `${session.user.id}|${userEmail}|${userName}|${avatarUrl ?? ''}|${agentName}`;
+          if (lastIdentityKeyRef.current === identityKey) {
+            return;
+          }
+
           // Set user identity in Chatwoot
           window.$chatwoot.setUser(session.user.id, {
             email: userEmail,
@@ -202,12 +209,10 @@ export function ChatwootWidget({
             agent: agentName,
           });
 
-          // User identity set successfully (no need to log in production)
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Chatwoot user identity set:', userName);
-          }
+          lastIdentityKeyRef.current = identityKey;
         } else {
           // User is not authenticated, reset Chatwoot user
+          lastIdentityKeyRef.current = null;
           window.$chatwoot.reset();
         }
       } catch (error) {
@@ -226,6 +231,7 @@ export function ChatwootWidget({
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUserIdentity();
       } else if (event === 'SIGNED_OUT') {
+        lastIdentityKeyRef.current = null;
         if (window.$chatwoot) {
           window.$chatwoot.reset();
         }

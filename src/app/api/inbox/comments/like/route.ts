@@ -5,17 +5,26 @@ import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
 import { createMetaInboxClient } from '@/libs/meta-inbox';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import {
+  resolveZernioApiKey,
+  zernioLikeComment,
+  zernioUnlikeComment,
+} from '@/libs/zernio-inbox';
 import { socialAccounts } from '@/models/Schema';
 
 /**
  * POST /api/inbox/comments/like
- * Like or unlike a comment using Meta Graph API
+ * Like or unlike a comment using Meta Graph API, or Zernio/Getlate when postId + zernioSocialAccountId are set.
  *
- * Body:
- * - commentId: The comment ID from Meta API
- * - accountId: The social account ID (from our database)
- * - platform: 'facebook' | 'instagram' | 'threads'
- * - conversationId: The conversation/thread ID (optional, for logging)
+ * Body (Meta):
+ * - commentId, accountId, platform — required
+ * - conversationId — optional
+ *
+ * Body (Zernio comment threads):
+ * - commentId, accountId, platform, postId, zernioSocialAccountId — required
+ * - currentlyLiked — boolean, current UI state before toggle
+ * - likeUri — optional (Bluesky unlike)
+ * - currentCount — optional fallback when API omits likeCount
  */
 export async function POST(request: NextRequest) {
   try {
@@ -27,13 +36,95 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { commentId, accountId, platform } = body;
+    const {
+      commentId,
+      accountId,
+      platform,
+      postId,
+      zernioSocialAccountId,
+      currentlyLiked,
+      likeUri,
+      currentCount,
+    } = body;
 
     if (!commentId || !accountId || !platform) {
       return NextResponse.json(
         { error: 'commentId, accountId, and platform are required' },
         { status: 400 },
       );
+    }
+
+    // Zernio / Getlate inbox (no Meta page token on these threads)
+    if (postId && zernioSocialAccountId) {
+      if (typeof currentlyLiked !== 'boolean') {
+        return NextResponse.json(
+          { error: 'currentlyLiked (boolean) is required for Zernio comment likes' },
+          { status: 400 },
+        );
+      }
+
+      const [zAccount] = await db
+        .select()
+        .from(socialAccounts)
+        .where(
+          and(
+            eq(socialAccounts.id, accountId),
+            eq(socialAccounts.userId, user.id),
+          ),
+        )
+        .limit(1);
+
+      if (!zAccount) {
+        return NextResponse.json({ error: 'Account not found' }, { status: 404 });
+      }
+
+      const apiKey = await resolveZernioApiKey(supabase, user.id);
+      if (!apiKey) {
+        return NextResponse.json(
+          { error: 'Getlate/Zernio API key not configured' },
+          { status: 400 },
+        );
+      }
+
+      const baseCount = typeof currentCount === 'number' ? currentCount : 0;
+
+      try {
+        if (currentlyLiked) {
+          const data = await zernioUnlikeComment(
+            apiKey,
+            postId,
+            commentId,
+            zernioSocialAccountId,
+            typeof likeUri === 'string' && likeUri ? { likeUri } : undefined,
+          );
+          const count
+            = typeof data.likeCount === 'number'
+              ? data.likeCount
+              : Math.max(baseCount - 1, 0);
+          return NextResponse.json({
+            liked: data.liked ?? false,
+            count,
+            likeUri: undefined as string | undefined,
+          });
+        }
+        const data = await zernioLikeComment(
+          apiKey,
+          postId,
+          commentId,
+          zernioSocialAccountId,
+        );
+        const count
+          = typeof data.likeCount === 'number' ? data.likeCount : baseCount + 1;
+        return NextResponse.json({
+          liked: data.liked ?? true,
+          count,
+          likeUri: data.likeUri,
+        });
+      } catch (zerr) {
+        console.error('[API] Zernio comment like toggle:', zerr);
+        const msg = zerr instanceof Error ? zerr.message : 'Zernio like failed';
+        return NextResponse.json({ error: msg }, { status: 500 });
+      }
     }
 
     // Fetch account details

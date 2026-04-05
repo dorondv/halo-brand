@@ -159,7 +159,7 @@ async function cleanup() {
   }
 
   // 5. Delete brands (references users)
-  // Note: Getlate profiles are shared and not deleted when brands are removed
+  // Note: publishing provider profiles are shared and not deleted when brands are removed
   if (brandsCount && brandsCount > 0) {
     const { error } = await supabase
       .from('brands')

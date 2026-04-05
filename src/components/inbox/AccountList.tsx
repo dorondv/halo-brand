@@ -1,17 +1,39 @@
 'use client';
 
-import type { InboxAccount } from '@/libs/meta-inbox';
-import { Facebook, Instagram, MessageSquare, Search } from 'lucide-react';
+import type { InboxAccount, MetaPlatform } from '@/libs/meta-inbox';
+import {
+  Bird,
+  Bookmark,
+  CircleDot,
+  Cloud,
+  Facebook,
+  Instagram,
+  Linkedin,
+  MessageSquare,
+  Music2,
+  Search,
+  Send,
+  Youtube,
+} from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { cn } from '@/libs/cn';
 
-const platformIcons = {
+const platformIcons: Record<MetaPlatform, { icon: typeof Facebook; color: string }> = {
   facebook: { icon: Facebook, color: 'text-blue-600' },
   instagram: { icon: Instagram, color: 'text-pink-500' },
   threads: { icon: MessageSquare, color: 'text-neutral-900' },
-} as const;
+  twitter: { icon: Bird, color: 'text-sky-500' },
+  bluesky: { icon: Cloud, color: 'text-sky-400' },
+  reddit: { icon: CircleDot, color: 'text-orange-600' },
+  telegram: { icon: Send, color: 'text-sky-600' },
+  linkedin: { icon: Linkedin, color: 'text-blue-700' },
+  youtube: { icon: Youtube, color: 'text-red-600' },
+  tiktok: { icon: Music2, color: 'text-neutral-900' },
+  pinterest: { icon: Bookmark, color: 'text-red-700' },
+};
 
 type AccountListProps = {
   accounts: InboxAccount[];
@@ -20,6 +42,12 @@ type AccountListProps = {
   searchTerm: string;
   onSearchChange: (term: string) => void;
   locale: string;
+  inboxType: 'chat' | 'comment';
+  onInboxTypeChange: (type: 'chat' | 'comment') => void;
+  /** When false, Messages mode is not available for the selected account's platform */
+  supportsInboxChat?: boolean;
+  /** When false, Comments mode is not available for the selected account's platform */
+  supportsInboxComment?: boolean;
 };
 
 export function AccountList({
@@ -29,23 +57,81 @@ export function AccountList({
   searchTerm,
   onSearchChange,
   locale,
+  inboxType,
+  onInboxTypeChange,
+  supportsInboxChat = true,
+  supportsInboxComment = true,
 }: AccountListProps) {
   const t = useTranslations('Inbox');
   const isRTL = locale === 'he';
-  const filteredAccounts = accounts.filter(account =>
-    account.accountName.toLowerCase().includes(searchTerm.toLowerCase()),
-  );
+  const q = searchTerm.trim().toLowerCase();
+  const filteredAccounts = accounts.filter((account) => {
+    if (!q) {
+      return true;
+    }
+    const name = account.accountName.toLowerCase();
+    const plat = account.platform.toLowerCase();
+    const brand = (account.brandName ?? '').toLowerCase();
+    return name.includes(q) || plat.includes(q) || brand.includes(q);
+  });
 
   return (
-    <div className={cn('flex h-full w-[280px] flex-shrink-0 flex-col bg-white', isRTL ? 'border-l' : 'border-r', 'border-gray-200')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full w-[280px] flex-shrink-0 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
-      <div className="border-b border-gray-200 bg-white px-4 py-4">
-        <h2 className={cn('mb-4 text-lg font-semibold text-gray-900', isRTL && 'text-right')}>{t('title')}</h2>
+      <div className="border-b border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-900">
+        <h2 className={cn('mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100', isRTL && 'text-right')}>{t('title')}</h2>
+        <div className={cn('mb-3', isRTL && 'text-right')}>
+          <label className="mb-1.5 block text-xs font-medium text-gray-500 dark:text-gray-400" htmlFor="inbox-type-select">
+            {t('inbox_view_type')}
+          </label>
+          <Select
+            value={inboxType}
+            onValueChange={v => onInboxTypeChange(v as 'chat' | 'comment')}
+          >
+            <SelectTrigger
+              id="inbox-type-select"
+              dir={isRTL ? 'rtl' : 'ltr'}
+              className="h-9 text-sm"
+              title={
+                !supportsInboxChat && inboxType === 'comment'
+                  ? t('inbox_chat_unsupported_hint')
+                  : !supportsInboxComment && inboxType === 'chat'
+                    ? t('inbox_comment_unsupported_hint')
+                    : undefined
+              }
+            >
+              <SelectValue
+                options={[
+                  { value: 'chat', name: t('inbox_type_chat') },
+                  { value: 'comment', name: t('inbox_type_comment') },
+                ]}
+              />
+            </SelectTrigger>
+            <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
+              <SelectItem
+                value="chat"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                disabled={!supportsInboxChat}
+                title={!supportsInboxChat ? t('inbox_chat_unsupported_hint') : undefined}
+              >
+                {t('inbox_type_chat')}
+              </SelectItem>
+              <SelectItem
+                value="comment"
+                dir={isRTL ? 'rtl' : 'ltr'}
+                disabled={!supportsInboxComment}
+                title={!supportsInboxComment ? t('inbox_comment_unsupported_hint') : undefined}
+              >
+                {t('inbox_type_comment')}
+              </SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
         <div className="relative">
           <Search className={cn('absolute top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400 z-10', isRTL ? 'right-3' : 'left-3')} />
           <Input
             placeholder={t('search_accounts')}
-            className={cn('h-10 w-full bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:bg-white focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pr-9' : 'pl-9')}
+            className={cn('h-10 w-full bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pr-9' : 'pl-9')}
             value={searchTerm}
             onChange={e => onSearchChange(e.target.value)}
             dir={isRTL ? 'rtl' : 'ltr'}
@@ -66,7 +152,7 @@ export function AccountList({
           : (
               <div className="p-2">
                 {filteredAccounts.map((account) => {
-                  const { icon: Icon, color } = platformIcons[account.platform] || {
+                  const { icon: Icon, color } = platformIcons[account.platform] ?? {
                     icon: MessageSquare,
                     color: 'text-gray-500',
                   };
@@ -88,8 +174,8 @@ export function AccountList({
                       className={cn(
                         'group flex cursor-pointer items-center gap-3 rounded-lg p-3 transition-colors',
                         isSelected
-                          ? 'bg-pink-50 text-pink-900'
-                          : 'hover:bg-gray-50',
+                          ? 'bg-pink-50 dark:bg-pink-900/30 text-pink-900 dark:text-pink-100'
+                          : 'hover:bg-gray-50 dark:hover:bg-gray-800',
                         isRTL
                           ? isSelected
                             ? 'border-r-4 border-r-pink-500'
@@ -110,7 +196,7 @@ export function AccountList({
                                   width={48}
                                   height={48}
                                   className="h-12 w-12 rounded-full object-cover"
-                                  unoptimized={account.avatarUrl.includes('cdninstagram.com') || account.avatarUrl.includes('fbsbx.com') || account.avatarUrl.includes('fbcdn.net')}
+                                  unoptimized={!account.avatarUrl.startsWith('/') && !account.avatarUrl.includes('supabase.co') && !account.avatarUrl.includes('getlate.dev')}
                                   onError={(e) => {
                                     // Fallback to initials if image fails to load
                                     const target = e.target as HTMLImageElement;
@@ -136,7 +222,7 @@ export function AccountList({
                               </div>
                             )}
                         {/* Platform Icon Overlay */}
-                        <div className="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm">
+                        <div className="absolute -right-1 -bottom-1 flex h-5 w-5 items-center justify-center rounded-full border border-gray-200 bg-white shadow-sm dark:border-gray-600 dark:bg-gray-800">
                           <Icon className={`h-3 w-3 ${color}`} />
                         </div>
                         {/* Unread Indicator */}
@@ -152,13 +238,23 @@ export function AccountList({
                       {/* Account Info */}
                       <div className="min-w-0 flex-1">
                         <p className={`truncate text-sm font-semibold ${
-                          isSelected ? 'text-pink-900' : 'text-gray-900'
+                          isSelected ? 'text-pink-900 dark:text-pink-100' : 'text-gray-900 dark:text-gray-100'
                         }`}
                         >
                           {account.accountName}
                         </p>
-                        <p className="truncate text-xs text-gray-500 capitalize">
-                          {account.platform}
+                        <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                          {account.brandName
+                            ? (
+                                <>
+                                  <span className="font-medium text-gray-600 dark:text-gray-300">{account.brandName}</span>
+                                  <span className="text-gray-400"> · </span>
+                                  <span className="capitalize">{account.platform}</span>
+                                </>
+                              )
+                            : (
+                                <span className="capitalize">{account.platform}</span>
+                              )}
                         </p>
                       </div>
                     </div>

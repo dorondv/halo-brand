@@ -21,7 +21,7 @@ export default async function GetlateTestPage() {
     redirect('/sign-in');
   }
 
-  // Get user's Getlate API key
+  // Get user's Publishing integration API key
   const { data: userRecord } = await supabase
     .from('users')
     .select('getlate_api_key')
@@ -33,11 +33,11 @@ export default async function GetlateTestPage() {
       <div className="container mx-auto p-6">
         <Card className="border-red-200 bg-red-50">
           <CardHeader>
-            <CardTitle className="text-red-800">Getlate API Key Not Found</CardTitle>
+            <CardTitle className="text-red-800">Integration key not found</CardTitle>
           </CardHeader>
           <CardContent>
             <p className="text-red-700">
-              Please configure your Getlate API key in settings to use this test page.
+              Please configure your publishing integration key in settings to use this page.
             </p>
           </CardContent>
         </Card>
@@ -47,7 +47,7 @@ export default async function GetlateTestPage() {
 
   const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-  // Fetch all Getlate data
+  // Fetch all Publishing integration data
   let profiles: any[] = [];
   let profilesError: string | null = null;
   const accounts: Record<string, any[]> = {};
@@ -231,9 +231,9 @@ export default async function GetlateTestPage() {
   return (
     <div className="container mx-auto space-y-6 p-6">
       <div>
-        <h1 className="mb-2 text-3xl font-bold text-gray-900">Getlate API Test Page</h1>
+        <h1 className="mb-2 text-3xl font-bold text-gray-900">Publishing integration test</h1>
         <p className="text-gray-600">
-          This page displays all data that can be retrieved from the Getlate API.
+          This page displays data returned by the connected publishing service.
         </p>
       </div>
 
@@ -437,7 +437,7 @@ export default async function GetlateTestPage() {
                 <div className="space-y-2">
                   <p className="text-gray-500">
                     {analyticsError?.includes('add-on')
-                      ? 'Analytics add-on required. Please enable it in your Getlate account.'
+                      ? 'Analytics add-on required. Enable it in your publishing account.'
                       : 'No analytics data found'}
                   </p>
                   {Object.keys(analyticsRawResponses).length > 0 && (
@@ -828,7 +828,7 @@ export default async function GetlateTestPage() {
                                         </Badge>
                                         {post.getlate_post_id && (
                                           <Badge variant="secondary" className="text-xs">
-                                            Getlate:
+                                            External ID:
                                             {' '}
                                             {post.getlate_post_id.substring(0, 8)}
                                             ...

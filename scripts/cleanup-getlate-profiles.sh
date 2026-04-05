@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script to list and delete all Getlate profiles except the default one
+# Script to list and delete all publishing-provider profiles except the default one
 # Usage: ./scripts/cleanup-getlate-profiles.sh [API_KEY]
 # If API_KEY is not provided, it will try to read from .env file
 

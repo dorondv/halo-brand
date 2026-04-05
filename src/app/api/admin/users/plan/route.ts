@@ -85,6 +85,9 @@ export async function PUT(request: Request) {
       if (data.planType === 'trial') {
         updateData.trialEndDate = new Date(data.endDate);
       }
+    } else if (data.planType === 'basic' || data.planType === 'pro' || data.planType === 'business') {
+      // Clear stale end_date from a previous free/trial row so limits API matches admin "Active user (Paid)"
+      updateData.endDate = null;
     } else if (data.planType === 'free' || data.planType === 'trial') {
       // Set default end date for free/trial plans (30 days from now)
       const defaultEndDate = new Date();

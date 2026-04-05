@@ -12,7 +12,8 @@ export async function GET() {
     }
 
     // Check if user email is the admin email (server-side only)
-    const isAdmin = user.email === ADMIN_EMAIL;
+    // If ADMIN_EMAIL is not configured, no one is admin
+    const isAdmin = !!ADMIN_EMAIL && user.email === ADMIN_EMAIL;
 
     return NextResponse.json({ isAdmin });
   } catch (error: any) {

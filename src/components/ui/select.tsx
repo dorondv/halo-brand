@@ -57,7 +57,7 @@ export function SelectTrigger({ children, className, id, dir, ...props }: React.
       onClick={() => ctx.setOpen(!ctx.open)}
       dir={dir}
       className={cn(
-        'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
+        'flex h-10 w-full items-center justify-between rounded-md border border-gray-300 bg-white px-3 py-2 text-sm ring-offset-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:ring-offset-gray-900',
         ctx.open && 'ring-2 ring-pink-500',
         className,
       )}
@@ -70,7 +70,7 @@ export function SelectTrigger({ children, className, id, dir, ...props }: React.
       </span>
       <ChevronDown
         className={cn(
-          'h-4 w-4 shrink-0 text-gray-500 transition-transform duration-200',
+          'h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200',
           ctx.open && 'rotate-180',
           'ml-2',
         )}
@@ -88,19 +88,19 @@ export function SelectValue({ placeholder, selectedLabel, options }: { placehold
 
   // If selectedLabel is provided, use it
   if (selectedLabel) {
-    return <span className="text-gray-900">{selectedLabel}</span>;
+    return <span className="text-gray-900 dark:text-gray-100">{selectedLabel}</span>;
   }
 
   // Otherwise, try to find the label from options
   if (options && ctx.value) {
     const selected = options.find(opt => opt.value === ctx.value);
     if (selected) {
-      return <span className="text-gray-900">{selected.name}</span>;
+      return <span className="text-gray-900 dark:text-gray-100">{selected.name}</span>;
     }
   }
 
   // Fallback to placeholder or default
-  return <span className="text-gray-500">{placeholder || 'Select...'}</span>;
+  return <span className="text-gray-500 dark:text-gray-400">{placeholder || 'Select...'}</span>;
 }
 
 export function SelectContent({ children, className, dir }: { children: React.ReactNode; className?: string; dir?: 'ltr' | 'rtl' }) {
@@ -116,7 +116,7 @@ export function SelectContent({ children, className, dir }: { children: React.Re
   return (
     <div
       className={cn(
-        'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg',
+        'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border border-gray-200 bg-white py-1 text-sm shadow-lg dark:border-gray-600 dark:bg-gray-800',
         className,
       )}
       dir={dir}
@@ -127,7 +127,7 @@ export function SelectContent({ children, className, dir }: { children: React.Re
   );
 }
 
-export function SelectItem({ children, value, dir, ...props }: { children: React.ReactNode; value: string; dir?: 'ltr' | 'rtl' } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
+export function SelectItem({ children, value, dir, disabled, ...props }: { children: React.ReactNode; value: string; dir?: 'ltr' | 'rtl'; disabled?: boolean } & React.ButtonHTMLAttributes<HTMLButtonElement>) {
   const ctx = React.use(SelectContext);
   if (!ctx) {
     throw new Error('SelectItem must be used within Select');
@@ -139,15 +139,20 @@ export function SelectItem({ children, value, dir, ...props }: { children: React
   return (
     <button
       type="button"
+      disabled={disabled}
       onClick={() => {
+        if (disabled) {
+          return;
+        }
         ctx.onValueChange(value);
         ctx.setOpen(false);
       }}
       dir={dir}
       className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100',
-        isSelected && 'bg-gray-100 font-medium',
+        'relative flex w-full select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700',
+        isSelected && 'bg-gray-100 dark:bg-gray-700 font-medium',
         isRTL ? 'text-right' : 'text-left',
+        disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent' : 'cursor-pointer',
       )}
       style={isRTL ? { textAlign: 'right' } : { textAlign: 'left' }}
       {...props}

@@ -89,14 +89,8 @@ export async function POST(request: Request) {
     const arrayBuffer = await imageBlob.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Get user ID
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('id')
-      .eq('email', user.email)
-      .maybeSingle();
-
-    const userId = userRecord?.id || user.id;
+    // Match Storage object key prefix to auth.uid() for typical RLS policies.
+    const userId = user.id;
     const fileName = `${userId}/ai-generated/${Date.now()}-${Math.random().toString(36).substring(7)}.png`;
 
     // Upload to Supabase Storage

@@ -1,13 +1,37 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { Env } from '@/libs/Env';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { isAllowedOptionalBrandLogoUrl } from '@/libs/supabaseStorageUrl';
+
+function extractGetlateProfileId(profile: unknown): string | null {
+  if (!profile || typeof profile !== 'object') {
+    return null;
+  }
+
+  const profileRecord = profile as Record<string, unknown>;
+  const id = profileRecord._id || profileRecord.id;
+  return typeof id === 'string' && id.trim() ? id : null;
+}
+
+function isDuplicateProfileNameError(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return message.includes('already exists')
+    || message.includes('duplicate')
+    || message.includes('profile exists');
+}
+
+function buildUniqueProfileName(baseName: string): string {
+  const timestamp = new Date().toISOString().replace(/[-:TZ.]/g, '').slice(0, 14);
+  return `${baseName} (${timestamp})`;
+}
 
 /**
  * DELETE /api/brands
- * Delete a brand and its associated Getlate profile
+ * Delete a brand and its associated Publishing integration profile
  */
 export async function DELETE(request: NextRequest) {
   try {
@@ -74,21 +98,16 @@ export async function DELETE(request: NextRequest) {
       );
     }
 
-    // Get user record to fetch API key
-    const { data: userRecord } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
+    const userRecord = await ensureUserRecord(supabase, user);
 
-    // Delete Getlate profile if it exists
+    // Delete Publishing integration profile if it exists
     if (brandRecord.getlate_profile_id && userRecord?.getlate_api_key) {
       try {
         const profileId = brandRecord.getlate_profile_id;
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-        // First, check Getlate directly for connected accounts
-        // This is important because accounts might exist in Getlate but not in our database
+        // First, check Publishing integration directly for connected accounts
+        // This is important because accounts might exist in Publishing integration but not in our database
         const getlateAccounts = await getlateClient.getAccounts(profileId);
 
         // Filter for active/connected accounts
@@ -118,7 +137,7 @@ export async function DELETE(request: NextRequest) {
           );
         }
 
-        // Delete the Getlate profile using the client
+        // Delete the Publishing integration profile using the client
         await getlateClient.deleteProfile(profileId);
       } catch (error) {
         // Log the full error for debugging
@@ -144,9 +163,9 @@ export async function DELETE(request: NextRequest) {
 
         // If delete fails for other reasons, we still want to delete the brand from our database
         // but we should log this as an error, not just a warning
-        // The profile will remain in Getlate but will be unlinked from the brand
+        // The profile will remain in Publishing integration but will be unlinked from the brand
         console.warn('⚠️  Brand will be deleted from database, but Getlate profile deletion failed. Profile may still exist in Getlate.');
-        // Continue with brand deletion even if Getlate profile deletion fails
+        // Continue with brand deletion even if Publishing integration profile deletion fails
       }
     }
 
@@ -177,9 +196,9 @@ export async function DELETE(request: NextRequest) {
 
 /**
  * POST /api/brands
- * Create a new brand with automatic Getlate profile management
- * - Reuses existing unused Getlate profiles if available
- * - Creates new Getlate profile if none available
+ * Create a new brand with automatic Publishing integration profile management
+ * - Reuses existing unused Publishing integration profiles if available
+ * - Creates new Publishing integration profile if none available
  */
 export async function POST(request: NextRequest) {
   try {
@@ -209,6 +228,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { name, description, logo_url } = parse.data;
+
+    if (!isAllowedOptionalBrandLogoUrl(logo_url ?? null)) {
+      return NextResponse.json(
+        { error: 'Brand logo must be uploaded to Supabase Storage before saving.' },
+        { status: 422 },
+      );
+    }
 
     const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
     const { brands: brandsTable } = await import('@/models/Schema');
@@ -249,14 +275,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get user record to fetch API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -287,59 +307,33 @@ export async function POST(request: NextRequest) {
       userRecord.getlate_api_key = serviceApiKey;
     }
 
-    // Always create a new Getlate profile for each brand
+    // Always create a new Publishing integration profile for each brand
     let getlateProfileId: string | null = null;
+    let profileWarning: string | null = null;
 
     if (userRecord.getlate_api_key) {
       try {
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
-
-        // Always create a new profile with the brand name
-        const newProfile = await getlateClient.createProfile(name);
-
-        // Getlate API may return _id or id, handle both formats
-        // Also check if the response is nested
-        const extractedProfileId = (newProfile as any)?._id
-          || (newProfile as any)?.id
-          || newProfile?.id
-          || newProfile?._id;
-
-        if (!extractedProfileId) {
-          console.error('[Brand Creation] Created profile but missing ID. Full response:', JSON.stringify(newProfile, null, 2));
-          // Try to fetch profiles again to see if it was created
-          try {
-            const profilesAfterCreate = await getlateClient.getProfiles();
-            let allProfilesAfter: any[] = [];
-            if (Array.isArray(profilesAfterCreate)) {
-              allProfilesAfter = profilesAfterCreate;
-            } else if (profilesAfterCreate && typeof profilesAfterCreate === 'object') {
-              allProfilesAfter = (profilesAfterCreate as any)?.profiles
-                || (profilesAfterCreate as any)?.data
-                || (profilesAfterCreate as any)?.results
-                || [];
-            }
-
-            // Find the profile we just created by name (most recent match)
-            const createdProfile = allProfilesAfter
-              .filter((p: any) => p && (p.name === name || p.name?.includes(name)))
-              .sort((a: any, b: any) => {
-                // Sort by created_at if available, otherwise by _id (newer IDs might be later)
-                const aTime = a.created_at ? new Date(a.created_at).getTime() : 0;
-                const bTime = b.created_at ? new Date(b.created_at).getTime() : 0;
-                return bTime - aTime; // Most recent first
-              })[0];
-
-            if (createdProfile) {
-              getlateProfileId = createdProfile._id || createdProfile.id;
-            } else {
-              throw new Error('Created Getlate profile but could not find it in profiles list');
-            }
-          } catch (fetchError) {
-            console.error('[Brand Creation] Error fetching profiles after creation:', fetchError);
-            throw new Error('Created Getlate profile but response missing ID and could not verify creation');
+        const tryCreateProfile = async (profileName: string) => {
+          const createdProfile = await getlateClient.createProfile(profileName);
+          const createdProfileId = extractGetlateProfileId(createdProfile);
+          if (!createdProfileId) {
+            throw new Error(`Getlate profile created without valid id for name "${profileName}"`);
           }
-        } else {
-          getlateProfileId = extractedProfileId;
+          return createdProfileId;
+        };
+
+        // Always try the exact brand name first.
+        try {
+          getlateProfileId = await tryCreateProfile(name);
+        } catch (createError) {
+          if (!isDuplicateProfileNameError(createError)) {
+            throw createError;
+          }
+
+          // Brand/profile name already exists in Publishing integration - create a unique new one and use it.
+          const uniqueProfileName = buildUniqueProfileName(name);
+          getlateProfileId = await tryCreateProfile(uniqueProfileName);
         }
       } catch (error) {
         console.error('[Brand Creation] Error creating Getlate profile:', error);
@@ -349,8 +343,15 @@ export async function POST(request: NextRequest) {
             message: error.message,
             stack: error.stack,
           });
+          if (error.message.toLowerCase().includes('profile limit reached')) {
+            profileWarning = 'Brand created, but Getlate profile was not created because your Getlate profile limit has been reached.';
+          } else {
+            profileWarning = 'Brand created, but Getlate profile could not be created.';
+          }
+        } else {
+          profileWarning = 'Brand created, but Getlate profile could not be created.';
         }
-        // Continue without Getlate profile - brand will be created without it
+        // Continue without Publishing integration profile - brand will be created without it
         // User can link it later via the connections page
       }
     }
@@ -407,7 +408,7 @@ export async function POST(request: NextRequest) {
 
     // Verify the profile ID was saved correctly
     if (brand && getlateProfileId && userRecord?.getlate_api_key) {
-      // Double-check the profile exists in Getlate
+      // Double-check the profile exists in Publishing integration
       try {
         const getlateClient = createGetlateClient(userRecord.getlate_api_key);
         const verifyProfiles = await getlateClient.getProfiles();
@@ -433,7 +434,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ brand });
+    return NextResponse.json({ brand, warning: profileWarning });
   } catch (error) {
     console.error('Error creating brand:', error);
     return NextResponse.json(

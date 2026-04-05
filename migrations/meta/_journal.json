@@ -78,6 +78,41 @@
       "when": 1769434000000,
       "tag": "0010_add_marketing_tracking",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1769435000000,
+      "tag": "0011_remove_id_number_from_users",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1769436000000,
+      "tag": "0012_enable_rls_policies",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1769437000000,
+      "tag": "0013_user_usage_rls",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1769438000000,
+      "tag": "0014_security_advisor_fixes",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1769439000000,
+      "tag": "0015_payment_webhooks_rls_policy",
+      "breakpoints": true
     }
   ]
 }

@@ -35,14 +35,7 @@ export default function MediaUpload({ mediaUrls, onMediaUpdate }: MediaUploadPro
         throw new Error(t('media_error_not_authenticated'));
       }
 
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       const newUrls: string[] = [];
 
