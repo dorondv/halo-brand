@@ -6,11 +6,6 @@ import './src/libs/Env';
 
 // Define the base Next.js configuration
 const baseConfig: NextConfig = {
-  // Expose Vercel's deployment target so client components (e.g. nav) can gate on it at build time.
-  // Without this, `process.env.VERCEL_ENV` is undefined in the browser bundle and conditions never match production.
-  env: {
-    VERCEL_ENV: process.env.VERCEL_ENV ?? '',
-  },
   devIndicators: {
     position: 'bottom-right',
   },

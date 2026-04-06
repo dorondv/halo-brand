@@ -5,5 +5,8 @@ import { DashboardShell } from '@/components/layouts/DashboardShell';
 export const dynamic = 'force-dynamic';
 
 export default function ShellLayout(props: { children: React.ReactNode }) {
-  return <DashboardShell>{props.children}</DashboardShell>;
+  const showGetlateTestNav = process.env.VERCEL_ENV !== 'production';
+  return (
+    <DashboardShell showGetlateTestNav={showGetlateTestNav}>{props.children}</DashboardShell>
+  );
 }

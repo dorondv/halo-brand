@@ -32,9 +32,11 @@ import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 type Props = {
   children: React.ReactNode;
+  /** Set by server layouts from `process.env.VERCEL_ENV` — client bundles cannot rely on that env reliably. */
+  showGetlateTestNav: boolean;
 };
 
-const baseNav = [
+const coreNav = [
   { href: '/dashboard', key: 'dashboard', icon: LayoutDashboard },
   { href: '/inbox', key: 'comments_center', icon: Mail },
   { href: '/create-post', key: 'create_post', icon: PenTool },
@@ -46,11 +48,18 @@ const baseNav = [
   { href: '/connections', key: 'integrations', icon: Plug },
   { href: '/settings', key: 'settings', icon: Settings },
   { href: '/pricing', key: 'pricing', icon: Tags },
-  // Only include getlate-test in non-production environments
-  ...(process.env.VERCEL_ENV !== 'production' ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }] : []),
 ] as const;
 
-export function DashboardShell({ children }: Props) {
+export function DashboardShell({ children, showGetlateTestNav }: Props) {
+  const navItems = React.useMemo(
+    () => [
+      ...coreNav,
+      ...(showGetlateTestNav
+        ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }]
+        : []),
+    ],
+    [showGetlateTestNav],
+  );
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [userName, setUserName] = React.useState<string | null>(null);
@@ -148,7 +157,7 @@ export function DashboardShell({ children }: Props) {
           </Suspense>
         </div>
         <nav className="space-y-1 px-2">
-          {baseNav.map(({ href, key, icon: Icon }) => {
+          {navItems.map(({ href, key, icon: Icon }) => {
             const active = pathname?.startsWith(href);
             return (
               <Link
