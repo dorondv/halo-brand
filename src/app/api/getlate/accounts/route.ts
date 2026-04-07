@@ -238,18 +238,16 @@ export async function GET(request: NextRequest) {
         const platformData = existingAccount.platform_specific_data as Record<string, unknown> | null;
         const manuallyDisconnected = platformData?.manually_disconnected === true;
 
-        // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection
-        // OAuth reconnection (oauthReconnect=true) means user explicitly reconnected via OAuth button
-        // Regular syncs should not reactivate manually disconnected accounts
-        //
+        // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection.
+        // OAuth reconnection is a user-explicit action, so we optimistically mark it active even if provider
+        // isConnected has eventual-consistency lag right after callback.
         // Routine sync: do NOT set is_active=false only because Publishing integration sent isConnected=false — that
-        // often flickers during API issues. Only deactivate when the token is actually past expiry,
-        // or when the user reconnected via OAuth (oauthReconnect) and Publishing integration says disconnected.
+        // often flickers during API issues. Only deactivate when the token is actually past expiry.
         let shouldBeActive: boolean;
         if (manuallyDisconnected && !oauthReconnect) {
           shouldBeActive = false;
         } else if (oauthReconnect) {
-          shouldBeActive = isConnected;
+          shouldBeActive = true;
         } else if (isConnected) {
           shouldBeActive = true;
         } else {
@@ -379,7 +377,8 @@ export async function GET(request: NextRequest) {
             getlate_account_id: accountId,
             access_token: 'getlate-managed',
             platform_specific_data: platformSpecificDataForInsert,
-            is_active: isConnected,
+            // OAuth reconnect should surface immediately in UI; provider may report isConnected=false briefly.
+            is_active: oauthReconnect ? true : isConnected,
           })
           .select()
           .single();

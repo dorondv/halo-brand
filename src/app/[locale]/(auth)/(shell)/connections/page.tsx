@@ -496,6 +496,26 @@ export default function ConnectionsPage() {
     }
   }, [selectedBrandId, brands, getCurrentUserId, mapCanonicalAccounts]);
 
+  const refreshAccountsAfterConnect = useCallback((brandIdOverride?: string | null) => {
+    const effectiveBrandId = brandIdOverride ?? selectedBrandId;
+    if (!effectiveBrandId) {
+      return;
+    }
+
+    // 1) Immediate DB read for fast UI feedback
+    void loadAccountsFromDB(true, false, effectiveBrandId);
+
+    // 2) Delayed force sync for eventual consistency after OAuth callback write latency
+    window.setTimeout(() => {
+      void loadAccountsFromDB(false, true, effectiveBrandId);
+    }, 1200);
+
+    // 3) Final DB read to render the synced canonical row
+    window.setTimeout(() => {
+      void loadAccountsFromDB(true, false, effectiveBrandId);
+    }, 2600);
+  }, [selectedBrandId, loadAccountsFromDB]);
+
   useEffect(() => {
     void loadBrands();
     return undefined;
@@ -653,9 +673,6 @@ export default function ConnectionsPage() {
       // Both indicate success
       showToast(t('connection_success'), 'success');
 
-      // Check if sync completed successfully (get from original params before cleanup)
-      const synced = searchParams.get('synced') === 'true';
-
       // Reset ref after a delay to allow for new callbacks
       const successTimeout = setTimeout(() => {
         processedCallbackRef.current.delete(callbackKey);
@@ -672,10 +689,7 @@ export default function ConnectionsPage() {
 
       // Pass brandId from URL so loads run against the correct brand in the same tick as the toast (setState is async)
       const reloadBrandId = brandIdFromUrl ?? selectedBrandId;
-      void loadAccountsFromDB(true, false, reloadBrandId);
-      if (!synced) {
-        void loadAccountsFromDB(false, true, reloadBrandId);
-      }
+      refreshAccountsAfterConnect(reloadBrandId);
 
       return () => {
         clearTimeout(successTimeout);
@@ -701,6 +715,7 @@ export default function ConnectionsPage() {
     selectedBrandId,
     brands,
     loadAccountsFromDB,
+    refreshAccountsAfterConnect,
     showToast,
     t,
     setSelectedBrandId,
@@ -1294,7 +1309,7 @@ export default function ConnectionsPage() {
 
       const brandId = headlessModeData.brandId || selectedBrandId;
       if (brandId) {
-        await loadAccountsFromDB(false, true);
+        refreshAccountsAfterConnect(brandId);
       }
     } catch (error) {
       console.error('Error saving Facebook page:', error);
@@ -1349,7 +1364,7 @@ export default function ConnectionsPage() {
 
       const brandId = headlessModeData.brandId || selectedBrandId;
       if (brandId) {
-        await loadAccountsFromDB(false, true);
+        refreshAccountsAfterConnect(brandId);
       }
     } catch (error) {
       console.error('Error saving LinkedIn organization:', error);
