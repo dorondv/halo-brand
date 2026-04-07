@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBrand } from '@/contexts/BrandContext';
+import { RECHARTS_INITIAL_H64 } from '@/libs/rechartsResponsive';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 const XIcon = () => (
@@ -761,7 +762,7 @@ export function PostSentimentClient() {
                                 <CardTitle>{t('sentiment_distribution')}</CardTitle>
                               </CardHeader>
                               <CardContent className="h-64">
-                                <ResponsiveContainer width="100%" height="100%">
+                                <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
                                   <PieChart>
                                     <Pie
                                       data={pieData}

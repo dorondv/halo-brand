@@ -2,6 +2,7 @@
 
 import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTheme } from '@/components/theme/theme-context';
+import { RECHARTS_INITIAL_H80 } from '@/libs/rechartsResponsive';
 
 type DataPoint = { platform: string; posts: number };
 
@@ -16,7 +17,7 @@ function PostsByPlatformChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
 
   return (
     <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H80}>
         <BarChart data={data} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid stroke={axisColor} strokeDasharray="3 3" strokeOpacity={isDark ? 0.4 : 0.2} />
           <XAxis dataKey="platform" stroke={axisColor} fontSize={12} />

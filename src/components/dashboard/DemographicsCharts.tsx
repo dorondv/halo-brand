@@ -3,6 +3,7 @@
 import { Globe, Users } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RECHARTS_INITIAL_H64 } from '@/libs/rechartsResponsive';
 
 type CountryData = { name: string; value: number };
 type GenderData = { name: string; value: number };
@@ -71,7 +72,7 @@ function DemographicsCharts({
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={countries}
@@ -126,7 +127,7 @@ function DemographicsCharts({
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={genders}
@@ -181,7 +182,7 @@ function DemographicsCharts({
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={ages}

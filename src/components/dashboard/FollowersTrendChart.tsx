@@ -11,6 +11,7 @@ import {
   YAxis,
 } from 'recharts';
 import { useTheme } from '@/components/theme/theme-context';
+import { RECHARTS_INITIAL_H80 } from '@/libs/rechartsResponsive';
 
 type DataPoint = { date: string; followers: number };
 
@@ -40,7 +41,7 @@ function FollowersTrendChart({
 
   return (
     <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H80}>
         <LineChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <CartesianGrid stroke={axisColor} strokeDasharray="3 3" strokeOpacity={isDark ? 0.4 : 0.2} />
           <XAxis dataKey="date" stroke={axisColor} fontSize={12} />

@@ -32,6 +32,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Textarea } from '@/components/ui/textarea';
 import { useBrand } from '@/contexts/BrandContext';
+import { RECHARTS_INITIAL_250, RECHARTS_INITIAL_300 } from '@/libs/rechartsResponsive';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 const COLORS = { positive: '#22c55e', neutral: '#64748b', negative: '#ef4444' };
@@ -327,7 +328,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_300}>
                       <LineChart
                         data={analysisResult.search_trends_daily.map(item => ({
                           ...item,
@@ -383,7 +384,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                     </CardDescription>
                   </CardHeader>
                   <CardContent className="h-[300px]">
-                    <ResponsiveContainer width="100%" height="100%">
+                    <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_300}>
                       <LineChart data={analysisResult.search_trends_monthly}>
                         <CartesianGrid stroke={axisColor} strokeDasharray="3 3" strokeOpacity={isDark ? 0.4 : 0.2} />
                         <XAxis
@@ -473,7 +474,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                   <CardTitle>{t('sentiment_distribution')}</CardTitle>
                 </CardHeader>
                 <CardContent className="h-[250px]">
-                  <ResponsiveContainer width="100%" height="100%">
+                  <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_250}>
                     <PieChart>
                       <Pie
                         data={pieData}

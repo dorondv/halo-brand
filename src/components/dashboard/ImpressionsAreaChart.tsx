@@ -3,6 +3,7 @@
 import { format } from 'date-fns';
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import { useTheme } from '@/components/theme/theme-context';
+import { RECHARTS_INITIAL_H80 } from '@/libs/rechartsResponsive';
 
 type DataPoint = { date: string; impressions: number };
 
@@ -29,7 +30,7 @@ function ImpressionsAreaChart({ data = sampleData }: { data?: DataPoint[] }) {
 
   return (
     <div className="h-80 min-h-80 w-full min-w-0" dir="ltr">
-      <ResponsiveContainer width="100%" height="100%">
+      <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H80}>
         <AreaChart data={formattedData} margin={{ top: 10, right: 10, bottom: 0, left: 10 }}>
           <defs>
             <linearGradient id="colorImpressions" x1="0" y1="0" x2="0" y2="1">
