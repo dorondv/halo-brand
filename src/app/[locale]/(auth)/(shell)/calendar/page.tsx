@@ -152,10 +152,22 @@ type Post = {
   published_url?: string | null;
   platform_urls?: Record<string, string>; // Map of platform -> URL
   metadata?: any;
+  is_getlate?: boolean;
 };
 
+/** Canonical calendar instant: matches dashboard (published → last publish time, else planned time). */
 function getPostDisplayInstant(post: Post): Date | null {
-  const raw = post.scheduled_time || post.published_at;
+  const status = (post.status || '').toLowerCase();
+  const meta = post.metadata as { publishedAt?: string } | undefined;
+  const metaPublishedAt = typeof meta?.publishedAt === 'string' ? meta.publishedAt : null;
+  const publishedLike
+    = status === 'published'
+      || status === 'completed';
+
+  const raw = publishedLike
+    ? post.published_at || metaPublishedAt || post.scheduled_time
+    : post.scheduled_time || post.published_at || metaPublishedAt;
+
   if (!raw) {
     return null;
   }
@@ -167,6 +179,142 @@ function getPostDisplayInstant(post: Post): Date | null {
 function getWeekGridHour(instant: Date): number {
   const h = instant.getHours();
   return Math.min(22, Math.max(8, h));
+}
+
+function normalizeContentForDedupe(content: string): string {
+  return content
+    // Normalize punctuation/escaping variants so API/DB copies collapse together
+    .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .substring(0, 120)
+    .toLowerCase();
+}
+
+function getMergedPostScore(post: Post): number {
+  const platformUrlCount = post.platform_urls ? Object.keys(post.platform_urls).length : 0;
+  const hasPublishedUrl = post.published_url ? 1 : 0;
+  const status = (post.status || '').toLowerCase();
+  const publishedLike = status === 'published' || status === 'completed' || !!post.published_at;
+  return (platformUrlCount * 10) + (hasPublishedUrl * 5) + (publishedLike ? 2 : 0);
+}
+
+function pickLatestDateString(a?: string | null, b?: string | null): string | null {
+  const ad = a ? new Date(a) : null;
+  const bd = b ? new Date(b) : null;
+  const aValid = !!ad && !Number.isNaN(ad.getTime());
+  const bValid = !!bd && !Number.isNaN(bd.getTime());
+  if (!aValid && !bValid) {
+    return a || b || null;
+  }
+  if (!aValid) {
+    return b || null;
+  }
+  if (!bValid) {
+    return a || null;
+  }
+  return bd! > ad! ? b! : a!;
+}
+
+function mergePostEntries(existing: Post, incoming: Post): Post {
+  const existingScore = getMergedPostScore(existing);
+  const incomingScore = getMergedPostScore(incoming);
+  const primary = incomingScore > existingScore ? incoming : existing;
+  const secondary = primary === existing ? incoming : existing;
+
+  const mergedPlatforms = Array.from(
+    new Set([...(primary.platforms || []), ...(secondary.platforms || [])].filter(Boolean)),
+  );
+
+  const mergedPlatformUrls: Record<string, string> = {
+    ...(secondary.platform_urls || {}),
+    ...(primary.platform_urls || {}),
+  };
+
+  const mergedStatus = [primary.status, secondary.status].find((s) => {
+    const normalized = (s || '').toLowerCase();
+    return normalized === 'published' || normalized === 'completed';
+  }) || primary.status || secondary.status;
+
+  const mergedPublishedAt = pickLatestDateString(primary.published_at, secondary.published_at);
+  const primaryInstant = getPostDisplayInstant(primary);
+  const secondaryInstant = getPostDisplayInstant(secondary);
+  const mergedScheduledTime = (
+    primaryInstant && secondaryInstant
+      ? (primaryInstant >= secondaryInstant ? primary.scheduled_time : secondary.scheduled_time)
+      : (primary.scheduled_time || secondary.scheduled_time)
+  );
+
+  return {
+    ...secondary,
+    ...primary,
+    status: mergedStatus,
+    published_at: mergedPublishedAt,
+    scheduled_time: mergedScheduledTime,
+    platforms: mergedPlatforms,
+    platform_urls: Object.keys(mergedPlatformUrls).length > 0 ? mergedPlatformUrls : undefined,
+    published_url: primary.published_url || secondary.published_url || null,
+    metadata: { ...(secondary.metadata || {}), ...(primary.metadata || {}) },
+  };
+}
+
+function mergeCalendarDuplicates(posts: Post[]): Post[] {
+  const byCanonicalKey = new Map<string, Post>();
+  const aliasToCanonical = new Map<string, string>();
+
+  for (const post of posts) {
+    const instant = getPostDisplayInstant(post);
+    if (!instant) {
+      continue;
+    }
+
+    const minuteKey = instant.toISOString().substring(0, 16);
+    const dayKey = instant.toISOString().substring(0, 10);
+    const normalizedContent = normalizeContentForDedupe(post.content || '');
+    const normalizedContentPrefix = normalizedContent.substring(0, 36);
+    const meta = (post.metadata || {}) as Record<string, any>;
+    const sourceGetlateId = meta._getlatePostId || meta.getlatePostId || meta.getlate_post_id || null;
+    const sourcePostId = meta._sourcePostId || meta.postId || null;
+
+    const keys = [
+      sourceGetlateId ? `getlate:${sourceGetlateId}` : null,
+      sourcePostId ? `post:${sourcePostId}` : null,
+      `fuzzy-minute-prefix:${post.brand_id || 'no-brand'}:${minuteKey}:${normalizedContentPrefix}`,
+      `fuzzy-minute:${post.brand_id || 'no-brand'}:${minuteKey}:${normalizedContent}`,
+      `fuzzy-day:${post.brand_id || 'no-brand'}:${dayKey}:${normalizedContent}`,
+    ].filter(Boolean) as string[];
+
+    let canonicalKey: string | null = null;
+    for (const key of keys) {
+      const existingCanonical = aliasToCanonical.get(key);
+      if (existingCanonical) {
+        canonicalKey = existingCanonical;
+        break;
+      }
+    }
+
+    if (!canonicalKey) {
+      canonicalKey = keys[0] || `fallback:${post.id}`;
+      byCanonicalKey.set(canonicalKey, post);
+    } else {
+      const existing = byCanonicalKey.get(canonicalKey);
+      if (existing) {
+        byCanonicalKey.set(canonicalKey, mergePostEntries(existing, post));
+      } else {
+        byCanonicalKey.set(canonicalKey, post);
+      }
+    }
+
+    for (const key of keys) {
+      aliasToCanonical.set(key, canonicalKey);
+    }
+  }
+
+  return Array.from(byCanonicalKey.values()).sort((a, b) => {
+    const ta = getPostDisplayInstant(a)?.getTime() || 0;
+    const tb = getPostDisplayInstant(b)?.getTime() || 0;
+    return ta - tb;
+  });
 }
 
 export default function CalendarPage() {
@@ -317,6 +465,8 @@ export default function CalendarPage() {
           // Extract platform-specific URLs from platforms array and metadata
           const platformUrls: Record<string, string> = {};
           const metadata = item.post?.metadata || item.metadata || {};
+          const sourcePostId = item.post?.id || item.post_id || item.id || null;
+          const sourceGetlatePostId = item.post?.getlate_post_id || item.getlate_post_id || null;
 
           // Extract URLs from platforms array (each platform can have its own URL)
           if (rawPlatforms.length > 0) {
@@ -350,10 +500,16 @@ export default function CalendarPage() {
             publishedUrl = metadata.platformPostUrl;
           }
 
+          const rowStatus = (item.status || item.post?.status || 'draft').toLowerCase();
+          const rowPublishedLike = rowStatus === 'published' || rowStatus === 'completed';
+          const displayTimeRaw = rowPublishedLike
+            ? (item.published_at || item.scheduled_time || item.scheduled_for)
+            : (item.scheduled_time || item.scheduled_for || item.published_at);
+
           return {
             id: uniqueId,
             content: item.post?.content || item.content || '',
-            scheduled_time: item.scheduled_for || item.scheduled_time,
+            scheduled_time: displayTimeRaw,
             platforms: normalizedPlatforms,
             brand_id: item.post?.brand_id || item.brand_id,
             brand_name: item.post?.brands?.name || item.brand_name,
@@ -362,13 +518,18 @@ export default function CalendarPage() {
             published_at: item.published_at || null,
             published_url: publishedUrl,
             platform_urls: Object.keys(platformUrls).length > 0 ? platformUrls : undefined,
-            metadata,
+            metadata: {
+              ...metadata,
+              _sourcePostId: sourcePostId,
+              _getlatePostId: sourceGetlatePostId,
+            },
             is_getlate: item.is_getlate || false,
           };
         });
 
         if (isMounted) {
-          setPosts(calendarPosts.filter(post => getPostDisplayInstant(post)));
+          const mergedPosts = mergeCalendarDuplicates(calendarPosts);
+          setPosts(mergedPosts.filter(post => getPostDisplayInstant(post)));
           setIsLoading(false);
         }
       } catch {
@@ -1412,7 +1573,10 @@ export default function CalendarPage() {
                                       </p>
                                       <div className={cn('flex items-center gap-2', isRTL ? 'justify-between flex-row-reverse' : 'justify-between')}>
                                         <Badge variant="secondary" className="text-xs dark:border-slate-600 dark:bg-slate-700 dark:!text-slate-100">
-                                          {format(new Date(post.scheduled_time), 'h:mm a')}
+                                          {(() => {
+                                            const instant = getPostDisplayInstant(post);
+                                            return instant ? format(instant, 'h:mm a') : '—';
+                                          })()}
                                         </Badge>
                                         <div className={cn('flex items-center gap-2', isRTL ? 'flex-row-reverse' : '')}>
                                           {/* Brand Info */}
@@ -1681,17 +1845,20 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* Scheduled Time */}
+              {/* When (published = last publish time, else scheduled — same as dashboard) */}
               <div>
                 <Label className="text-sm font-semibold text-slate-700 dark:text-slate-200">
-                  {t('scheduled_time') || 'Scheduled Time'}
+                  {selectedPost.status === 'published' || selectedPost.status === 'completed' || selectedPost.published_at
+                    ? t('published_at')
+                    : t('scheduled_time')}
                 </Label>
                 <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-                  {format(
-                    new Date(selectedPost.scheduled_time),
-                    'PPp',
-                    { locale: locale === 'he' ? he : enUS },
-                  )}
+                  {(() => {
+                    const instant = getPostDisplayInstant(selectedPost);
+                    return instant
+                      ? format(instant, 'PPp', { locale: locale === 'he' ? he : enUS })
+                      : '—';
+                  })()}
                 </p>
               </div>
 
@@ -1744,17 +1911,6 @@ export default function CalendarPage() {
                       );
                     })}
                   </div>
-                  {selectedPost.published_at && (
-                    <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                      {(t as any)('published_at') || 'Published'}
-                      :
-                      {format(
-                        new Date(selectedPost.published_at),
-                        'PPp',
-                        { locale: locale === 'he' ? he : enUS },
-                      )}
-                    </p>
-                  )}
                 </div>
               )}
 
