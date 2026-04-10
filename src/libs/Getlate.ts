@@ -3,6 +3,7 @@
  * See vendor API documentation linked in the project README.
  */
 
+import { extractAvatarFromZernioAccountPayload } from '@/utils/socialAccountAvatar';
 import { Env } from './Env';
 
 const GETLATE_API_BASE_URL = Env.GETLATE_API_URL || 'https://getlate.dev/api/v1';
@@ -375,6 +376,8 @@ export class GetlateClient {
           ?? undefined;
       }
 
+      const resolvedAvatar = extractAvatarFromZernioAccountPayload(account as Record<string, unknown>);
+
       return {
         id: account._id || account.id,
         _id: account._id,
@@ -384,8 +387,8 @@ export class GetlateClient {
         username: account.username,
         accountId: account.accountId || account._id, // Use _id as accountId if not provided
         displayName: account.displayName,
-        avatarUrl: account.profilePicture || account.avatarUrl, // Map profilePicture to avatarUrl
-        profilePicture: account.profilePicture,
+        avatarUrl: resolvedAvatar ?? account.profilePicture ?? account.avatarUrl,
+        profilePicture: account.profilePicture ?? resolvedAvatar,
         followersCount: followersCount ?? 0, // Extract from profileData.followersCount, default to 0
         isConnected: account.isActive !== undefined ? account.isActive : account.isConnected, // Map isActive to isConnected
         isActive: account.isActive,

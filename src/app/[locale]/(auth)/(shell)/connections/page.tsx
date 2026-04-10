@@ -35,6 +35,7 @@ import { useToast } from '@/components/ui/toast';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
+import { resolveAvatarUrlFromStoredPlatformData } from '@/utils/socialAccountAvatar';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -427,7 +428,7 @@ export default function ConnectionsPage() {
         platform: normalizedPlatform,
         handle,
         display_name: displayName,
-        avatar_url: (platformSpecific?.avatar_url as string) || undefined,
+        avatar_url: resolveAvatarUrlFromStoredPlatformData(platformSpecific ?? undefined),
         follower_count: followerCount,
         is_connected: true,
         last_sync: (platformSpecific?.last_sync as string) || undefined,

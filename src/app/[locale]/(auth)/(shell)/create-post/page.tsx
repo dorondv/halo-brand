@@ -49,6 +49,7 @@ import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 import { localToUtc } from '@/libs/timezone';
 import { AppConfig } from '@/utils/AppConfig';
+import { resolveAvatarUrlFromStoredPlatformData } from '@/utils/socialAccountAvatar';
 
 export const dynamic = 'force-dynamic';
 
@@ -1535,7 +1536,7 @@ export default function CreatePostPage() {
 
       const normalizedAccounts = (data || []).map((acc) => {
         const platformData = acc.platform_specific_data as Record<string, unknown> | null;
-        const avatarUrl = platformData?.avatar_url || platformData?.profilePicture || null;
+        const avatarUrl = resolveAvatarUrlFromStoredPlatformData(platformData) ?? null;
         const displayName = platformData?.display_name || acc.account_name || '';
 
         return {
@@ -1544,7 +1545,7 @@ export default function CreatePostPage() {
           platform: (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform,
           account_name: acc.account_name || '',
           getlate_account_id: acc.getlate_account_id || null,
-          avatar_url: typeof avatarUrl === 'string' ? avatarUrl : null,
+          avatar_url: avatarUrl,
           display_name: typeof displayName === 'string' ? displayName : acc.account_name || '',
         };
       });
