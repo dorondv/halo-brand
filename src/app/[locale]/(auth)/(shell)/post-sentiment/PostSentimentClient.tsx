@@ -787,6 +787,8 @@ export function PostSentimentClient() {
                                         borderRadius: '8px',
                                         color: isDark ? '#e5e7eb' : '#1f2937',
                                       }}
+                                      labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                                      itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
                                     />
                                   </PieChart>
                                 </ResponsiveContainer>

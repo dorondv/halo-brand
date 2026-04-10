@@ -355,6 +355,8 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                             color: isDark ? '#e5e7eb' : undefined,
                           }}
+                          labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                          itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
                           formatter={value => [`${value}`, t('search_volume')]}
                         />
                         <Line
@@ -413,6 +415,8 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                             boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)',
                             color: isDark ? '#e5e7eb' : undefined,
                           }}
+                          labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                          itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
                           formatter={value => [`${value}`, t('search_volume')]}
                         />
                         <Line
@@ -512,6 +516,8 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           borderRadius: '8px',
                           color: isDark ? '#e5e7eb' : '#1f2937',
                         }}
+                        labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                        itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
                       />
                       <Legend wrapperStyle={{ color: isDark ? '#e5e7eb' : '#374151' }} />
                     </PieChart>

@@ -61,6 +61,8 @@ function FollowersTrendChart({
               borderRadius: '12px',
               color: isDark ? '#e5e7eb' : undefined,
             }}
+            labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+            itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
             formatter={value => [new Intl.NumberFormat('he-IL').format(Number(value)), '']}
           />
           <Line

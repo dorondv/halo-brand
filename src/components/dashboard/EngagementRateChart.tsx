@@ -49,6 +49,8 @@ function EngagementRateChart({ data = EMPTY_DATA }: { data?: DataPoint[] }) {
               borderRadius: '12px',
               color: isDark ? '#e5e7eb' : undefined,
             }}
+            labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+            itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
             formatter={value => [`${Number(value).toFixed(1)}%`, '']}
           />
           <Line

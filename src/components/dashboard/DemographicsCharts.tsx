@@ -2,6 +2,7 @@
 
 import { Globe, Users } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { useTheme } from '@/components/theme/theme-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { RECHARTS_INITIAL_H64 } from '@/libs/rechartsResponsive';
 
@@ -60,6 +61,7 @@ function DemographicsCharts({
   ageTitle = 'Age Mix',
   isRTL = false,
 }: DemographicsChartsProps) {
+  const { isDark } = useTheme();
   // Order for LTR: Countries, Gender, Age
   // Order for RTL: Age, Gender, Countries (reversed)
   const charts = [
@@ -94,10 +96,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -150,10 +154,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -205,10 +211,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>
