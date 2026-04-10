@@ -467,6 +467,17 @@ export class GetlateClient {
   }
 
   /**
+   * Headless OAuth: resolve pending session data (e.g. after redirect with pendingDataToken).
+   * GET /v1/connect/pending-data?token=...
+   * @see https://docs.getlate.dev/connect/get-pending-oauth-data
+   */
+  async getPendingOAuthData(token: string): Promise<any> {
+    return this.request(`/connect/pending-data?token=${encodeURIComponent(token)}`, {
+      method: 'GET',
+    });
+  }
+
+  /**
    * Create a new post
    * Note: the publishing API may return the post nested as { message: string, post: ... }.
    * Per vendor docs, use mediaItems (not mediaUrls) for proper media handling.
@@ -1450,7 +1461,8 @@ export class GetlateClient {
   /**
    * Select a LinkedIn organization during headless OAuth flow
    * Uses POST /v1/connect/linkedin/select-organization endpoint
-   * Requires X-Connect-Token header for authentication
+   * Pass X-Connect-Token when Zernio supplied connect_token on the redirect (legacy headless); omit after pending-data exchange when not required.
+   * @see https://docs.getlate.dev/connect/select-linkedin-organization
    */
   async selectLinkedInOrganizationForConnection(
     payload: {
@@ -1465,13 +1477,15 @@ export class GetlateClient {
       };
       redirectUrl?: string;
     },
-    connectToken: string,
+    connectToken?: string,
   ): Promise<any> {
+    const extraHeaders: Record<string, string> = {};
+    if (connectToken) {
+      extraHeaders['X-Connect-Token'] = connectToken;
+    }
     return this.request('/connect/linkedin/select-organization', {
       method: 'POST',
-      headers: {
-        'X-Connect-Token': connectToken,
-      },
+      headers: extraHeaders,
       body: JSON.stringify({
         profileId: payload.profileId,
         tempToken: payload.tempToken,

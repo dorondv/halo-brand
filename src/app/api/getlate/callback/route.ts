@@ -92,16 +92,17 @@ export async function GET(request: NextRequest) {
     // Extract all parameters using our custom extractor
     // Publishing integration API returns success params: connected, profileId, username
     // Or error params: error, platform
-    // Headless mode params: profileId, tempToken, userProfile, connect_token, platform, step
+    // Headless mode params: profileId, tempToken, userProfile, connect_token, pendingDataToken, platform, step
     const connected = extractParam('connected');
-    const profileId = extractParam('profileId');
+    const profileId = extractParam('profileId') || extractParam('profile_id');
     const username = extractParam('username');
     const error = extractParam('error');
     const platform = extractParam('platform');
     const step = extractParam('step'); // Headless mode step: select_page, select_organization, select_location
-    const tempToken = extractParam('tempToken');
-    const userProfile = extractParam('userProfile');
-    const connectToken = extractParam('connect_token');
+    const tempToken = extractParam('tempToken') || extractParam('temp_token');
+    const userProfile = extractParam('userProfile') || extractParam('user_profile');
+    const connectToken = extractParam('connect_token') || extractParam('connectToken');
+    const pendingDataToken = extractParam('pendingDataToken') || extractParam('pending_data_token');
     const organizations = extractParam('organizations'); // LinkedIn organizations (URL-encoded JSON)
     const locale = normalizeLocale(extractParam('locale'));
 
@@ -158,6 +159,9 @@ export async function GET(request: NextRequest) {
       }
       if (connectToken) {
         redirectUrl.searchParams.set('connect_token', connectToken);
+      }
+      if (pendingDataToken) {
+        redirectUrl.searchParams.set('pendingDataToken', pendingDataToken);
       }
       if (platform) {
         redirectUrl.searchParams.set('platform', platform);

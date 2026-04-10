@@ -31,7 +31,6 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
@@ -167,7 +166,6 @@ const getPlatformConfigs = (t: (key: string) => string): Record<
 
 export default function ConnectionsPage() {
   const t = useTranslations('Integrations');
-  const tLinkedIn = useTranslations('CreatePost.LinkedIn');
   const locale = useLocale();
   const isRTL = locale === 'he';
   const searchParams = useSearchParams();
@@ -202,7 +200,7 @@ export default function ConnectionsPage() {
   // LinkedIn organizations dialog state
   const [linkedinAccountForOrgs, setLinkedinAccountForOrgs] = useState<SocialAccount | null>(null);
   const [linkedinAccountName, setLinkedinAccountName] = useState<string | null>(null); // Store personal account name
-  const [linkedinOrganizations, setLinkedinOrganizations] = useState<Array<{ id: string; name: string; urn?: string }>>([]);
+  const [linkedinOrganizations, setLinkedinOrganizations] = useState<Array<{ id: string; name: string; urn?: string; vanityName?: string }>>([]);
   const [isLoadingLinkedInOrgs, setIsLoadingLinkedInOrgs] = useState(false);
   const [isSavingLinkedInOrg, setIsSavingLinkedInOrg] = useState(false);
   const [selectedLinkedInOrgId, setSelectedLinkedInOrgId] = useState<string | null>(null);
@@ -227,11 +225,15 @@ export default function ConnectionsPage() {
     platform: string;
     profileId: string;
     tempToken: string;
-    userProfile: string;
-    connectToken: string;
+    userProfile?: string;
+    /** Present for legacy headless redirects; optional after GET /connect/pending-data exchange. */
+    connectToken?: string;
     organizations?: string; // LinkedIn organizations (URL-encoded JSON)
     brandId?: string;
   } | null>(null);
+  const [isResolvingLinkedInHeadless, setIsResolvingLinkedInHeadless] = useState(false);
+  /** Dedupe LinkedIn pending-data fetch for the same callback URL (e.g. React Strict Mode). */
+  const linkedInPendingOAuthUrlRef = useRef<string | null>(null);
   const [isLoadingHeadlessPages, setIsLoadingHeadlessPages] = useState(false);
   const [headlessFacebookPages, setHeadlessFacebookPages] = useState<Array<{ id: string; name: string; pageId?: string }>>([]);
   const [selectedHeadlessFacebookPageId, setSelectedHeadlessFacebookPageId] = useState<string | null>(null);
@@ -540,32 +542,127 @@ export default function ConnectionsPage() {
     const headless = searchParams.get('headless');
     const step = searchParams.get('step');
     const platform = searchParams.get('platform');
-    const profileId = searchParams.get('profileId');
-    const tempToken = searchParams.get('tempToken');
-    const userProfile = searchParams.get('userProfile');
-    const connectToken = searchParams.get('connect_token');
+    const profileId = searchParams.get('profileId') || searchParams.get('profile_id');
+    const tempToken = searchParams.get('tempToken') || searchParams.get('temp_token');
+    const userProfile = searchParams.get('userProfile') || searchParams.get('user_profile');
+    const connectToken = searchParams.get('connect_token') || searchParams.get('connectToken');
+    const pendingDataToken = searchParams.get('pendingDataToken') || searchParams.get('pending_data_token');
     const organizations = searchParams.get('organizations');
     const brandId = searchParams.get('brandId');
 
-    // Check if this is a headless mode callback
-    if (headless === 'true' && step && platform && profileId && tempToken && userProfile && connectToken) {
-      // Clean up URL immediately
+    if (headless !== 'true' || !step || !platform) {
+      return undefined;
+    }
+
+    const urlKey = searchParams.toString();
+
+    // LinkedIn headless with pendingDataToken — https://docs.getlate.dev/connect/get-pending-oauth-data
+    if (platform === 'linkedin' && step === 'select_organization' && pendingDataToken) {
+      if (linkedInPendingOAuthUrlRef.current === urlKey) {
+        return undefined;
+      }
+      linkedInPendingOAuthUrlRef.current = urlKey;
       window.history.replaceState({}, '', window.location.pathname);
 
-      // Set headless mode data to trigger selection dialog
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setIsResolvingLinkedInHeadless(true);
+      void fetch(`/api/getlate/connect/pending-data?token=${encodeURIComponent(pendingDataToken)}`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Failed to load LinkedIn connection data' }));
+            showToast((err as { error?: string }).error || 'Failed to load LinkedIn connection data', 'error');
+            linkedInPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const data = (await response.json()) as {
+            profileId?: string;
+            tempToken?: string;
+            userProfile?: Record<string, unknown>;
+            organizations?: Array<Record<string, unknown>>;
+            connectToken?: string;
+            connect_token?: string;
+          };
+          const resolvedProfileId = data.profileId || profileId;
+          const resolvedTempToken = data.tempToken || tempToken;
+          if (!resolvedProfileId || !resolvedTempToken) {
+            showToast('LinkedIn connection data is incomplete. Try connecting again.', 'error');
+            linkedInPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const profileStr = data.userProfile
+            ? encodeURIComponent(JSON.stringify(data.userProfile))
+            : (userProfile || undefined);
+
+          setHeadlessModeData({
+            step,
+            platform,
+            profileId: resolvedProfileId,
+            tempToken: resolvedTempToken,
+            userProfile: profileStr,
+            connectToken: data.connectToken || data.connect_token || connectToken || undefined,
+            brandId: brandId || undefined,
+          });
+
+          if (Array.isArray(data.organizations) && data.organizations.length > 0) {
+            setLinkedinOrganizations(
+              data.organizations
+                .map((org: Record<string, unknown>) => ({
+                  id: String(org.id ?? org._id ?? ''),
+                  name: String(org.name ?? org.organizationName ?? 'Organization'),
+                  urn: (org.urn ?? org.organizationUrn) as string | undefined,
+                  vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+                }))
+                .filter(o => o.id),
+            );
+          } else if (organizations) {
+            try {
+              const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
+              if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
+                setLinkedinOrganizations(decodedOrgs.map((org: Record<string, unknown>) => ({
+                  id: String(org.id ?? org._id ?? ''),
+                  name: String(org.name ?? org.organizationName ?? 'Organization'),
+                  urn: (org.urn ?? org.organizationUrn) as string | undefined,
+                  vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+                })).filter(o => o.id));
+              }
+            } catch (error) {
+              console.error('Error parsing LinkedIn organizations:', error);
+            }
+          }
+
+          if (brandId && brands.length > 0) {
+            const brandToSelect = brands.find(b => b.id === brandId);
+            if (brandToSelect && selectedBrandId !== brandId) {
+              setSelectedBrandId(brandId);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('LinkedIn pending OAuth fetch:', error);
+          showToast('Failed to load LinkedIn connection data', 'error');
+          linkedInPendingOAuthUrlRef.current = null;
+        })
+        .finally(() => {
+          setIsResolvingLinkedInHeadless(false);
+        });
+
+      return undefined;
+    }
+
+    // Legacy headless: inline query params (Facebook page pick, LinkedIn org list in URL, etc.)
+    if (profileId && tempToken && connectToken) {
+      window.history.replaceState({}, '', window.location.pathname);
+
       setHeadlessModeData({
         step,
         platform,
         profileId,
         tempToken,
-        userProfile,
+        userProfile: userProfile || undefined,
         connectToken,
         organizations: organizations || undefined,
         brandId: brandId || undefined,
       });
 
-      // If brandId is in URL, sync it to context
       if (brandId && brands.length > 0) {
         const brandToSelect = brands.find(b => b.id === brandId);
         if (brandToSelect && selectedBrandId !== brandId) {
@@ -573,9 +670,7 @@ export default function ConnectionsPage() {
         }
       }
 
-      // For Facebook, fetch pages immediately
       if (platform === 'facebook' && step === 'select_page') {
-        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
         setIsLoadingHeadlessPages(true);
         fetch(`/api/getlate/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`, {
           headers: {
@@ -587,8 +682,8 @@ export default function ConnectionsPage() {
               const data = await response.json();
               setHeadlessFacebookPages(data.pages || []);
             } else {
-              const error = await response.json().catch(() => ({ error: 'Failed to fetch pages' }));
-              showToast(error.error || 'Failed to fetch Facebook pages', 'error');
+              const err = await response.json().catch(() => ({ error: 'Failed to fetch pages' }));
+              showToast((err as { error?: string }).error || 'Failed to fetch Facebook pages', 'error');
               setHeadlessModeData(null);
             }
           })
@@ -602,23 +697,24 @@ export default function ConnectionsPage() {
           });
       }
 
-      // For LinkedIn, parse organizations from URL-encoded JSON
       if (platform === 'linkedin' && step === 'select_organization' && organizations) {
         try {
           const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
           if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
-            // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-            setLinkedinOrganizations(decodedOrgs.map((org: any) => ({
-              id: org.id || org._id,
-              name: org.name || org.organizationName,
-              urn: org.urn || org.organizationUrn,
-            })));
+            setLinkedinOrganizations(decodedOrgs.map((org: Record<string, unknown>) => ({
+              id: String(org.id ?? org._id ?? ''),
+              name: String(org.name ?? org.organizationName ?? 'Organization'),
+              urn: (org.urn ?? org.organizationUrn) as string | undefined,
+              vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+            })).filter(o => o.id));
           }
         } catch (error) {
           console.error('Error parsing LinkedIn organizations:', error);
         }
       }
     }
+
+    return undefined;
   }, [searchParams, brands, selectedBrandId, setSelectedBrandId, showToast]);
 
   // Handle OAuth callback - check for success, cancellation, or error messages
@@ -970,9 +1066,8 @@ export default function ConnectionsPage() {
         return;
       }
 
-      // Validate authUrl before redirecting
-      // Redirect to OAuth URL immediately
-      // Don't set state after this - we're leaving the page
+      // Clear loading state before navigation (helps if redirect is delayed or blocked).
+      setIsConnectingOAuth(null);
       window.location.href = connectAttempt.authUrl;
     } catch (error) {
       console.error('Error connecting with OAuth:', error);
@@ -1272,12 +1367,19 @@ export default function ConnectionsPage() {
     if (!headlessModeData || !selectedHeadlessFacebookPageId) {
       return;
     }
+    const connectToken = headlessModeData.connectToken;
+    if (!connectToken) {
+      showToast('Missing Facebook connect token. Please reconnect.', 'error');
+      return;
+    }
 
     setIsSavingHeadlessSelection(true);
     try {
       let userProfileObj: any;
       try {
-        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+        userProfileObj = headlessModeData.userProfile
+          ? JSON.parse(decodeURIComponent(headlessModeData.userProfile))
+          : {};
       } catch {
         userProfileObj = {};
       }
@@ -1286,7 +1388,7 @@ export default function ConnectionsPage() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'X-Connect-Token': headlessModeData.connectToken,
+          'X-Connect-Token': connectToken,
         },
         body: JSON.stringify({
           profileId: headlessModeData.profileId,
@@ -1331,17 +1433,21 @@ export default function ConnectionsPage() {
     try {
       let userProfileObj: any;
       try {
-        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+        userProfileObj = headlessModeData.userProfile
+          ? JSON.parse(decodeURIComponent(headlessModeData.userProfile))
+          : {};
       } catch {
         userProfileObj = {};
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (headlessModeData.connectToken) {
+        headers['X-Connect-Token'] = headlessModeData.connectToken;
+      }
+
       const response = await fetch('/api/getlate/linkedin/select-organization', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Connect-Token': headlessModeData.connectToken,
-        },
+        headers,
         body: JSON.stringify({
           profileId: headlessModeData.profileId,
           tempToken: headlessModeData.tempToken,
@@ -1377,98 +1483,37 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleSaveLinkedInOrganization = async () => {
+  /** Manage Settings: same posting choice as first-time headless connect (personal vs org from API list). */
+  const applyManageLinkedInPosting = async (
+    postingType: 'personal' | 'organization',
+    org?: { id: string; name: string; urn?: string; vanityName?: string },
+  ) => {
     if (!linkedinAccountForOrgs) {
       return;
     }
 
-    // Validate organization posting config if posting as organization
-    if (linkedInPostingConfig.postingType === 'organization') {
-      if (!linkedInPostingConfig.organizationUrl || !linkedInPostingConfig.organizationUrl.trim()) {
-        showToast(
-          (tLinkedIn('missing_url') as string) || 'Please provide a LinkedIn organization URL or URN',
-          'error',
-        );
-        return;
-      }
-
-      // Validate that URL contains numeric ID
-      const urlOrUrn = linkedInPostingConfig.organizationUrl.trim();
-      const hasNumericId = urlOrUrn.match(/\/company\/(\d+)/) || urlOrUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
-      if (!hasNumericId) {
-        showToast(
-          (tLinkedIn('invalid_url_toast') as string)
-          || 'LinkedIn organization URL must contain a numeric ID. Please check the URL format.',
-          'error',
-        );
-        return;
-      }
-
-      // Validate that company name is provided
-      if (!linkedInPostingConfig.organizationName || !linkedInPostingConfig.organizationName.trim()) {
-        showToast(
-          (tLinkedIn('missing_company_name') as string) || 'Please provide the company name',
-          'error',
-        );
-        return;
-      }
+    if (postingType === 'organization' && !org) {
+      showToast(t('save_org_error') || 'Failed to save LinkedIn settings', 'error');
+      return;
     }
 
     setIsSavingLinkedInOrg(true);
     try {
       const supabase = createSupabaseBrowserClient();
 
-      // Track resolved organization references locally to avoid mutating state
       let organizationId: string | undefined;
       let organizationName: string | undefined;
       let organizationUrn: string | undefined;
-      let organizationUrlValue = linkedInPostingConfig.organizationUrl?.trim();
+      let organizationUrlValue: string | undefined;
 
-      if (linkedInPostingConfig.postingType === 'organization') {
-        // If an organization was selected from the list, use it (prioritize this)
-        if (selectedLinkedInOrgId) {
-          const selectedOrg = linkedinOrganizations.find(o => o.id === selectedLinkedInOrgId);
-          if (selectedOrg) {
-            organizationId = selectedOrg.id;
-            organizationName = selectedOrg.name; // Use the name from the selected organization
-            organizationUrn = selectedOrg.urn;
-            if (!organizationUrlValue && selectedOrg.urn) {
-              organizationUrlValue = selectedOrg.urn;
-              setLinkedInPostingConfig(prev => ({
-                ...prev,
-                organizationUrl: prev.organizationUrl || selectedOrg.urn || '',
-                organizationUrn: prev.organizationUrn || selectedOrg.urn,
-                organizationName: prev.organizationName || selectedOrg.name || '',
-              }));
-            }
-          }
-        }
+      if (postingType === 'organization' && org) {
+        organizationId = org.id;
+        organizationName = org.name;
+        organizationUrn = org.urn;
+        organizationUrlValue = org.urn
+          || (org.vanityName ? `https://www.linkedin.com/company/${org.vanityName}/` : undefined);
 
-        // If no organization selected from list but URL is provided, use URL/URN
-        if (!organizationId && organizationUrlValue) {
-          organizationUrn = linkedInPostingConfig.organizationUrn;
-          // Extract ID from URL or URN
-          const urlMatch = organizationUrlValue.match(/\/company\/(\d+)/);
-          const urnMatch = organizationUrlValue.match(/urn:li:organization(?:Brand)?:(\d+)/);
-          organizationId = urlMatch?.[1] || urnMatch?.[1];
-          // Use the manually entered company name
-          organizationName = linkedInPostingConfig.organizationName?.trim();
-          if (!organizationName) {
-            // Fallback: use ID if name not provided (shouldn't happen due to validation)
-            organizationName = organizationId || organizationUrlValue;
-          }
-
-          // If still no ID, try to extract from URN if available
-          if (!organizationId && organizationUrn) {
-            const urnIdMatch = organizationUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
-            if (urnIdMatch) {
-              organizationId = urnIdMatch[1];
-            }
-          }
-        }
-
-        // If we have organization info and a provider LinkedIn account id, update via API
-        if (organizationId && linkedinAccountForOrgs.getlate_account_id) {
+        if (linkedinAccountForOrgs.getlate_account_id) {
           const response = await fetch('/api/getlate/linkedin-organizations', {
             method: 'PUT',
             headers: {
@@ -1477,7 +1522,7 @@ export default function ConnectionsPage() {
             body: JSON.stringify({
               accountId: linkedinAccountForOrgs.getlate_account_id,
               organizationId,
-              organizationName: organizationName || linkedInPostingConfig.organizationName || organizationUrlValue || 'LinkedIn Organization',
+              organizationName: organizationName || 'LinkedIn Organization',
               organizationUrn,
               sourceUrl: organizationUrlValue || organizationUrn,
             }),
@@ -1488,21 +1533,17 @@ export default function ConnectionsPage() {
             throw new Error(error.error || 'Failed to save organization selection');
           }
 
-          // Update organization name from API response if available
           const responseData = await response.json();
           if (responseData.organization?.name && responseData.organization.name !== organizationName) {
             organizationName = responseData.organization.name;
           }
         }
       } else {
-        // If posting as personal, clear organization data and update Publishing integration API
         organizationId = undefined;
         organizationName = undefined;
         organizationUrn = undefined;
 
-        // If switching to personal, update Publishing integration API with account name
         if (linkedinAccountForOrgs.getlate_account_id) {
-          // Fetch account name from social_accounts table
           const { data: accountData } = await supabase
             .from('social_accounts')
             .select('account_name')
@@ -1532,7 +1573,6 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Update platform_specific_data with posting config
       const { data: currentAccount } = await supabase
         .from('social_accounts')
         .select('platform_specific_data')
@@ -1542,22 +1582,21 @@ export default function ConnectionsPage() {
       const platformData = (currentAccount?.platform_specific_data as Record<string, unknown>) || {};
       const updatedData: Record<string, unknown> = {
         ...platformData,
-        linkedinPostingType: linkedInPostingConfig.postingType,
+        linkedinPostingType: postingType,
       };
 
-      if (linkedInPostingConfig.postingType === 'organization' && organizationId) {
-        updatedData.linkedinPageType = linkedInPostingConfig.pageType;
+      if (postingType === 'organization' && organizationId) {
+        updatedData.linkedinPageType = linkedInPostingConfig.pageType || 'company';
         updatedData.linkedinOrganizationUrl = organizationUrlValue;
         updatedData.linkedinOrganizationUrn = organizationUrn;
         updatedData.linkedinOrganization = {
           id: organizationId,
-          name: organizationName || linkedInPostingConfig.organizationName || organizationId || organizationUrlValue || 'LinkedIn Organization',
+          name: organizationName || organizationId || 'LinkedIn Organization',
           urn: organizationUrn,
           sourceUrl: organizationUrlValue || organizationUrn,
           updatedAt: new Date().toISOString(),
         };
       } else {
-        // Clear organization-related data when posting as personal
         delete updatedData.linkedinPageType;
         delete updatedData.linkedinOrganizationUrl;
         delete updatedData.linkedinOrganizationUrn;
@@ -1579,7 +1618,6 @@ export default function ConnectionsPage() {
       setSelectedLinkedInOrgId(null);
       setLinkedinOrganizations([]);
       setLinkedInPostingConfig({ postingType: 'personal' });
-      // Atomic refresh so connection + follower counts update together.
       await loadAccountsFromDB(false, true);
     } catch (error) {
       console.error('Error saving LinkedIn settings:', error);
@@ -2195,7 +2233,7 @@ export default function ConnectionsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* LinkedIn Posting Settings Dialog */}
+        {/* LinkedIn Manage Settings: same picker as first-time connect (personal vs organizations from API) */}
         <Dialog
           open={!!linkedinAccountForOrgs}
           onOpenChange={(open) => {
@@ -2204,12 +2242,13 @@ export default function ConnectionsPage() {
               setLinkedinAccountName(null);
               setLinkedInPostingConfig({ postingType: 'personal' });
               setSelectedLinkedInOrgId(null);
+              setLinkedinOrganizations([]);
             }
           }}
         >
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-w-md">
             <DialogHeader>
-              <DialogTitle>{(t('manage_linkedin_settings') as string) || 'Manage LinkedIn Account'}</DialogTitle>
+              <DialogTitle>{(t('select_linkedin_organization') as string) || 'Select LinkedIn Organization'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {isLoadingLinkedInOrgs
@@ -2219,222 +2258,107 @@ export default function ConnectionsPage() {
                       <p className="mt-2 text-sm text-gray-500">{t('loading') || 'Loading...'}</p>
                     </div>
                   )
-                : (
-                    <div className="space-y-4">
-                      {/* Posting Type Selection */}
+                : linkedinOrganizations.length === 0
+                  ? (
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                          {(tLinkedIn('choose_posting_type') as string) || 'Choose how you want to post'}
-                        </Label>
-
-                        {/* Personal Option */}
-                        <label
-                          htmlFor="linkedin-posting-type-personal"
-                          className={cn(
-                            'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-all',
-                            linkedInPostingConfig.postingType === 'personal'
-                              ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-pink-200 dark:hover:border-pink-700 hover:bg-gray-50 dark:hover:bg-gray-800',
-                          )}
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {(t('linkedin_personal_only') as string) || 'You can post as your personal account. No organizations available.'}
+                        </p>
+                        <Button
+                          onClick={() => void applyManageLinkedInPosting('personal')}
+                          disabled={isSavingLinkedInOrg}
+                          className="w-full bg-pink-600 text-white hover:bg-pink-700"
                         >
-                          <input
-                            id="linkedin-posting-type-personal"
-                            type="radio"
-                            name="linkedin-posting-type"
-                            value="personal"
-                            checked={linkedInPostingConfig.postingType === 'personal'}
-                            onChange={() => setLinkedInPostingConfig({
-                              postingType: 'personal',
-                              organizationName: undefined, // Clear company name when switching to personal
-                              organizationUrl: undefined,
-                              organizationUrn: undefined,
-                            })}
-                            aria-label={(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
-                            className="mt-1 h-4 w-4 cursor-pointer border-gray-300 text-pink-500 focus:ring-pink-500"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
-                              </span>
-                            </div>
-                            {linkedinAccountName && (
-                              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">{linkedinAccountName}</p>
-                            )}
-                          </div>
-                        </label>
-
-                        {/* Organization Option */}
-                        <label
-                          htmlFor="linkedin-posting-type-organization"
-                          className={cn(
-                            'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-all',
-                            linkedInPostingConfig.postingType === 'organization'
-                              ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30'
-                              : 'border-gray-200 dark:border-gray-600 hover:border-pink-200 dark:hover:border-pink-700 hover:bg-gray-50 dark:hover:bg-gray-800',
-                          )}
-                        >
-                          <input
-                            id="linkedin-posting-type-organization"
-                            type="radio"
-                            name="linkedin-posting-type"
-                            value="organization"
-                            checked={linkedInPostingConfig.postingType === 'organization'}
-                            onChange={() => setLinkedInPostingConfig({ postingType: 'organization' })}
-                            aria-label={(tLinkedIn('post_as_organization') as string) || 'Post as Organization (Company or Showcase)'}
-                            className="mt-1 h-4 w-4 cursor-pointer border-gray-300 text-pink-500 focus:ring-pink-500"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {(tLinkedIn('post_as_organization') as string) || 'Post as Organization (Company or Showcase)'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
-                              {(tLinkedIn('requires_admin_access') as string) || 'Requires organization admin access'}
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-
-                      {/* Organization Details */}
-                      {linkedInPostingConfig.postingType === 'organization' && (
-                        <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4 dark:border-gray-600 dark:bg-gray-800">
-                          {/* Page Type Selector */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-page-type" className="text-sm font-medium text-gray-900 dark:text-gray-100">
-                              {(tLinkedIn('page_type') as string) || 'Page type:'}
-                            </Label>
-                            <Select
-                              value={linkedInPostingConfig.pageType || 'company'}
-                              onValueChange={value =>
-                                setLinkedInPostingConfig({ ...linkedInPostingConfig, pageType: value as LinkedInPageType })}
-                            >
-                              <SelectTrigger id="linkedin-page-type" dir={isRTL ? 'rtl' : 'ltr'}>
-                                <SelectValue
-                                  selectedLabel={
-                                    linkedInPostingConfig.pageType === 'showcase'
-                                      ? (tLinkedIn('showcase_page') as string) || 'Showcase Page'
-                                      : (tLinkedIn('company_page') as string) || 'Company Page'
-                                  }
-                                  placeholder={(tLinkedIn('select_page_type') as string) || 'Select page type'}
-                                />
-                              </SelectTrigger>
-                              <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                <SelectItem value="company" dir={isRTL ? 'rtl' : 'ltr'}>
-                                  {(tLinkedIn('company_page') as string) || 'Company Page'}
-                                </SelectItem>
-                                <SelectItem value="showcase" dir={isRTL ? 'rtl' : 'ltr'}>
-                                  {(tLinkedIn('showcase_page') as string) || 'Showcase Page'}
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* URL/URN Input */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-org-url" className="text-sm font-medium text-gray-900">
-                              {(tLinkedIn('url_label') as string) || 'LinkedIn Page URL or URN (Numeric ID Required):'}
-                            </Label>
-                            <Input
-                              id="linkedin-org-url"
-                              type="text"
-                              placeholder={(tLinkedIn('url_placeholder') as string) || 'https://www.linkedin.com/company/69179664'}
-                              value={linkedInPostingConfig.organizationUrl || ''}
-                              onChange={(e) => {
-                                const url = e.target.value;
-                                let urn: string | undefined;
-                                if (url.startsWith('urn:li:organization:') || url.startsWith('urn:li:organizationBrand:')) {
-                                  urn = url;
-                                } else {
-                                  const match = url.match(/\/company\/(\d+)/);
-                                  if (match) {
-                                    urn = `urn:li:organization:${match[1]}`;
-                                  }
-                                }
-                                setLinkedInPostingConfig({
-                                  ...linkedInPostingConfig,
-                                  organizationUrl: url,
-                                  organizationUrn: urn,
-                                });
-                              }}
-                              className={cn(
-                                'border-gray-300 focus:border-pink-500',
-                                linkedInPostingConfig.organizationUrl && !linkedInPostingConfig.organizationUrl.match(/\/company\/(\d+)/) && !linkedInPostingConfig.organizationUrl.match(/urn:li:organization(?:Brand)?:(\d+)/)
-                                  ? 'border-red-300 focus:border-red-500'
-                                  : '',
+                          {isSavingLinkedInOrg
+                            ? (
+                                <>
+                                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {t('saving') || 'Saving...'}
+                                </>
+                              )
+                            : (
+                                <>
+                                  <User className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {(t('post_as_personal') as string) || 'Post as Personal Account'}
+                                </>
                               )}
-                              dir={isRTL ? 'rtl' : 'ltr'}
-                            />
-                            {linkedInPostingConfig.organizationUrl && !linkedInPostingConfig.organizationUrl.match(/\/company\/(\d+)/) && !linkedInPostingConfig.organizationUrl.match(/urn:li:organization(?:Brand)?:(\d+)/) && (
-                              <p className="text-xs text-red-600">
-                                {(tLinkedIn('invalid_url') as string) || 'Invalid URL format. Please provide a URL with numeric ID or a URN.'}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Company Name Input */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-org-name" className="text-sm font-medium text-gray-900">
-                              {(tLinkedIn('company_name_label') as string) || 'Company Name:'}
-                              {' '}
-                              <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                              id="linkedin-org-name"
-                              type="text"
-                              placeholder={(tLinkedIn('company_name_placeholder') as string) || 'Enter company name'}
-                              value={linkedInPostingConfig.organizationName || ''}
-                              onChange={(e) => {
-                                setLinkedInPostingConfig({
-                                  ...linkedInPostingConfig,
-                                  organizationName: e.target.value,
-                                });
-                              }}
-                              className="border-gray-300 focus:border-pink-500"
-                              dir={isRTL ? 'rtl' : 'ltr'}
-                              required
-                            />
-                            <p className="text-xs text-gray-500">
-                              {(tLinkedIn('company_name_hint') as string) || 'Enter the official name of the LinkedIn company page'}
-                            </p>
-                          </div>
-
-                          {/* Help Text */}
-                          <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-                            <div className="flex gap-2">
-                              <Info className="h-5 w-5 shrink-0 text-blue-600" />
-                              <div className="space-y-2 text-xs text-blue-900">
-                                <p className="font-medium">{(tLinkedIn('how_to_get_url') as string) || '📌 How to get the correct URL:'}</p>
-                                <ol className="ml-4 list-decimal space-y-1">
-                                  <li>{(tLinkedIn('step_1') as string) || 'Navigate to your LinkedIn Company or Showcase Page'}</li>
-                                  <li>{(tLinkedIn('step_2') as string) || 'Open the admin area; copy a URL that contains the NUMERIC ID'}</li>
-                                  <li>{(tLinkedIn('step_3') as string) || 'Or paste a full URN like urn:li:organization:123 or urn:li:organizationBrand:456'}</li>
-                                </ol>
-                                <div className="mt-2 space-y-1">
-                                  <p className="font-medium">{(tLinkedIn('valid_examples') as string) || '✅ Valid:'}</p>
-                                  <p className="font-mono text-xs">
-                                    ✅
-                                    {(tLinkedIn('valid_example_1') as string) || 'linkedin.com/company/107655573/'}
-                                  </p>
-                                  <p className="font-mono text-xs">
-                                    ✅
-                                    {(tLinkedIn('valid_example_2') as string) || 'urn:li:organizationBrand:123456'}
-                                  </p>
-                                  <p className="font-mono text-xs">
-                                    ❌
-                                    {(tLinkedIn('invalid_example') as string) || 'Invalid: vanity URLs like linkedin.com/company/company-name/'}
-                                  </p>
-                                </div>
-                              </div>
+                        </Button>
+                      </div>
+                    )
+                  : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {(t('select_posting_account') as string) || 'Select how you want to post:'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void applyManageLinkedInPosting('personal')}
+                          disabled={isSavingLinkedInOrg}
+                          className={cn(
+                            'w-full rounded-lg border-2 p-4 text-left transition-all',
+                            linkedInPostingConfig.postingType === 'personal'
+                              ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                              : 'border-gray-200 bg-white hover:border-pink-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-pink-700',
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {(t('post_as_personal') as string) || 'Post as Personal Account'}
+                              </span>
+                              {linkedinAccountName && (
+                                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{linkedinAccountName}</p>
+                              )}
                             </div>
                           </div>
+                        </button>
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
+                          {linkedinOrganizations.map((org) => {
+                            const isCurrent = selectedLinkedInOrgId === org.id;
+                            return (
+                              <button
+                                key={org.id}
+                                type="button"
+                                onClick={() =>
+                                  void applyManageLinkedInPosting('organization', {
+                                    id: org.id,
+                                    name: org.name,
+                                    ...(org.urn ? { urn: org.urn } : {}),
+                                    ...(org.vanityName ? { vanityName: org.vanityName } : {}),
+                                  })}
+                                disabled={isSavingLinkedInOrg}
+                                className={cn(
+                                  'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                  isCurrent
+                                    ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                    : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
+                                )}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                  <div>
+                                    <p
+                                      className={cn(
+                                        'font-semibold',
+                                        isCurrent
+                                          ? 'text-gray-900 dark:text-white'
+                                          : 'text-gray-800 dark:text-gray-100',
+                                      )}
+                                    >
+                                      {org.name}
+                                    </p>
+                                    {org.urn && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">{org.urn}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
             </div>
             <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
               <Button
@@ -2443,27 +2367,12 @@ export default function ConnectionsPage() {
                   setLinkedinAccountForOrgs(null);
                   setLinkedInPostingConfig({ postingType: 'personal' });
                   setSelectedLinkedInOrgId(null);
+                  setLinkedinOrganizations([]);
                 }}
                 disabled={isSavingLinkedInOrg}
                 className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
-              </Button>
-              <Button
-                onClick={handleSaveLinkedInOrganization}
-                disabled={isSavingLinkedInOrg}
-                className="bg-pink-600 text-white hover:bg-pink-700"
-              >
-                {isSavingLinkedInOrg
-                  ? (
-                      <>
-                        <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
-                        {t('saving') || 'Saving...'}
-                      </>
-                    )
-                  : (
-                      t('save') || 'Save'
-                    )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2566,12 +2475,17 @@ export default function ConnectionsPage() {
 
         {/* Headless Mode: LinkedIn Organization Selection Dialog */}
         <Dialog
-          open={headlessModeData?.platform === 'linkedin' && headlessModeData?.step === 'select_organization'}
+          open={
+            isResolvingLinkedInHeadless
+            || (headlessModeData?.platform === 'linkedin' && headlessModeData?.step === 'select_organization')
+          }
           onOpenChange={(open) => {
             if (!open) {
               setHeadlessModeData(null);
               setSelectedLinkedInOrgId(null);
               setLinkedinOrganizations([]);
+              setIsResolvingLinkedInHeadless(false);
+              linkedInPendingOAuthUrlRef.current = null;
             }
           }}
         >
@@ -2580,7 +2494,15 @@ export default function ConnectionsPage() {
               <DialogTitle>{(t('select_linkedin_organization') as string) || 'Select LinkedIn Account'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              {linkedinOrganizations.length === 0
+              {isResolvingLinkedInHeadless
+                ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
+                      <p className="text-center text-sm text-gray-600">Loading…</p>
+                    </div>
+                  )
+                : null}
+              {!isResolvingLinkedInHeadless && linkedinOrganizations.length === 0
                 ? (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-600">
@@ -2607,7 +2529,9 @@ export default function ConnectionsPage() {
                       </Button>
                     </div>
                   )
-                : (
+                : null}
+              {!isResolvingLinkedInHeadless && linkedinOrganizations.length > 0
+                ? (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-600">
                         {(t('select_posting_account') as string) || 'Select how you want to post:'}
@@ -2640,7 +2564,7 @@ export default function ConnectionsPage() {
                               onClick={() => handleSaveHeadlessLinkedInOrganization('organization', {
                                 id: org.id,
                                 name: org.name,
-                                vanityName: org.urn,
+                                ...(org.vanityName ? { vanityName: org.vanityName } : {}),
                               })}
                               disabled={isSavingHeadlessSelection}
                               className={cn(
@@ -2673,7 +2597,8 @@ export default function ConnectionsPage() {
                         })}
                       </div>
                     </div>
-                  )}
+                  )
+                : null}
             </div>
             <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
               <Button
@@ -2682,8 +2607,10 @@ export default function ConnectionsPage() {
                   setHeadlessModeData(null);
                   setSelectedLinkedInOrgId(null);
                   setLinkedinOrganizations([]);
+                  setIsResolvingLinkedInHeadless(false);
+                  linkedInPendingOAuthUrlRef.current = null;
                 }}
-                disabled={isSavingHeadlessSelection}
+                disabled={isSavingHeadlessSelection || isResolvingLinkedInHeadless}
                 className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
