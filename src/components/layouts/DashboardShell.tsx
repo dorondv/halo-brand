@@ -25,8 +25,10 @@ import React, { Suspense } from 'react';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { SubscriptionLimitsMeters } from '@/components/subscription/SubscriptionLimitsMeters';
 import { Button } from '@/components/ui/button';
 import { Logo } from '@/components/ui/Logo';
+import { useBrand } from '@/contexts/BrandContext';
 import { usePathname } from '@/libs/I18nNavigation';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
@@ -61,6 +63,8 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
     [showGetlateTestNav],
   );
   const pathname = usePathname();
+  const { selectedBrandId } = useBrand();
+  const hideUsageStrip = pathname?.startsWith('/admin');
   const [isMobileMenuOpen, setIsMobileMenuOpen] = React.useState(false);
   const [userName, setUserName] = React.useState<string | null>(null);
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
@@ -190,93 +194,100 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
       {/* Main */}
       <div className="flex w-full min-w-0 flex-1 flex-col">
         <header
-          className={`flex items-center ${locale === 'he'
-            ? 'flex-row-reverse'
-            : ''} justify-between bg-white p-4 shadow-sm dark:border-b dark:border-gray-800 dark:bg-gray-900`}
+          className={`flex flex-col bg-white shadow-sm dark:border-b dark:border-gray-800 dark:bg-gray-900 ${locale === 'he' ? 'rtl' : ''}`}
         >
-          {locale === 'he'
-            ? (
-              // Hebrew: Language switcher on left, user data on right
-                <>
-                  {userName && (
-                    <div className="flex items-center">
-                      <LocaleSwitcher />
-                    </div>
-                  )}
-                  <div className="flex flex-row-reverse items-center gap-4">
-                    <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
-                      <Menu className="h-6 w-6" />
-                    </Button>
+          <div
+            className={`flex items-center p-4 ${locale === 'he'
+              ? 'flex-row-reverse'
+              : ''} justify-between`}
+          >
+            {locale === 'he'
+              ? (
+            // Hebrew: Language switcher on left, user data on right
+                  <>
                     {userName && (
-                      <div className="flex flex-row-reverse items-center gap-3">
-                        <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800 dark:text-gray-200">
-                          {t('hello_greeting', { name: userName })}
-                        </h1>
-                        {userAvatar && !avatarError
-                          ? (
-                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 dark:border-gray-600">
-                                <Image
-                                  src={userAvatar}
-                                  alt={userName}
-                                  fill
-                                  className="object-cover"
-                                  sizes="40px"
-                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
-                                  onError={() => setAvatarError(true)}
-                                />
-                              </div>
-                            )
-                          : (
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400">
-                                <User className="h-5 w-5" />
-                              </div>
-                            )}
+                      <div className="flex items-center">
+                        <LocaleSwitcher />
                       </div>
                     )}
-                  </div>
-                </>
-              )
-            : (
-              // English: User data on left, language switcher on right
-                <>
-                  <div className="flex items-center gap-4">
-                    <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
-                      <Menu className="h-6 w-6" />
-                    </Button>
+                    <div className="flex flex-row-reverse items-center gap-4">
+                      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+                        <Menu className="h-6 w-6" />
+                      </Button>
+                      {userName && (
+                        <div className="flex flex-row-reverse items-center gap-3">
+                          <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800 dark:text-gray-200">
+                            {t('hello_greeting', { name: userName })}
+                          </h1>
+                          {userAvatar && !avatarError
+                            ? (
+                                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 dark:border-gray-600">
+                                  <Image
+                                    src={userAvatar}
+                                    alt={userName}
+                                    fill
+                                    className="object-cover"
+                                    sizes="40px"
+                                    unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
+                                    onError={() => setAvatarError(true)}
+                                  />
+                                </div>
+                              )
+                            : (
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400">
+                                  <User className="h-5 w-5" />
+                                </div>
+                              )}
+                        </div>
+                      )}
+                    </div>
+                  </>
+                )
+              : (
+            // English: User data on left, language switcher on right
+                  <>
+                    <div className="flex items-center gap-4">
+                      <Button variant="ghost" size="icon" className="lg:hidden" onClick={() => setIsMobileMenuOpen(true)}>
+                        <Menu className="h-6 w-6" />
+                      </Button>
+                      {userName && (
+                        <div className="flex items-center gap-3">
+                          {userAvatar && !avatarError
+                            ? (
+                                <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 dark:border-gray-600">
+                                  <Image
+                                    src={userAvatar}
+                                    alt={userName}
+                                    fill
+                                    className="object-cover"
+                                    sizes="40px"
+                                    unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
+                                    onError={() => setAvatarError(true)}
+                                  />
+                                </div>
+                              )
+                            : (
+                                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400">
+                                  <User className="h-5 w-5" />
+                                </div>
+                              )}
+                          <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800 dark:text-gray-200">
+                            {t('hello_greeting', { name: userName })}
+                          </h1>
+                        </div>
+                      )}
+                    </div>
                     {userName && (
-                      <div className="flex items-center gap-3">
-                        {userAvatar && !avatarError
-                          ? (
-                              <div className="relative h-10 w-10 shrink-0 overflow-hidden rounded-full border-2 border-gray-200 dark:border-gray-600">
-                                <Image
-                                  src={userAvatar}
-                                  alt={userName}
-                                  fill
-                                  className="object-cover"
-                                  sizes="40px"
-                                  unoptimized={!userAvatar.startsWith('/') && !userAvatar.includes('supabase.co') && !userAvatar.includes('getlate.dev')}
-                                  onError={() => setAvatarError(true)}
-                                />
-                              </div>
-                            )
-                          : (
-                              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-100 text-pink-600 dark:bg-pink-900/40 dark:text-pink-400">
-                                <User className="h-5 w-5" />
-                              </div>
-                            )}
-                        <h1 className="text-lg font-semibold whitespace-nowrap text-gray-800 dark:text-gray-200">
-                          {t('hello_greeting', { name: userName })}
-                        </h1>
+                      <div className="flex items-center">
+                        <LocaleSwitcher />
                       </div>
                     )}
-                  </div>
-                  {userName && (
-                    <div className="flex items-center">
-                      <LocaleSwitcher />
-                    </div>
-                  )}
-                </>
-              )}
+                  </>
+                )}
+          </div>
+          {!hideUsageStrip && (
+            <SubscriptionLimitsMeters variant="topbar" brandId={selectedBrandId} className="shrink-0" />
+          )}
         </header>
         <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 py-6">{children}</main>
       </div>

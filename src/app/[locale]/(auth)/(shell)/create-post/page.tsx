@@ -993,11 +993,15 @@ export default function CreatePostPage() {
     semanticAnalysis: boolean;
     brandSentiment: boolean;
     preferredSupport: boolean;
+    apiAccess: boolean;
+    dedicatedSupport: boolean;
   }>({
     pdfPptReports: false,
     semanticAnalysis: false,
     brandSentiment: false,
     preferredSupport: false,
+    apiAccess: false,
+    dedicatedSupport: false,
   });
   // Platform-specific content (includes hashtags)
   const [platformContent, setPlatformContent] = useState<Record<Platform, { caption: string; title: string; link: string; mediaUrls: string[]; hashtags: string[] }>>({} as Record<Platform, { caption: string; title: string; link: string; mediaUrls: string[]; hashtags: string[] }>);
@@ -2597,86 +2601,6 @@ export default function CreatePostPage() {
         <div className="mb-6">
           <h1 className="text-2xl font-semibold text-slate-900 dark:text-gray-100">{t('title')}</h1>
         </div>
-
-        {/* Subscription Limits Counters */}
-        {limits && (
-          <div className={`mb-6 grid grid-cols-1 gap-3 sm:grid-cols-3 ${isRTL ? 'text-right' : ''}`}>
-            {/* Posts Counter */}
-            <Card className={`border ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
-              <CardContent className="p-4">
-                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('posts_this_month')}</p>
-                    <p className={`text-2xl font-bold ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
-                      {usage.postsThisMonth}
-                      {' '}
-                      /
-                      {limits.maxPostsPerMonth === 999999 ? '∞' : limits.maxPostsPerMonth}
-                    </p>
-                    {usage.postsThisMonth >= limits.maxPostsPerMonth && (
-                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {t('upgrade_plan')}
-                      </Link>
-                    )}
-                  </div>
-                  <div className={`shrink-0 rounded-full p-2 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'bg-red-100' : 'bg-green-100'}`}>
-                    <MessageCircle className={`h-5 w-5 ${usage.postsThisMonth >= limits.maxPostsPerMonth ? 'text-red-600' : 'text-green-600'}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Generations Counter */}
-            <Card className={`border ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
-              <CardContent className="p-4">
-                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_content_this_month')}</p>
-                    <p className={`text-2xl font-bold ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
-                      {usage.aiGenerationsThisMonth}
-                      {' '}
-                      /
-                      {limits.maxAIGenerationsPerMonth === 999999 ? '∞' : limits.maxAIGenerationsPerMonth}
-                    </p>
-                    {usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth && (
-                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {t('upgrade_plan')}
-                      </Link>
-                    )}
-                  </div>
-                  <div className={`shrink-0 rounded-full p-2 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'bg-red-100' : 'bg-blue-100'}`}>
-                    <Wand2 className={`h-5 w-5 ${usage.aiGenerationsThisMonth >= limits.maxAIGenerationsPerMonth ? 'text-red-600' : 'text-blue-600'}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* AI Images Allowed Counter */}
-            <Card className={`border ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'border-red-300 bg-red-50/50 dark:border-red-800 dark:bg-red-950/30' : 'border-slate-200 bg-white dark:border-gray-700 dark:bg-gray-800'}`}>
-              <CardContent className="p-4">
-                <div className={`flex items-center justify-between gap-4 ${isRTL ? 'flex-row-reverse' : ''}`}>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-slate-600 dark:text-slate-200">{t('ai_images_this_month')}</p>
-                    <p className={`text-2xl font-bold ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600 dark:text-red-400' : 'text-slate-900 dark:text-gray-100'}`}>
-                      {usage.aiImageGenerationsThisMonth}
-                      {' '}
-                      /
-                      {limits.maxImageGenerationsPerMonth === 999999 ? '∞' : limits.maxImageGenerationsPerMonth}
-                    </p>
-                    {usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth && (
-                      <Link href="/pricing" className="mt-1 text-xs text-red-600 hover:underline">
-                        {t('upgrade_plan')}
-                      </Link>
-                    )}
-                  </div>
-                  <div className={`shrink-0 rounded-full p-2 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'bg-red-100' : 'bg-pink-100'}`}>
-                    <ImageIcon className={`h-5 w-5 ${usage.aiImageGenerationsThisMonth >= limits.maxImageGenerationsPerMonth ? 'text-red-600' : 'text-pink-600'}`} />
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        )}
 
         {/* Check if brand is selected */}
         {!selectedBrandId

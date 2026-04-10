@@ -236,7 +236,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
+    const {
+      getUserSubscription,
+      getSubscriptionPlan,
+      isPaidPlanType,
+      subscriptionShouldApplyPaidPlanLimits,
+    } = await import('@/libs/subscriptionService');
     const { brands: brandsTable } = await import('@/models/Schema');
     const { eq } = await import('drizzle-orm');
     const { db } = await import('@/libs/DB');
@@ -245,11 +250,7 @@ export async function POST(request: NextRequest) {
     let maxBrands = 1;
 
     if (subscription && subscription.planType !== 'free') {
-      const now = new Date();
-      const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-      const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-      if (isSubscriptionActive && isNotExpired) {
+      if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
         const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
         if (plan) {
           maxBrands = plan.maxBrands || 999999;

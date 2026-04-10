@@ -1,10 +1,49 @@
-import { and, eq, sql } from 'drizzle-orm';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { eq, sql } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
 import { createGetlateClient } from '@/libs/Getlate';
-import { getSubscriptionPlan, getUserSubscription } from '@/libs/subscriptionService';
+import { getFeatureFlagsForPlan } from '@/libs/planFeatureFlags';
+import {
+  getSubscriptionPlan,
+  getUserSubscription,
+  isPaidPlanType,
+  subscriptionShouldApplyPaidPlanLimits,
+} from '@/libs/subscriptionService';
 import { createSupabaseServerClient } from '@/libs/Supabase';
-import { brands, socialAccounts } from '@/models/Schema';
+import { brands } from '@/models/Schema';
+
+/**
+ * Match `/api/getlate/accounts`: count unique connected accounts, not raw `social_accounts` rows
+ * (duplicate rows for the same Publishing account inflate usage vs plan limits).
+ */
+async function countDistinctActiveSocialAccounts(
+  supabase: SupabaseClient,
+  userId: string,
+  brandId: string | null,
+): Promise<number> {
+  let query = supabase
+    .from('social_accounts')
+    .select('id, getlate_account_id')
+    .eq('user_id', userId)
+    .eq('is_active', true);
+
+  if (brandId) {
+    query = query.eq('brand_id', brandId);
+  }
+
+  const { data, error } = await query;
+
+  if (error || !data?.length) {
+    return 0;
+  }
+
+  const unique = new Set<string>();
+  for (const row of data as { id: string; getlate_account_id: string | null }[]) {
+    unique.add(row.getlate_account_id ?? row.id);
+  }
+  return unique.size;
+}
 
 /**
  * Get user's subscription limits, current usage, and feature flags
@@ -49,14 +88,12 @@ export async function GET(request: Request) {
       semanticAnalysis: false,
       brandSentiment: false,
       preferredSupport: false,
+      apiAccess: false,
+      dedicatedSupport: false,
     };
 
     if (subscription && subscription.planType !== 'free') {
-      const now = new Date();
-      const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-      const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-      if (isSubscriptionActive && isNotExpired) {
+      if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
         const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
 
         if (plan) {
@@ -78,19 +115,7 @@ export async function GET(request: Request) {
             planType: subscription.planType as 'basic' | 'pro' | 'business' | 'free',
           };
 
-          // Set feature flags based on plan
-          const planFeatures = (plan.features as any) || {};
-          const featureKeys = Array.isArray(planFeatures) ? planFeatures : Object.keys(planFeatures);
-
-          // Pro and Business plans have these features
-          if (subscription.planType === 'pro' || subscription.planType === 'business') {
-            features = {
-              pdfPptReports: featureKeys.includes('pdf_ppt_reports') || true,
-              semanticAnalysis: featureKeys.includes('semantic_analysis') || true,
-              brandSentiment: featureKeys.includes('brand_sentiment') || true,
-              preferredSupport: featureKeys.includes('preferred_support') || true,
-            };
-          }
+          features = getFeatureFlagsForPlan(subscription.planType);
         } else {
           // Fallback if plan not found - use hardcoded defaults
           const maxAIGenerations = subscription.planType === 'basic' ? 50 : subscription.planType === 'pro' ? 500 : 2500;
@@ -105,14 +130,7 @@ export async function GET(request: Request) {
             planType: subscription.planType as 'basic' | 'pro' | 'business',
           };
 
-          if (subscription.planType === 'pro' || subscription.planType === 'business') {
-            features = {
-              pdfPptReports: true,
-              semanticAnalysis: true,
-              brandSentiment: true,
-              preferredSupport: true,
-            };
-          }
+          features = getFeatureFlagsForPlan(subscription.planType);
         }
       }
     }
@@ -206,54 +224,19 @@ export async function GET(request: Request) {
               account.isConnected !== false && account.isActive !== false,
             ).length;
           } else {
-            // Fallback to database count if no Publishing integration API key
-            const socialAccountsCountResult = await db
-              .select({ count: sql<number>`count(*)::int` })
-              .from(socialAccounts)
-              .where(and(
-                eq(socialAccounts.userId, user.id),
-                eq(socialAccounts.brandId, brandId),
-              ));
-            socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+            socialAccountsCount = await countDistinctActiveSocialAccounts(supabase, user.id, brandId);
           }
         } catch (error) {
           console.error('Error fetching accounts from Getlate API:', error);
-          // Fallback to database count on error
-          const socialAccountsCountResult = await db
-            .select({ count: sql<number>`count(*)::int` })
-            .from(socialAccounts)
-            .where(and(
-              eq(socialAccounts.userId, user.id),
-              eq(socialAccounts.brandId, brandId),
-            ));
-          socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+          socialAccountsCount = await countDistinctActiveSocialAccounts(supabase, user.id, brandId);
         }
       } else if (brandRecord) {
-        // Brand belongs to user but no Publishing integration profile, count from database
-        const socialAccountsCountResult = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(socialAccounts)
-          .where(and(
-            eq(socialAccounts.userId, user.id),
-            eq(socialAccounts.brandId, brandId),
-          ));
-        socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+        socialAccountsCount = await countDistinctActiveSocialAccounts(supabase, user.id, brandId);
       } else {
-        // If brand doesn't belong to user, ignore brandId and count all accounts from database
-        const socialAccountsCountResult = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(socialAccounts)
-          .where(eq(socialAccounts.userId, user.id));
-        socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+        socialAccountsCount = await countDistinctActiveSocialAccounts(supabase, user.id, null);
       }
     } else {
-      // No brandId provided, count all user accounts from database
-      // Note: This counts across all brands, which is the fallback behavior
-      const socialAccountsCountResult = await db
-        .select({ count: sql<number>`count(*)::int` })
-        .from(socialAccounts)
-        .where(eq(socialAccounts.userId, user.id));
-      socialAccountsCount = socialAccountsCountResult[0]?.count || 0;
+      socialAccountsCount = await countDistinctActiveSocialAccounts(supabase, user.id, null);
     }
 
     const usage = {

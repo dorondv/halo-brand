@@ -465,6 +465,14 @@
       "missing_company_name": "Forneça o nome da empresa"
     }
   },
+  "SubscriptionLimits": {
+    "usage_title": "Seu uso este mês",
+    "current_plan": "Plano atual: {plan}",
+    "plan_free": "Grátis",
+    "free_tier_note": "Esses limites valem para a conta gratuita (por exemplo, 3 contas sociais). A página de preços mostra limites maiores para Basic, Pro e Business após a assinatura.",
+    "brands_label": "Marcas",
+    "social_label": "Contas sociais"
+  },
   "Calendar": {
     "title": "Calendário",
     "subtitle": "Planeje e agende seu conteúdo com datas importantes",

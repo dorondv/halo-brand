@@ -300,17 +300,18 @@ export async function GET(request: NextRequest) {
           syncedAccounts.push(updatedAccount);
         }
       } else {
-        const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
+        const {
+          getUserSubscription,
+          getSubscriptionPlan,
+          isPaidPlanType,
+          subscriptionShouldApplyPaidPlanLimits,
+        } = await import('@/libs/subscriptionService');
 
         const subscription = await getUserSubscription(user.id);
         let maxSocialAccounts = 3;
 
         if (subscription && subscription.planType !== 'free') {
-          const now = new Date();
-          const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-          const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-          if (isSubscriptionActive && isNotExpired) {
+          if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
             const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
             if (plan) {
               maxSocialAccounts = plan.maxSocialAccounts || 999999;

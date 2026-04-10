@@ -465,6 +465,14 @@
       "missing_company_name": "Please provide the company name"
     }
   },
+  "SubscriptionLimits": {
+    "usage_title": "Your usage this month",
+    "current_plan": "Current plan: {plan}",
+    "plan_free": "Free",
+    "free_tier_note": "These limits apply to free accounts (for example 3 social accounts). The pricing page shows higher limits for Basic, Pro, and Business after you subscribe.",
+    "brands_label": "Brands",
+    "social_label": "Social accounts"
+  },
   "Calendar": {
     "title": "Calendar",
     "subtitle": "Plan and schedule your content with important dates",
