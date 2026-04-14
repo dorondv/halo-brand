@@ -467,7 +467,7 @@
   },
   "SubscriptionLimits": {
     "usage_title": "Your usage this month",
-    "current_plan": "Current plan: {plan}",
+    "current_plan": "Current plan: <accent>{plan}</accent>",
     "plan_free": "Free",
     "free_tier_note": "These limits apply to free accounts (for example 3 social accounts). The pricing page shows higher limits for Basic, Pro, and Business after you subscribe.",
     "brands_label": "Brands",

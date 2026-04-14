@@ -468,7 +468,7 @@
   },
   "SubscriptionLimits": {
     "usage_title": "השימוש שלך החודש",
-    "current_plan": "תוכנית נוכחית: {plan}",
+    "current_plan": "תוכנית נוכחית: <accent>{plan}</accent>",
     "plan_free": "חינם",
     "free_tier_note": "מגבלות אלה חלות על חשבון חינמי (למשל 3 חשבונות חברתיים). בעמוד התמחור מופיעות מגבלות גבוהות יותר לבסיס, פרו ועסקים לאחר מנוי.",
     "brands_label": "מותגים",

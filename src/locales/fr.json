@@ -467,7 +467,7 @@
   },
   "SubscriptionLimits": {
     "usage_title": "Votre utilisation ce mois-ci",
-    "current_plan": "Formule actuelle : {plan}",
+    "current_plan": "Formule actuelle : <accent>{plan}</accent>",
     "plan_free": "Gratuit",
     "free_tier_note": "Ces limites s’appliquent au compte gratuit (par ex. 3 comptes sociaux). La page Tarifs indique des limites plus élevées pour Basic, Pro et Business après abonnement.",
     "brands_label": "Marques",

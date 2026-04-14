@@ -420,6 +420,13 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
             ? tPricing('plan_business.name')
             : planType;
 
+  const currentPlanLine = t.rich('current_plan', {
+    plan: planName,
+    accent: chunks => (
+      <span className="font-semibold text-pink-600 dark:text-pink-400">{chunks}</span>
+    ),
+  });
+
   if (variant === 'topbar') {
     return (
       <div
@@ -433,14 +440,13 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
           <div
             className={cn(
               'flex w-full min-w-0 flex-wrap items-baseline justify-between gap-x-4 gap-y-1',
-              isRTL && 'flex-row-reverse',
             )}
           >
             <span className="shrink-0 text-sm font-semibold text-gray-900 sm:text-base dark:text-white">
               {t('usage_title')}
             </span>
             <span className="min-w-0 truncate text-xs text-gray-600 sm:text-sm dark:text-gray-400">
-              {t('current_plan', { plan: planName })}
+              {currentPlanLine}
             </span>
           </div>
           {data.limits.planType === 'free' && (
@@ -472,7 +478,7 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
           {t('usage_title')}
         </h2>
         <p className="text-sm text-gray-600 dark:text-gray-400">
-          {t('current_plan', { plan: planName })}
+          {currentPlanLine}
         </p>
         {data.limits.planType === 'free' && (
           <p className="text-xs text-gray-500 dark:text-gray-400">
