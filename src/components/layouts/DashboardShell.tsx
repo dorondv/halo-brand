@@ -59,7 +59,7 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
     () => [
       ...coreNav,
       ...(showGetlateTestNav
-        ? [{ href: '/getlate-test', key: 'getlate_test' as const, icon: TestTube }]
+        ? [{ href: '/getlate-test', key: 'integration_test' as const, icon: TestTube }]
         : []),
     ],
     [showGetlateTestNav],
