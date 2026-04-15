@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
     const tempToken = searchParams.get('tempToken');
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
-    if (!profileId || !tempToken || !connectToken) {
+    if (!profileId || !tempToken) {
       return NextResponse.json(
-        { error: 'Missing required parameters: profileId, tempToken, and X-Connect-Token header' },
+        { error: 'Missing required parameters: profileId and tempToken' },
         { status: 400 },
       );
     }
@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
 
     // Create Publishing integration client and fetch pages
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
-    const pages = await getlateClient.getFacebookPagesForSelection(profileId, tempToken, connectToken);
+    const pages = await getlateClient.getFacebookPagesForSelection(profileId, tempToken, connectToken || undefined);
 
     return NextResponse.json({ pages });
   } catch (error) {
@@ -82,14 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { profileId, pageId, tempToken, userProfile, redirectUrl } = parse.data;
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
-
-    if (!connectToken) {
-      return NextResponse.json(
-        { error: 'Missing X-Connect-Token header' },
-        { status: 400 },
-      );
-    }
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
     // Get user record to fetch API key
     const { data: userRecord, error: userError } = await supabase
@@ -112,7 +105,7 @@ export async function POST(request: NextRequest) {
         userProfile,
         redirectUrl,
       },
-      connectToken,
+      connectToken || undefined,
     );
 
     // After successful page selection, sync accounts

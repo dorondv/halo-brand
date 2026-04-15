@@ -21,7 +21,23 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json().catch(() => ({}));
     const Schema = z.object({
-      platform: z.enum(['twitter', 'x', 'facebook', 'instagram', 'linkedin', 'tiktok', 'youtube', 'threads', 'googlebusiness']),
+      platform: z.enum([
+        'twitter',
+        'x',
+        'facebook',
+        'instagram',
+        'linkedin',
+        'tiktok',
+        'youtube',
+        'threads',
+        'googlebusiness',
+        'reddit',
+        'pinterest',
+        'bluesky',
+        'telegram',
+        'snapchat',
+        'discord',
+      ]),
       brandId: z.string().uuid(),
       redirectUrl: z.string().url().optional(),
     });

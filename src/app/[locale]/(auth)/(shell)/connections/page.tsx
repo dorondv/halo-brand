@@ -235,6 +235,7 @@ export default function ConnectionsPage() {
   const [isResolvingLinkedInHeadless, setIsResolvingLinkedInHeadless] = useState(false);
   /** Dedupe LinkedIn pending-data fetch for the same callback URL (e.g. React Strict Mode). */
   const linkedInPendingOAuthUrlRef = useRef<string | null>(null);
+  const facebookPendingOAuthUrlRef = useRef<string | null>(null);
   const [isLoadingHeadlessPages, setIsLoadingHeadlessPages] = useState(false);
   const [headlessFacebookPages, setHeadlessFacebookPages] = useState<Array<{ id: string; name: string; pageId?: string }>>([]);
   const [selectedHeadlessFacebookPageId, setSelectedHeadlessFacebookPageId] = useState<string | null>(null);
@@ -649,8 +650,106 @@ export default function ConnectionsPage() {
       return undefined;
     }
 
+    // Facebook headless with pendingDataToken — same exchange as LinkedIn (Zernio GET /connect/pending-data)
+    if (platform === 'facebook' && step === 'select_page' && pendingDataToken) {
+      if (facebookPendingOAuthUrlRef.current === urlKey) {
+        return undefined;
+      }
+      facebookPendingOAuthUrlRef.current = urlKey;
+      window.history.replaceState({}, '', window.location.pathname);
+
+      setIsLoadingHeadlessPages(true);
+      void fetch(`/api/getlate/connect/pending-data?token=${encodeURIComponent(pendingDataToken)}`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Failed to load Facebook connection data' }));
+            showToast((err as { error?: string }).error || 'Failed to load Facebook connection data', 'error');
+            facebookPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const data = (await response.json()) as {
+            profileId?: string;
+            tempToken?: string;
+            userProfile?: Record<string, unknown>;
+            connectToken?: string;
+            connect_token?: string;
+            pages?: Array<Record<string, unknown>>;
+          };
+          const resolvedProfileId = data.profileId || profileId;
+          const resolvedTempToken = data.tempToken || tempToken;
+          if (!resolvedProfileId || !resolvedTempToken) {
+            showToast('Facebook connection data is incomplete. Try connecting again.', 'error');
+            facebookPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const profileStr = data.userProfile
+            ? encodeURIComponent(JSON.stringify(data.userProfile))
+            : (userProfile || undefined);
+          const resolvedConnect = data.connectToken || data.connect_token || connectToken || undefined;
+
+          setHeadlessModeData({
+            step,
+            platform,
+            profileId: resolvedProfileId,
+            tempToken: resolvedTempToken,
+            userProfile: profileStr,
+            connectToken: resolvedConnect,
+            brandId: brandId || undefined,
+          });
+
+          const mapFbPage = (p: Record<string, unknown>) => ({
+            id: String(p.id ?? p._id ?? p.pageId ?? p.facebookPageId ?? ''),
+            name: String(p.name ?? p.pageName ?? p.title ?? 'Page'),
+            pageId: (p.pageId ?? p.facebookPageId ?? p.id ?? p._id) as string | undefined,
+          });
+
+          if (Array.isArray(data.pages) && data.pages.length > 0) {
+            setHeadlessFacebookPages(
+              data.pages.map(mapFbPage).filter(p => p.id),
+            );
+          } else {
+            const headers: Record<string, string> = {};
+            if (resolvedConnect) {
+              headers['X-Connect-Token'] = resolvedConnect;
+            }
+            const listRes = await fetch(
+              `/api/getlate/facebook/select-page?profileId=${encodeURIComponent(resolvedProfileId)}&tempToken=${encodeURIComponent(resolvedTempToken)}`,
+              { headers },
+            );
+            if (listRes.ok) {
+              const listJson = await listRes.json();
+              const raw = (listJson.pages || []) as Array<Record<string, unknown>>;
+              setHeadlessFacebookPages(raw.map(mapFbPage).filter(p => p.id));
+            } else {
+              const err = await listRes.json().catch(() => ({ error: 'Failed to fetch Facebook pages' }));
+              showToast((err as { error?: string }).error || 'Failed to fetch Facebook pages', 'error');
+              facebookPendingOAuthUrlRef.current = null;
+              setHeadlessModeData(null);
+            }
+          }
+
+          if (brandId && brands.length > 0) {
+            const brandToSelect = brands.find(b => b.id === brandId);
+            if (brandToSelect && selectedBrandId !== brandId) {
+              setSelectedBrandId(brandId);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Facebook pending OAuth fetch:', error);
+          showToast('Failed to load Facebook connection data', 'error');
+          facebookPendingOAuthUrlRef.current = null;
+        })
+        .finally(() => {
+          setIsLoadingHeadlessPages(false);
+        });
+
+      return undefined;
+    }
+
     // Legacy headless: inline query params (Facebook page pick, LinkedIn org list in URL, etc.)
-    if (profileId && tempToken && connectToken) {
+    const canLegacyFacebookList = platform === 'facebook' && step === 'select_page' && profileId && tempToken;
+    if (profileId && tempToken && (connectToken || canLegacyFacebookList)) {
       window.history.replaceState({}, '', window.location.pathname);
 
       setHeadlessModeData({
@@ -659,7 +758,7 @@ export default function ConnectionsPage() {
         profileId,
         tempToken,
         userProfile: userProfile || undefined,
-        connectToken,
+        connectToken: connectToken || undefined,
         organizations: organizations || undefined,
         brandId: brandId || undefined,
       });
@@ -673,10 +772,12 @@ export default function ConnectionsPage() {
 
       if (platform === 'facebook' && step === 'select_page') {
         setIsLoadingHeadlessPages(true);
+        const listHeaders: Record<string, string> = {};
+        if (connectToken) {
+          listHeaders['X-Connect-Token'] = connectToken;
+        }
         fetch(`/api/getlate/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`, {
-          headers: {
-            'X-Connect-Token': connectToken,
-          },
+          headers: listHeaders,
         })
           .then(async (response) => {
             if (response.ok) {
@@ -1369,10 +1470,7 @@ export default function ConnectionsPage() {
       return;
     }
     const connectToken = headlessModeData.connectToken;
-    if (!connectToken) {
-      showToast('Missing Facebook connect token. Please reconnect.', 'error');
-      return;
-    }
+    const brandIdForReload = headlessModeData.brandId || selectedBrandId;
 
     setIsSavingHeadlessSelection(true);
     try {
@@ -1385,12 +1483,16 @@ export default function ConnectionsPage() {
         userProfileObj = {};
       }
 
+      const postHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (connectToken) {
+        postHeaders['X-Connect-Token'] = connectToken;
+      }
+
       const response = await fetch('/api/getlate/facebook/select-page', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Connect-Token': connectToken,
-        },
+        headers: postHeaders,
         body: JSON.stringify({
           profileId: headlessModeData.profileId,
           pageId: selectedHeadlessFacebookPageId,
@@ -1410,9 +1512,8 @@ export default function ConnectionsPage() {
       setSelectedHeadlessFacebookPageId(null);
       setHeadlessFacebookPages([]);
 
-      const brandId = headlessModeData.brandId || selectedBrandId;
-      if (brandId) {
-        refreshAccountsAfterConnect(brandId);
+      if (brandIdForReload) {
+        refreshAccountsAfterConnect(brandIdForReload);
       }
     } catch (error) {
       console.error('Error saving Facebook page:', error);
@@ -2387,6 +2488,7 @@ export default function ConnectionsPage() {
               setHeadlessModeData(null);
               setSelectedHeadlessFacebookPageId(null);
               setHeadlessFacebookPages([]);
+              facebookPendingOAuthUrlRef.current = null;
             }
           }}
         >
@@ -2448,6 +2550,7 @@ export default function ConnectionsPage() {
                   setHeadlessModeData(null);
                   setSelectedHeadlessFacebookPageId(null);
                   setHeadlessFacebookPages([]);
+                  facebookPendingOAuthUrlRef.current = null;
                 }}
                 disabled={isSavingHeadlessSelection}
                 className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"

@@ -93,15 +93,25 @@ export async function GET(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
 
-    // Try to get pages from availablePages in account data first (like publishing-test page)
-    let pages: Awaited<ReturnType<typeof getlateClient.getFacebookSelectPage>> = [];
+    // Zernio: GET /v1/accounts/{accountId}/facebook-page — canonical list for connected accounts
+    try {
+      const apiPages = await getlateClient.getFacebookPages(accountId);
+      if (apiPages.length > 0) {
+        return NextResponse.json({ pages: apiPages });
+      }
+    } catch (primaryError) {
+      console.error('[Getlate Facebook Pages] GET /accounts/.../facebook-page failed:', primaryError);
+      if (primaryError instanceof Error && !primaryError.message.includes('HTTP 404')) {
+        throw primaryError;
+      }
+    }
+
+    // Fallback: embedded availablePages on raw profile accounts (older payloads)
+    let pages: Awaited<ReturnType<typeof getlateClient.getFacebookPages>> = [];
 
     try {
-      // Fetch raw accounts to get availablePages with pages list
       const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
 
-      // Find the Facebook account matching this provider account id
-      // Try multiple matching strategies since accountId format might vary
       const rawFacebookAccount = rawAccounts.find(
         (acc: any) => {
           const accId = acc._id || acc.id;
@@ -110,10 +120,6 @@ export async function GET(request: NextRequest) {
       );
 
       if (rawFacebookAccount) {
-        // Get availablePages from multiple possible locations
-        // 1. Direct property: availablePages or available_pages
-        // 2. In metadata: metadata.availablePages
-        // 3. In platform_specific_data: platform_specific_data.availablePages
         let availablePages = rawFacebookAccount.availablePages
           || rawFacebookAccount.available_pages
           || (rawFacebookAccount.metadata as any)?.availablePages
@@ -121,15 +127,12 @@ export async function GET(request: NextRequest) {
           || (rawFacebookAccount.platform_specific_data as any)?.availablePages
           || (rawFacebookAccount.platform_specific_data as any)?.available_pages;
 
-        // Also check if metadata itself is an object with availablePages
         if (!availablePages && rawFacebookAccount.metadata && typeof rawFacebookAccount.metadata === 'object') {
           const metadata = rawFacebookAccount.metadata as any;
           availablePages = metadata.availablePages || metadata.available_pages;
         }
 
         if (availablePages && Array.isArray(availablePages) && availablePages.length > 0) {
-          // availablePages already contains the pages list - use it directly
-          // Map availablePages to the client Facebook page shape
           pages = availablePages.map((page: any) => ({
             id: page._id || page.id || page.pageId || page.facebookPageId,
             name: page.name || page.pageName || page.title || 'Page',
@@ -141,7 +144,6 @@ export async function GET(request: NextRequest) {
           })).filter(page => !!page.id && !!page.name);
 
           if (pages.length > 0) {
-            // Return pages from availablePages
             return NextResponse.json({ pages });
           }
         }
@@ -149,54 +151,28 @@ export async function GET(request: NextRequest) {
         console.warn(`[Getlate Facebook Pages] Facebook account with ID ${accountId} not found in raw accounts`);
       }
     } catch (fetchError) {
-      console.error('[Getlate Facebook Pages] Error fetching accounts from Getlate:', fetchError);
-      // Continue to fallback methods
+      console.error('[Getlate Facebook Pages] Error fetching raw accounts from Getlate:', fetchError);
     }
 
-    // Fallback: Try account-specific endpoint (doesn't require tempToken)
-    // This should work for already-connected accounts
-    if (pages.length === 0) {
-      try {
-        pages = await getlateClient.getFacebookPages(accountId);
-        if (pages.length > 0) {
-          return NextResponse.json({ pages });
-        }
+    try {
+      const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
+      const accountExists = rawAccounts.some(
+        (acc: any) => {
+          const accId = acc._id || acc.id;
+          return (accId === accountId || String(accId) === String(accountId)) && acc.platform === 'facebook';
+        },
+      );
 
-        // If getFacebookPages returns empty, verify account exists and is Facebook
-        // This helps debug why pages aren't available
-        try {
-          const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
-          const accountExists = rawAccounts.some(
-            (acc: any) => {
-              const accId = acc._id || acc.id;
-              return (accId === accountId || String(accId) === String(accountId)) && acc.platform === 'facebook';
-            },
-          );
-
-          if (!accountExists) {
-            console.warn(`[Getlate Facebook Pages] Account ${accountId} not found in profile ${brandRecord.getlate_profile_id}`);
-          } else {
-            console.warn(`[Getlate Facebook Pages] Account ${accountId} exists but has no pages available. This might be normal if the account doesn't manage any pages.`);
-          }
-        } catch (verifyError) {
-          console.error('[Getlate Facebook Pages] Error verifying account:', verifyError);
-        }
-
-        // Return empty pages array - this is valid if account has no pages
-        return NextResponse.json({ pages: [] });
-      } catch (error) {
-        // If getFacebookPages fails with 404, account might not be connected properly
-        // Return empty pages instead of requiring tempToken (which is only for OAuth flow)
-        if (error instanceof Error && error.message.includes('HTTP 404')) {
-          console.warn(`[Getlate Facebook Pages] Account ${accountId} endpoint returned 404. Account may need to be reconnected.`);
-          return NextResponse.json({ pages: [] });
-        }
-        // For other errors, throw them
-        throw error;
+      if (!accountExists) {
+        console.warn(`[Getlate Facebook Pages] Account ${accountId} not found in profile ${brandRecord.getlate_profile_id}`);
+      } else {
+        console.warn(`[Getlate Facebook Pages] Account ${accountId} exists but has no pages in API or cached availablePages.`);
       }
+    } catch (verifyError) {
+      console.error('[Getlate Facebook Pages] Error verifying account:', verifyError);
     }
 
-    return NextResponse.json({ pages });
+    return NextResponse.json({ pages: [] });
   } catch (error) {
     console.error('[Getlate Facebook Pages] Error:', error);
     return NextResponse.json(
@@ -267,60 +243,37 @@ export async function PUT(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
     const existingPlatformData = (socialAccount.platform_specific_data as Record<string, any>) || {};
-    let selectedPageMeta: Record<string, unknown> | undefined;
-    let selectedPageFollowerCount: number | undefined;
 
-    // Resolve access token server-side (never rely on client supplied tokens)
-    let resolvedAccessToken = pageAccessToken;
-    if (!resolvedAccessToken) {
-      try {
-        const availablePages = await getlateClient.getFacebookPages(accountId);
-        const matchingPage = availablePages.find(
-          page => page.pageId === pageId || page.id === pageId,
-        );
-        resolvedAccessToken = matchingPage?.accessToken;
-        selectedPageMeta = matchingPage as unknown as Record<string, unknown> | undefined;
-        selectedPageFollowerCount = extractFollowerCountFromPage(selectedPageMeta);
-      } catch {
-        // swallow, we'll try raw accounts next
-      }
-    }
-
-    if (!resolvedAccessToken) {
-      try {
-        const brandQuery = await supabase
-          .from('brands')
-          .select('getlate_profile_id')
-          .eq('id', socialAccount.brand_id)
-          .maybeSingle();
-
-        if (brandQuery.data?.getlate_profile_id) {
-          const rawAccounts = await getlateClient.getRawAccounts(brandQuery.data.getlate_profile_id);
-          const rawFacebookAccount = rawAccounts.find(
-            (acc: any) => (acc._id || acc.id) === accountId && acc.platform === 'facebook',
-          );
-          const availablePages = rawFacebookAccount?.availablePages || rawFacebookAccount?.available_pages || [];
-          const matchingPage = (availablePages as any[]).find((page) => {
-            const candidateId = page._id || page.id || page.pageId || page.facebookPageId;
-            return candidateId === pageId || page.pageId === pageId;
-          });
-          resolvedAccessToken = matchingPage?.pageAccessToken
-            || matchingPage?.page_access_token
-            || matchingPage?.accessToken
-            || matchingPage?.access_token;
-          selectedPageMeta = matchingPage as Record<string, unknown> | undefined;
-          selectedPageFollowerCount = extractFollowerCountFromPage(selectedPageMeta);
-        }
-      } catch {
-        // ignore – selectFacebookPage may still succeed without explicit token
-      }
-    }
-
-    await getlateClient.selectFacebookPage(accountId, {
+    // Zernio: PUT /v1/accounts/{accountId}/facebook-page — body { selectedPageId }
+    const selectResponse = await getlateClient.selectFacebookPage(accountId, {
       pageId,
       pageName,
-      pageAccessToken: resolvedAccessToken,
+      pageAccessToken,
     });
+
+    const apiSelectedName = selectResponse?.selectedPage?.name;
+    let displayName = pageName || apiSelectedName || (existingPlatformData.facebookPage?.name as string) || '';
+    let selectedPageFollowerCount: number | undefined;
+
+    try {
+      const listed = await getlateClient.getFacebookPages(accountId);
+      const matchingPage = listed.find(
+        p => (p.pageId || p.id) === pageId,
+      );
+      if (matchingPage) {
+        if (!displayName && matchingPage.name) {
+          displayName = matchingPage.name;
+        }
+        const meta = matchingPage.metadata as Record<string, unknown> | undefined;
+        if (typeof meta?.fan_count === 'number') {
+          selectedPageFollowerCount = meta.fan_count;
+        } else {
+          selectedPageFollowerCount = extractFollowerCountFromPage(matchingPage as unknown as Record<string, unknown>);
+        }
+      }
+    } catch {
+      // ignore — UI still has page id; sync may fill counts
+    }
 
     const updatedData = {
       ...existingPlatformData,
@@ -329,7 +282,7 @@ export async function PUT(request: NextRequest) {
         : {}),
       facebookPage: {
         id: pageId,
-        name: pageName || existingPlatformData.facebookPage?.name || '',
+        name: displayName,
         ...(typeof selectedPageFollowerCount === 'number'
           ? { follower_count: selectedPageFollowerCount }
           : {}),
@@ -364,7 +317,7 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({
       page: {
         id: pageId,
-        name: pageName,
+        name: displayName,
       },
       followerCount: selectedPageFollowerCount,
     });

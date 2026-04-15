@@ -17,7 +17,13 @@ export type GetlatePlatform
     | 'tiktok'
     | 'youtube'
     | 'threads'
-    | 'googlebusiness';
+    | 'googlebusiness'
+    | 'reddit'
+    | 'pinterest'
+    | 'bluesky'
+    | 'telegram'
+    | 'snapchat'
+    | 'discord';
 
 export type GetlateProfile = {
   id?: string;
@@ -434,7 +440,7 @@ export class GetlateClient {
     redirectUrl?: string,
     headless?: boolean,
   ): Promise<{ authUrl: string; state?: string }> {
-    // Normalize platform name (x -> twitter for Publishing integration API)
+    // Normalize platform slug for Zernio GET /v1/connect/{platform} (see vendor docs)
     const normalizedPlatform = platform === 'x' ? 'twitter' : platform;
 
     // Build the endpoint URL with query parameters
@@ -942,7 +948,7 @@ export class GetlateClient {
    * DELETE /v1/accounts/:accountId
    */
   async disconnectAccount(accountId: string): Promise<void> {
-    const url = `${this.baseUrl}/accounts/${accountId}`;
+    const url = `${this.baseUrl}/accounts/${encodeURIComponent(accountId)}`;
     const headers = {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
@@ -975,7 +981,7 @@ export class GetlateClient {
   }
 
   async deleteProfile(profileId: string): Promise<void> {
-    const url = `${this.baseUrl}/profiles/${profileId}`;
+    const url = `${this.baseUrl}/profiles/${encodeURIComponent(profileId)}`;
     const headers = {
       'Authorization': `Bearer ${this.apiKey}`,
       'Content-Type': 'application/json',
@@ -1205,23 +1211,25 @@ export class GetlateClient {
         pageId: page.pageId || page.facebookPageId || page.id,
         pageName: page.pageName || page.name || page.title,
         pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
-        accessToken: page.pageAccessToken || page.accessToken,
-        metadata: page.metadata || {},
+        accessToken: page.pageAccessToken || page.page_access_token || page.accessToken || page.access_token,
+        metadata: {
+          ...(typeof page.metadata === 'object' && page.metadata ? page.metadata : {}),
+          ...(typeof page.fan_count === 'number' ? { fan_count: page.fan_count } : {}),
+        },
       }))
       .filter(page => !!page.id && !!page.name);
   }
 
   /**
-   * Get Facebook pages for an already-connected account
-   * Uses account's stored token internally (no tempToken required)
-   * Similar to getLinkedInOrganizations but for Facebook pages
+   * Get Facebook pages for an already-connected account (Zernio / GetLate).
+   * @see https://docs.getlate.dev/connect/get-facebook-pages — GET /v1/accounts/{accountId}/facebook-page
    */
   async getFacebookPages(accountId: string): Promise<GetlateFacebookPage[]> {
     if (!accountId) {
       return [];
     }
 
-    const endpoint = `/accounts/${encodeURIComponent(accountId)}/facebook-pages`;
+    const endpoint = `/accounts/${encodeURIComponent(accountId)}/facebook-page`;
     try {
       const response = await this.request<any>(endpoint, {
         method: 'GET',
@@ -1246,12 +1254,15 @@ export class GetlateClient {
           pageId: page.pageId || page.facebookPageId || page.id,
           pageName: page.pageName || page.name || page.title,
           pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
-          accessToken: page.pageAccessToken || page.accessToken,
-          metadata: page.metadata || {},
+          accessToken: page.pageAccessToken || page.page_access_token || page.accessToken || page.access_token,
+          metadata: {
+            ...(typeof page.metadata === 'object' && page.metadata ? page.metadata : {}),
+            ...(typeof page.fan_count === 'number' ? { fan_count: page.fan_count } : {}),
+            ...(typeof page.followers_count === 'number' ? { fan_count: page.followers_count } : {}),
+          },
         }))
         .filter(page => !!page.id && !!page.name);
     } catch (error) {
-      // If endpoint doesn't exist or returns 404, return empty array
       if (error instanceof Error && error.message.includes('HTTP 404')) {
         return [];
       }
@@ -1260,7 +1271,8 @@ export class GetlateClient {
   }
 
   /**
-   * Select a Facebook page for an account
+   * Switch active Facebook Page for a connected account (Zernio / GetLate).
+   * @see https://docs.getlate.dev/connect/update-facebook-page — PUT /v1/accounts/{accountId}/facebook-page
    */
   async selectFacebookPage(
     accountId: string,
@@ -1269,22 +1281,15 @@ export class GetlateClient {
       pageName?: string;
       pageAccessToken?: string;
     },
-  ): Promise<void> {
+  ): Promise<{ message?: string; selectedPage?: { id?: string; name?: string } }> {
     if (!accountId || !payload.pageId) {
       throw new Error('Missing accountId or pageId');
     }
 
-    await this.request(`/accounts/${encodeURIComponent(accountId)}/facebook-page`, {
+    return this.request(`/accounts/${encodeURIComponent(accountId)}/facebook-page`, {
       method: 'PUT',
       body: JSON.stringify({
-        pageId: payload.pageId,
-        page_id: payload.pageId,
-        facebookPageId: payload.pageId,
-        facebook_page_id: payload.pageId,
         selectedPageId: payload.pageId,
-        pageName: payload.pageName,
-        pageAccessToken: payload.pageAccessToken,
-        page_access_token: payload.pageAccessToken,
       }),
     });
   }
@@ -1310,11 +1315,13 @@ export class GetlateClient {
 
     const rawOrgs = Array.isArray(response?.organizations)
       ? response.organizations
-      : Array.isArray(response?.data)
-        ? response.data
-        : Array.isArray(response?.results)
-          ? response.results
-          : [];
+      : Array.isArray(response)
+        ? response
+        : Array.isArray(response?.data)
+          ? response.data
+          : Array.isArray(response?.results)
+            ? response.results
+            : [];
 
     if (!Array.isArray(rawOrgs)) {
       return [];
@@ -1323,10 +1330,10 @@ export class GetlateClient {
     return rawOrgs
       .map((org: any) => ({
         id: org._id || org.id || org.organizationId,
-        name: org.name || org.organizationName || org.title || 'Organization',
+        name: org.name || org.localizedName || org.organizationName || org.title || 'Organization',
         urn: org.urn || org.organizationUrn,
         logoUrl: org.logoUrl || org.pictureUrl,
-        vanityName: org.vanityName,
+        vanityName: org.vanityName || org.vanity_name,
         sourceUrl: org.sourceUrl || org.url || org.profileUrl,
         metadata: org.metadata || {},
       }))
@@ -1390,20 +1397,21 @@ export class GetlateClient {
 
   /**
    * Get Facebook pages during headless OAuth flow
-   * Uses GET /v1/connect/facebook/select-page endpoint
-   * Requires X-Connect-Token header for authentication
+   * @see https://docs.getlate.dev/connect/list-facebook-pages — GET /v1/connect/facebook/select-page
    */
   async getFacebookPagesForSelection(
     profileId: string,
     tempToken: string,
-    connectToken: string,
+    connectToken?: string,
   ): Promise<GetlateFacebookPage[]> {
     const endpoint = `/connect/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    const headers: Record<string, string> = {};
+    if (connectToken) {
+      headers['X-Connect-Token'] = connectToken;
+    }
     const response = await this.request<any>(endpoint, {
       method: 'GET',
-      headers: {
-        'X-Connect-Token': connectToken,
-      },
+      headers,
     });
 
     const rawPages = Array.isArray(response?.pages)
@@ -1425,8 +1433,11 @@ export class GetlateClient {
         pageId: page.pageId || page.facebookPageId || page.id,
         pageName: page.pageName || page.name || page.title,
         pictureUrl: page.picture?.data?.url || page.pictureUrl || page.logoUrl,
-        accessToken: page.pageAccessToken || page.accessToken,
-        metadata: page.metadata || {},
+        accessToken: page.pageAccessToken || page.page_access_token || page.accessToken || page.access_token,
+        metadata: {
+          ...(typeof page.metadata === 'object' && page.metadata ? page.metadata : {}),
+          ...(typeof page.fan_count === 'number' ? { fan_count: page.fan_count } : {}),
+        },
       }))
       .filter(page => !!page.id && !!page.name);
   }
@@ -1434,7 +1445,7 @@ export class GetlateClient {
   /**
    * Select a Facebook page during headless OAuth flow
    * Uses POST /v1/connect/facebook/select-page endpoint
-   * Requires X-Connect-Token header for authentication
+   * @see https://docs.getlate.dev/connect/select-facebook-page — X-Connect-Token optional when using API key Bearer auth
    */
   async selectFacebookPageForConnection(
     payload: {
@@ -1444,13 +1455,15 @@ export class GetlateClient {
       userProfile: any;
       redirectUrl?: string;
     },
-    connectToken: string,
+    connectToken?: string,
   ): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (connectToken) {
+      headers['X-Connect-Token'] = connectToken;
+    }
     return this.request('/connect/facebook/select-page', {
       method: 'POST',
-      headers: {
-        'X-Connect-Token': connectToken,
-      },
+      headers,
       body: JSON.stringify({
         profileId: payload.profileId,
         pageId: payload.pageId,
@@ -1501,27 +1514,46 @@ export class GetlateClient {
   }
 
   /**
-   * Get Google Business locations during headless OAuth flow
-   * Uses GET /v1/connect/googlebusiness/locations endpoint
-   * Requires X-Connect-Token header for authentication
+   * List Google Business locations during headless OAuth.
+   * @see https://docs.getlate.dev/connect/list-google-business-locations
+   * One of pendingDataToken (preferred) or tempToken is required. X-Connect-Token is optional with Bearer API key.
    */
-  async getGoogleBusinessLocations(
-    profileId: string,
-    tempToken: string,
-    connectToken: string,
-  ): Promise<Array<{
+  async getGoogleBusinessLocations(params: {
+    profileId?: string;
+    tempToken?: string;
+    pendingDataToken?: string;
+    connectToken?: string;
+  }): Promise<Array<{
     id: string;
     name: string;
     address?: string;
     phoneNumber?: string;
     website?: string;
   }>> {
-    const endpoint = `/connect/googlebusiness/locations?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`;
+    if (!params.pendingDataToken && !params.tempToken) {
+      return [];
+    }
+
+    const q = new URLSearchParams();
+    if (params.profileId) {
+      q.set('profileId', params.profileId);
+    }
+    if (params.pendingDataToken) {
+      q.set('pendingDataToken', params.pendingDataToken);
+    }
+    if (params.tempToken) {
+      q.set('tempToken', params.tempToken);
+    }
+    const endpoint = `/connect/googlebusiness/locations?${q.toString()}`;
+
+    const headers: Record<string, string> = {};
+    if (params.connectToken) {
+      headers['X-Connect-Token'] = params.connectToken;
+    }
+
     const response = await this.request<any>(endpoint, {
       method: 'GET',
-      headers: {
-        'X-Connect-Token': connectToken,
-      },
+      headers,
     });
 
     const rawLocations = Array.isArray(response?.locations)
@@ -1548,32 +1580,45 @@ export class GetlateClient {
   }
 
   /**
-   * Select a Google Business location during headless OAuth flow
-   * Uses POST /v1/connect/googlebusiness/select-location endpoint
-   * Requires X-Connect-Token header for authentication
+   * Complete headless Google Business location selection.
+   * @see https://docs.getlate.dev/connect/select-google-business-location
+   * Prefer pendingDataToken; legacy callers may send tempToken + userProfile. X-Connect-Token optional with Bearer key.
    */
   async selectGoogleBusinessLocation(
     payload: {
       profileId: string;
       locationId: string;
-      tempToken: string;
-      userProfile: any;
+      pendingDataToken?: string;
+      tempToken?: string;
+      userProfile?: any;
       redirectUrl?: string;
     },
-    connectToken: string,
+    connectToken?: string,
   ): Promise<any> {
+    const headers: Record<string, string> = {};
+    if (connectToken) {
+      headers['X-Connect-Token'] = connectToken;
+    }
+
+    const body: Record<string, unknown> = {
+      profileId: payload.profileId,
+      locationId: payload.locationId,
+      redirect_url: payload.redirectUrl,
+    };
+    if (payload.pendingDataToken) {
+      body.pendingDataToken = payload.pendingDataToken;
+    }
+    if (payload.tempToken) {
+      body.tempToken = payload.tempToken;
+    }
+    if (payload.userProfile !== undefined) {
+      body.userProfile = payload.userProfile;
+    }
+
     return this.request('/connect/googlebusiness/select-location', {
       method: 'POST',
-      headers: {
-        'X-Connect-Token': connectToken,
-      },
-      body: JSON.stringify({
-        profileId: payload.profileId,
-        locationId: payload.locationId,
-        tempToken: payload.tempToken,
-        userProfile: payload.userProfile,
-        redirect_url: payload.redirectUrl,
-      }),
+      headers,
+      body: JSON.stringify(body),
     });
   }
 }
