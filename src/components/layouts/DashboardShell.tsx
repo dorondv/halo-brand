@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  Accessibility,
   BarChart3,
   Calendar as CalendarIcon,
   FileText,
@@ -22,6 +23,7 @@ import { useLocale, useTranslations } from 'next-intl';
 import Image from 'next/image';
 import Link from 'next/link';
 import React, { Suspense } from 'react';
+import { AccessibilityModal } from '@/components/accessibility/AccessibilityModal';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
@@ -70,6 +72,8 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
   const [userAvatar, setUserAvatar] = React.useState<string | null>(null);
   const [avatarError, setAvatarError] = React.useState(false);
   const [isAdmin, setIsAdmin] = React.useState(false);
+  const [isAccessibilityOpen, setIsAccessibilityOpen] = React.useState(false);
+  const [accessibilityModalKey, setAccessibilityModalKey] = React.useState(0);
   const t = useTranslations('Nav');
   const locale = useLocale();
   const dir = locale === 'he' ? 'rtl' : 'ltr';
@@ -185,10 +189,26 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
               <span className="leading-snug">{t('admin')}</span>
             </Link>
           )}
-          <div className="pt-2">
+          <div className="space-y-1 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                setAccessibilityModalKey(k => k + 1);
+                setIsAccessibilityOpen(true);
+              }}
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-gray-700 transition-colors duration-200 ease-out hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800"
+            >
+              <Accessibility className="h-5 w-5 shrink-0" aria-hidden />
+              <span className="leading-snug">{t('accessibility')}</span>
+            </button>
             <SignOutButton />
           </div>
         </nav>
+        <AccessibilityModal
+          key={accessibilityModalKey}
+          open={isAccessibilityOpen}
+          onOpenChange={setIsAccessibilityOpen}
+        />
       </aside>
 
       {/* Main */}

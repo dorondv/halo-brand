@@ -2,12 +2,14 @@ import { ArrowLeft, ArrowRight, Calendar, Check, Sparkles, TrendingUp, Users } f
 import { getLocale, getTranslations } from 'next-intl/server';
 import Link from 'next/link';
 import { SignUpForm } from '@/components/auth/SignUpForm';
+import { CookieSettingsLink } from '@/components/legal/CookieConsentBanner';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { TrackingInit } from '@/components/marketing/TrackingInit';
 import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
+import { Link as IntlLink } from '@/libs/I18nNavigation';
 import { getUserSafe } from '@/libs/Supabase';
 
 export default async function MarketingPage() {
@@ -219,7 +221,18 @@ export default async function MarketingPage() {
       </div>
 
       {/* Footer */}
-      <footer className="container mx-auto px-6 py-8 text-center text-gray-600 dark:text-gray-400">
+      <footer className="container mx-auto space-y-3 px-6 py-8 text-center text-gray-600 dark:text-gray-400">
+        <div className={cn('flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm', isRTL ? 'flex-row-reverse' : '')}>
+          <IntlLink href="/privacy" className="font-medium text-pink-600 hover:underline dark:text-pink-400">
+            {t('footer_privacy')}
+          </IntlLink>
+          <span aria-hidden className="text-gray-300 dark:text-gray-600">·</span>
+          <IntlLink href="/terms" className="font-medium text-pink-600 hover:underline dark:text-pink-400">
+            {t('footer_terms')}
+          </IntlLink>
+          <span aria-hidden className="text-gray-300 dark:text-gray-600">·</span>
+          <CookieSettingsLink />
+        </div>
         <p>{t('footer_copyright', { year: new Date().getFullYear() })}</p>
       </footer>
     </div>

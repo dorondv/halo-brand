@@ -1,6 +1,15 @@
 'use client';
 
+import { COOKIE_CONSENT_STORAGE_KEY, parseStoredCookieConsent } from '@/libs/cookieConsent';
 import { getCountryFromLanguage, getCountryFromTimezone } from './timezoneToCountry';
+
+function hasAnalyticsConsentFromStorage(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const stored = parseStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
+  return Boolean(stored?.analytics);
+}
 
 /**
  * UTM Parameters and Click IDs
@@ -212,6 +221,10 @@ export async function trackEvent(
   userId?: string,
 ): Promise<void> {
   if (typeof window === 'undefined') {
+    return;
+  }
+
+  if (!hasAnalyticsConsentFromStorage()) {
     return;
   }
 

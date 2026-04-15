@@ -1,19 +1,29 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
+import { useCookieConsent } from '@/contexts/useCookieConsent';
 
 /**
  * Google Analytics and Google Tag Manager Integration Component
- * Only loads if environment variables are configured
+ * Only loads if environment variables are configured and the user consented to analytics cookies.
  */
 export function GoogleAnalytics() {
+  const { ready, analyticsAllowed } = useCookieConsent();
+  const injectedRef = useRef(false);
+
   useEffect(() => {
-    if (typeof window === 'undefined') {
+    if (typeof window === 'undefined' || !ready || !analyticsAllowed || injectedRef.current) {
       return;
     }
 
     const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
     const gtmContainerId = process.env.NEXT_PUBLIC_GTM_CONTAINER_ID;
+
+    if (!gaMeasurementId && !gtmContainerId) {
+      return;
+    }
+
+    injectedRef.current = true;
 
     // Load Google Analytics 4 (GA4)
     if (gaMeasurementId) {
@@ -58,7 +68,7 @@ export function GoogleAnalytics() {
       `;
       document.body.appendChild(noscript);
     }
-  }, []);
+  }, [ready, analyticsAllowed]);
 
   return null;
 }

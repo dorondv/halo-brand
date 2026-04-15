@@ -3,11 +3,14 @@ import { hasLocale, NextIntlClientProvider } from 'next-intl';
 import { setRequestLocale } from 'next-intl/server';
 import { Inter } from 'next/font/google';
 import { notFound } from 'next/navigation';
+import { AccessibilityBootstrap } from '@/components/accessibility/AccessibilityBootstrap';
 import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import { ChatwootWidget } from '@/components/chatwoot/ChatwootWidget';
+import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
 import { ThemeInitScript } from '@/components/theme/ThemeInitScript';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
+import { CookieConsentProvider } from '@/contexts/CookieConsentContext';
 import { routing } from '@/libs/I18nRouting';
 import '@/styles/global.css';
 
@@ -59,12 +62,16 @@ export default async function RootLayout(props: {
       <body className="bg-white font-sans text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100">
         <ThemeInitScript />
         <ThemeProvider>
+          <AccessibilityBootstrap />
           <NextIntlClientProvider>
-            <PostHogProvider>
+            <CookieConsentProvider>
+              <PostHogProvider>
+                {props.children}
+              </PostHogProvider>
               <GoogleAnalytics />
-              {props.children}
               <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
-            </PostHogProvider>
+              <CookieConsentBanner />
+            </CookieConsentProvider>
           </NextIntlClientProvider>
         </ThemeProvider>
       </body>

@@ -391,3 +391,68 @@ body {
   background: rgba(31, 41, 55, 0.7);
   border-color: rgba(75, 85, 99, 0.5);
 }
+
+/* Accessibility (Solo parity): high contrast + large cursor */
+.high-contrast {
+  --hc-text: #000000;
+  --hc-bg: #ffffff;
+  --hc-border: #000000;
+  --hc-muted: #333333;
+}
+
+html.dark.high-contrast,
+.high-contrast.dark {
+  --hc-text: #ffffff;
+  --hc-bg: #000000;
+  --hc-border: #ffffff;
+  --hc-muted: #cccccc;
+}
+
+.high-contrast p,
+.high-contrast span,
+.high-contrast label,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast td,
+.high-contrast th,
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea,
+.high-contrast a,
+.high-contrast li {
+  color: var(--hc-text) !important;
+}
+
+.high-contrast button,
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea,
+.high-contrast [role='button'],
+.high-contrast .bg-white,
+.high-contrast .bg-gray-50,
+.high-contrast .bg-gray-100,
+.high-contrast .bg-gray-800,
+.high-contrast .bg-gray-900,
+.high-contrast .bg-slate-50,
+.high-contrast .bg-slate-100,
+.high-contrast .bg-pink-50,
+.high-contrast .bg-pink-100 {
+  background-color: var(--hc-bg) !important;
+  border-color: var(--hc-border) !important;
+}
+
+.high-contrast body {
+  background-color: var(--hc-bg) !important;
+  color: var(--hc-text) !important;
+}
+
+.large-cursor,
+.large-cursor * {
+  cursor:
+    url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 32 32"><circle cx="16" cy="16" r="14" fill="black" stroke="white" stroke-width="2"/></svg>')
+      16 16,
+    auto !important;
+}

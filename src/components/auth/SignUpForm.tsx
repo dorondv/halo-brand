@@ -7,6 +7,7 @@ import { signInWithFacebook, signInWithGoogle, signUp } from '@/app/actions/auth
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { cn } from '@/libs/cn';
+import { Link } from '@/libs/I18nNavigation';
 import { trackEvent } from '@/utils/tracking';
 
 // OAuth Provider Icons
@@ -180,7 +181,18 @@ export function SignUpForm() {
           {isPending ? t('signup_pending') : t('signup_button')}
         </button>
         <p className="text-center text-xs text-gray-600 dark:text-gray-400">
-          {t('signup_disclaimer')}
+          {t.rich('signup_disclaimer', {
+            terms: chunks => (
+              <Link href="/terms" className="font-medium text-pink-600 underline-offset-2 hover:underline dark:text-pink-400">
+                {chunks}
+              </Link>
+            ),
+            privacy: chunks => (
+              <Link href="/privacy" className="font-medium text-pink-600 underline-offset-2 hover:underline dark:text-pink-400">
+                {chunks}
+              </Link>
+            ),
+          })}
         </p>
       </form>
     </div>

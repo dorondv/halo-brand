@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { useCookieConsent } from '@/contexts/useCookieConsent';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 declare global {
@@ -45,15 +46,18 @@ export function ChatwootWidget({
   baseUrl = 'https://app.chatwoot.com',
   agentName = 'branda',
 }: ChatwootWidgetProps) {
+  const { ready, functionalAllowed } = useCookieConsent();
   const timeoutRef = useRef<NodeJS.Timeout | null>(null);
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const readyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const readyIntervalRef = useRef<NodeJS.Timeout | null>(null);
   /** Skip duplicate setUser when auth refreshes with the same identity (TOKEN_REFRESHED fires often). */
   const lastIdentityKeyRef = useRef<string | null>(null);
 
   useEffect(() => {
     const token = websiteToken;
+
+    if (!ready || !functionalAllowed) {
+      return;
+    }
 
     if (!token) {
       console.warn('Chatwoot website token not configured');
@@ -119,52 +123,41 @@ export function ChatwootWidget({
         intervalRef.current = null;
       }
     };
-  }, [websiteToken, baseUrl, agentName]);
+  }, [ready, functionalAllowed, websiteToken, baseUrl, agentName]);
 
   // Set user identity when authenticated
   useEffect(() => {
-    // Clear any existing interval/timeout on mount/unmount
-    if (readyIntervalRef.current) {
-      clearInterval(readyIntervalRef.current);
-      readyIntervalRef.current = null;
+    if (!ready || !functionalAllowed) {
+      return;
     }
-    if (readyTimeoutRef.current) {
-      clearTimeout(readyTimeoutRef.current);
-      readyTimeoutRef.current = null;
-    }
+
+    let readyPoll: ReturnType<typeof setInterval> | null = null;
+    let readyPollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const clearReadyPoll = () => {
+      if (readyPoll !== null) {
+        clearInterval(readyPoll);
+        readyPoll = null;
+      }
+      if (readyPollTimeout !== null) {
+        clearTimeout(readyPollTimeout);
+        readyPollTimeout = null;
+      }
+    };
 
     const setUserIdentity = async () => {
       if (!window.$chatwoot) {
-        // Clear any existing interval/timeout before creating new ones
-        if (readyIntervalRef.current) {
-          clearInterval(readyIntervalRef.current);
-          readyIntervalRef.current = null;
-        }
-        if (readyTimeoutRef.current) {
-          clearTimeout(readyTimeoutRef.current);
-          readyTimeoutRef.current = null;
-        }
+        clearReadyPoll();
 
         // Wait for Chatwoot to be ready
-        const checkReady = setInterval(() => {
+        readyPoll = setInterval(() => {
           if (window.$chatwoot) {
-            if (readyIntervalRef.current) {
-              clearInterval(readyIntervalRef.current);
-              readyIntervalRef.current = null;
-            }
-            if (readyTimeoutRef.current) {
-              clearTimeout(readyTimeoutRef.current);
-              readyTimeoutRef.current = null;
-            }
-            setUserIdentity();
+            clearReadyPoll();
+            void setUserIdentity();
           }
         }, 100);
-        readyIntervalRef.current = checkReady;
-        readyTimeoutRef.current = setTimeout(() => {
-          if (readyIntervalRef.current) {
-            clearInterval(readyIntervalRef.current);
-            readyIntervalRef.current = null;
-          }
+        readyPollTimeout = setTimeout(() => {
+          clearReadyPoll();
         }, 10000);
         return;
       }
@@ -246,17 +239,9 @@ export function ChatwootWidget({
     return () => {
       window.removeEventListener('chatwoot:ready', handleReady);
       subscription.unsubscribe();
-      // Cleanup timeouts/intervals if still running
-      if (readyTimeoutRef.current) {
-        clearTimeout(readyTimeoutRef.current);
-        readyTimeoutRef.current = null;
-      }
-      if (readyIntervalRef.current) {
-        clearInterval(readyIntervalRef.current);
-        readyIntervalRef.current = null;
-      }
+      clearReadyPoll();
     };
-  }, [agentName]);
+  }, [ready, functionalAllowed, agentName]);
 
   return null; // This component doesn't render anything
 }
