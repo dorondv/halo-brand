@@ -146,8 +146,8 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
   return (
     <div dir={dir} className="flex min-h-screen w-full max-w-full overflow-x-hidden bg-white font-sans dark:bg-gray-900">
       {/* Sidebar */}
-      <aside className={`absolute inset-y-0 right-0 z-30 w-64 transform space-y-6 bg-white px-2 py-7 text-gray-800 shadow-lg transition-[transform] duration-300 ease-out will-change-transform lg:relative lg:translate-x-0 lg:shadow-none dark:border-l dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-        <div className="space-y-2 px-4">
+      <aside className={`absolute inset-y-0 right-0 z-30 w-64 transform space-y-3 bg-white px-2 py-5 text-gray-800 shadow-lg transition-[transform] duration-300 ease-out will-change-transform lg:relative lg:translate-x-0 lg:shadow-none dark:border-l dark:border-gray-800 dark:bg-gray-900 dark:text-gray-200 ${isMobileMenuOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+        <div className="space-y-1.5 px-4">
           <div className="flex items-center justify-between">
             <div className="shrink-0 pb-1">
               <Logo width={130} height={35} />
@@ -168,10 +168,10 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
                 key={href}
                 href={href}
                 onClick={() => setIsMobileMenuOpen(false)}
-                className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ease-out ${locale === 'he' ? 'gap-4' : 'gap-2'} ${active ? 'bg-pink-50 font-semibold text-pink-600 dark:bg-pink-900/20 dark:text-pink-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+                className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-200 ease-out ${active ? 'bg-pink-50 font-semibold text-pink-600 dark:bg-pink-900/20 dark:text-pink-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
               >
                 <Icon className="h-5 w-5 shrink-0" />
-                <span>{t(key)}</span>
+                <span className="leading-snug">{t(key)}</span>
               </Link>
             );
           })}
@@ -179,13 +179,13 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
             <Link
               href="/admin"
               onClick={() => setIsMobileMenuOpen(false)}
-              className={`flex items-center rounded-lg px-4 py-3 transition-colors duration-200 ease-out ${locale === 'he' ? 'gap-4' : 'gap-2'} ${pathname?.startsWith('/admin') ? 'bg-pink-50 font-semibold text-pink-600 dark:bg-pink-900/20 dark:text-pink-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
+              className={`flex items-center gap-2 rounded-lg px-3 py-2 transition-colors duration-200 ease-out ${pathname?.startsWith('/admin') ? 'bg-pink-50 font-semibold text-pink-600 dark:bg-pink-900/20 dark:text-pink-400' : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-800'}`}
             >
               <Shield className="h-5 w-5 shrink-0" />
-              <span>{t('admin')}</span>
+              <span className="leading-snug">{t('admin')}</span>
             </Link>
           )}
-          <div className="pt-4">
+          <div className="pt-2">
             <SignOutButton />
           </div>
         </nav>
