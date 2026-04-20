@@ -1,37 +1,61 @@
 'use client';
 
 import type React from 'react';
-import type { CookieConsentPreferences } from '@/libs/cookieConsent';
+import type { ConsentState } from '@/libs/consent';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { CookieConsentContext } from '@/contexts/cookieConsentContext';
 import {
-  buildCookieConsent,
-  COOKIE_CONSENT_STORAGE_KEY,
-  parseStoredCookieConsent,
-} from '@/libs/cookieConsent';
+  applyStoredConsent,
+  CONSENT_STORAGE_KEY,
+  CONSENT_VERSION,
+  denyAllConsent,
+  getStoredConsent,
+  grantAllConsent,
+  LEGACY_COOKIE_CONSENT_STORAGE_KEY,
+  updateConsent,
+} from '@/libs/consent';
 
-function shouldReloadAfterWithdraw(
-  previous: CookieConsentPreferences | null,
-  next: CookieConsentPreferences,
-): boolean {
-  if (!previous) {
-    return false;
+function migrateLegacyConsent(): void {
+  if (typeof window === 'undefined') {
+    return;
   }
-  const withdrewAnalytics = previous.analytics && !next.analytics;
-  const withdrewFunctional = previous.functional && !next.functional;
-  return withdrewAnalytics || withdrewFunctional;
+  try {
+    if (localStorage.getItem(CONSENT_STORAGE_KEY)) {
+      return;
+    }
+    const raw = localStorage.getItem(LEGACY_COOKIE_CONSENT_STORAGE_KEY);
+    if (!raw) {
+      return;
+    }
+    const parsed = JSON.parse(raw) as { version?: number; analytics?: boolean; functional?: boolean };
+    if (parsed.version !== 1 || typeof parsed.analytics !== 'boolean') {
+      return;
+    }
+    const next: ConsentState = {
+      analytics_storage: parsed.analytics ? 'granted' : 'denied',
+      ad_storage: 'denied',
+      ad_user_data: 'denied',
+      ad_personalization: 'denied',
+    };
+    localStorage.setItem(
+      CONSENT_STORAGE_KEY,
+      JSON.stringify({ v: CONSENT_VERSION, ...next }),
+    );
+    localStorage.removeItem(LEGACY_COOKIE_CONSENT_STORAGE_KEY);
+  } catch {
+    // ignore
+  }
 }
 
 export function CookieConsentProvider(props: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
-  const [preferences, setPreferences] = useState<CookieConsentPreferences | null>(null);
+  const [preferences, setPreferences] = useState<ConsentState | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
 
   useEffect(() => {
-    const stored = parseStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
-    // Defer with a macrotask so this runs after the App Router finishes initializing.
-    // queueMicrotask caused "Router action dispatched before initialization" when consent
-    // flipped ready and next-intl Link mounted in the same hydration turn.
+    migrateLegacyConsent();
+    applyStoredConsent();
+    const stored = getStoredConsent();
     const id = globalThis.setTimeout(() => {
       setPreferences(stored);
       setReady(true);
@@ -39,34 +63,27 @@ export function CookieConsentProvider(props: { children: React.ReactNode }) {
     return () => globalThis.clearTimeout(id);
   }, []);
 
-  const persist = useCallback(
-    (next: CookieConsentPreferences, previous: CookieConsentPreferences | null) => {
-      localStorage.setItem(COOKIE_CONSENT_STORAGE_KEY, JSON.stringify(next));
-      setPreferences(next);
-      setPanelOpen(false);
-      if (typeof window !== 'undefined' && shouldReloadAfterWithdraw(previous, next)) {
-        window.location.reload();
-      }
-    },
-    [],
-  );
+  const persistFromLib = useCallback((next: ConsentState) => {
+    setPreferences(next);
+    setPanelOpen(false);
+  }, []);
 
   const acceptAll = useCallback(() => {
-    const next = buildCookieConsent({ analytics: true, functional: true });
-    persist(next, preferences);
-  }, [persist, preferences]);
+    grantAllConsent();
+    persistFromLib(getStoredConsent()!);
+  }, [persistFromLib]);
 
-  const rejectNonEssential = useCallback(() => {
-    const next = buildCookieConsent({ analytics: false, functional: false });
-    persist(next, preferences);
-  }, [persist, preferences]);
+  const rejectAll = useCallback(() => {
+    denyAllConsent();
+    persistFromLib(getStoredConsent()!);
+  }, [persistFromLib]);
 
   const savePreferences = useCallback(
-    (prefs: { analytics: boolean; functional: boolean }) => {
-      const next = buildCookieConsent(prefs);
-      persist(next, preferences);
+    (prefs: ConsentState) => {
+      updateConsent(prefs);
+      persistFromLib(getStoredConsent()!);
     },
-    [persist, preferences],
+    [persistFromLib],
   );
 
   const openPreferences = useCallback(() => {
@@ -77,17 +94,17 @@ export function CookieConsentProvider(props: { children: React.ReactNode }) {
     setPanelOpen(false);
   }, []);
 
-  const analyticsAllowed = Boolean(ready && preferences?.analytics);
-  const functionalAllowed = Boolean(ready && preferences?.functional);
+  const analyticsAllowed = Boolean(ready && preferences?.analytics_storage === 'granted');
+  const advertisingAllowed = Boolean(ready && preferences?.ad_storage === 'granted');
 
   const value = useMemo(
     () => ({
       ready,
       preferences,
       analyticsAllowed,
-      functionalAllowed,
+      advertisingAllowed,
       acceptAll,
-      rejectNonEssential,
+      rejectAll,
       savePreferences,
       openPreferences,
       closePanel,
@@ -97,9 +114,9 @@ export function CookieConsentProvider(props: { children: React.ReactNode }) {
       ready,
       preferences,
       analyticsAllowed,
-      functionalAllowed,
+      advertisingAllowed,
       acceptAll,
-      rejectNonEssential,
+      rejectAll,
       savePreferences,
       openPreferences,
       closePanel,

@@ -1,14 +1,14 @@
 'use client';
 
-import { COOKIE_CONSENT_STORAGE_KEY, parseStoredCookieConsent } from '@/libs/cookieConsent';
+import { getStoredConsent } from '@/libs/consent';
 import { getCountryFromLanguage, getCountryFromTimezone } from './timezoneToCountry';
 
 function hasAnalyticsConsentFromStorage(): boolean {
   if (typeof window === 'undefined') {
     return false;
   }
-  const stored = parseStoredCookieConsent(localStorage.getItem(COOKIE_CONSENT_STORAGE_KEY));
-  return Boolean(stored?.analytics);
+  const stored = getStoredConsent();
+  return stored?.analytics_storage === 'granted';
 }
 
 /**

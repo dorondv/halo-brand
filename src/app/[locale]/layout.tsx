@@ -4,7 +4,7 @@ import { setRequestLocale } from 'next-intl/server';
 import { Inter } from 'next/font/google';
 import { notFound } from 'next/navigation';
 import { AccessibilityBootstrap } from '@/components/accessibility/AccessibilityBootstrap';
-import { GoogleAnalytics } from '@/components/analytics/GoogleAnalytics';
+import { ConsentAndAnalyticsNoscript, ConsentAndAnalyticsScripts } from '@/components/analytics/ConsentAndAnalyticsScripts';
 import { PostHogProvider } from '@/components/analytics/PostHogProvider';
 import { ChatwootWidget } from '@/components/chatwoot/ChatwootWidget';
 import { CookieConsentBanner } from '@/components/legal/CookieConsentBanner';
@@ -64,6 +64,8 @@ export default async function RootLayout(props: {
   return (
     <html lang={locale} dir={dir} className={inter.variable} suppressHydrationWarning>
       <body className="bg-white font-sans text-gray-900 antialiased dark:bg-gray-900 dark:text-gray-100">
+        <ConsentAndAnalyticsScripts />
+        <ConsentAndAnalyticsNoscript />
         <ThemeInitScript />
         <ThemeProvider>
           <AccessibilityBootstrap />
@@ -72,7 +74,6 @@ export default async function RootLayout(props: {
               <PostHogProvider>
                 {props.children}
               </PostHogProvider>
-              <GoogleAnalytics />
               <ChatwootWidget agentName="branda" baseUrl={chatwootBaseUrl} websiteToken={chatwootToken} />
               <CookieConsentBanner />
             </CookieConsentProvider>

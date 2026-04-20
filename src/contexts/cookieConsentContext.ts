@@ -1,16 +1,16 @@
-import type { CookieConsentPreferences } from '@/libs/cookieConsent';
+import type { ConsentState } from '@/libs/consent';
 import { createContext } from 'react';
 
 export type CookieConsentContextValue = {
   /** True after reading localStorage on the client */
   ready: boolean;
   /** Stored user choice; null means the user has not confirmed preferences yet */
-  preferences: CookieConsentPreferences | null;
+  preferences: ConsentState | null;
   analyticsAllowed: boolean;
-  functionalAllowed: boolean;
+  advertisingAllowed: boolean;
   acceptAll: () => void;
-  rejectNonEssential: () => void;
-  savePreferences: (prefs: { analytics: boolean; functional: boolean }) => void;
+  rejectAll: () => void;
+  savePreferences: (prefs: ConsentState) => void;
   /** Open the consent UI to change preferences (e.g. from footer link) */
   openPreferences: () => void;
   /** Close panel without saving (only when a choice already exists) */

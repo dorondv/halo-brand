@@ -3,7 +3,7 @@ import { getTranslations } from 'next-intl/server';
 import { Logo } from '@/components/ui/Logo';
 import { Link } from '@/libs/I18nNavigation';
 
-const SECTION_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11] as const;
+const SECTION_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
 export async function generateMetadata(): Promise<Metadata> {
   const t = await getTranslations('LegalTerms');

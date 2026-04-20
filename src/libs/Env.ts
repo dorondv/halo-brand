@@ -30,6 +30,9 @@ export const Env = createEnv({
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
     NEXT_PUBLIC_GA_MEASUREMENT_ID: z.string().optional(), // Google Analytics Measurement ID (G-XXXXXXXXXX)
     NEXT_PUBLIC_GTM_CONTAINER_ID: z.string().optional(), // Google Tag Manager Container ID (GTM-XXXXXXX)
+    NEXT_PUBLIC_GOOGLE_ADS_ID: z.string().optional(), // Google Ads (AW-XXXXXXXXXX)
+    NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO: z.string().optional(), // e.g. AW-xxx/label for gtag conversion
+    NEXT_PUBLIC_META_PIXEL_ID: z.string().optional(), // Meta Pixel ID (digits)
   },
   shared: {
     NODE_ENV: z.enum(['test', 'development', 'production']).optional(),
@@ -60,6 +63,9 @@ export const Env = createEnv({
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
     NEXT_PUBLIC_GTM_CONTAINER_ID: process.env.NEXT_PUBLIC_GTM_CONTAINER_ID,
+    NEXT_PUBLIC_GOOGLE_ADS_ID: process.env.NEXT_PUBLIC_GOOGLE_ADS_ID,
+    NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO: process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO,
+    NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
     NODE_ENV: process.env.NODE_ENV,
   },
 });
