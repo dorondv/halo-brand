@@ -1,5 +1,4 @@
-/* eslint-disable jsonc/sort-keys */
-{
+/* eslint-disable jsonc/sort-keys */{
   "compilerOptions": {
     // ======================================================================
     // Language & Environment
@@ -95,6 +94,7 @@
     "**/*.tsx",
     ".next/types/**/*.ts",
     "**/*.mts",
-    "types/**/*.d.ts"
+    "types/**/*.d.ts",
+    ".next/dev/types/**/*.ts"
   ]
 }

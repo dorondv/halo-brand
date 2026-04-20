@@ -17,6 +17,11 @@
 }
 
 /* Apply Inter font globally */
+/* Chatwoot launcher above fixed app UI (cookie banner uses z-[100], toasts z-50, etc.) */
+.woot-widget-holder {
+  z-index: 2147483000 !important;
+}
+
 body {
   font-family:
     var(--font-inter),

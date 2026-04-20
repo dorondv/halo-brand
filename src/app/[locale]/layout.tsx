@@ -55,7 +55,11 @@ export default async function RootLayout(props: {
 
   const dir = locale === 'he' ? 'rtl' : 'ltr';
 
-  const chatwootToken = process.env.CHATWOOT_WEBSITE_TOKEN;
+  // Website token is public (embedded in client); server-only env is preferred for Vercel.
+  const chatwootToken
+    = process.env.CHATWOOT_WEBSITE_TOKEN?.trim()
+      || process.env.NEXT_PUBLIC_CHATWOOT_WEBSITE_TOKEN?.trim();
+  const chatwootBaseUrl = process.env.CHATWOOT_BASE_URL?.trim() || 'https://app.chatwoot.com';
 
   return (
     <html lang={locale} dir={dir} className={inter.variable} suppressHydrationWarning>
@@ -69,7 +73,7 @@ export default async function RootLayout(props: {
                 {props.children}
               </PostHogProvider>
               <GoogleAnalytics />
-              <ChatwootWidget agentName="branda" websiteToken={chatwootToken} />
+              <ChatwootWidget agentName="branda" baseUrl={chatwootBaseUrl} websiteToken={chatwootToken} />
               <CookieConsentBanner />
             </CookieConsentProvider>
           </NextIntlClientProvider>
