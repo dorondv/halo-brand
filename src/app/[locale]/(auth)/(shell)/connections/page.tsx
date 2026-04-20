@@ -1087,7 +1087,7 @@ export default function ConnectionsPage() {
           if (!limitsData.canConnectAccount) {
             showToast(
               isRTL
-                ? `הגעת למגבלת חשבונות חברתיים (${limitsData.limits.maxSocialAccounts}). שדרג את התוכנית שלך כדי לחבר עוד חשבונות.`
+                ? `הגעת למגבלת חשבונות סושיאל (${limitsData.limits.maxSocialAccounts}). שדרג את התוכנית שלך כדי לחבר עוד חשבונות.`
                 : `You've reached your social account limit (${limitsData.limits.maxSocialAccounts}). Upgrade your plan to connect more accounts.`,
               'error',
             );
