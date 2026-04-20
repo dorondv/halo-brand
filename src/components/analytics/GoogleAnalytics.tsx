@@ -3,9 +3,13 @@
 import { useEffect, useRef } from 'react';
 import { useCookieConsent } from '@/contexts/useCookieConsent';
 
+/** Default GTM container (override with NEXT_PUBLIC_GTM_CONTAINER_ID; set env to '' to disable). */
+const DEFAULT_GTM_CONTAINER_ID = 'GTM-TS3SV3CC';
+
 /**
  * Google Analytics and Google Tag Manager Integration Component
- * Only loads if environment variables are configured and the user consented to analytics cookies.
+ * Loads GTM using the default container id above, or NEXT_PUBLIC_GTM_CONTAINER_ID when set.
+ * Only loads when the user consented to analytics cookies.
  */
 export function GoogleAnalytics() {
   const { ready, analyticsAllowed } = useCookieConsent();
@@ -17,7 +21,8 @@ export function GoogleAnalytics() {
     }
 
     const gaMeasurementId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
-    const gtmContainerId = process.env.NEXT_PUBLIC_GTM_CONTAINER_ID;
+    const gtmContainerId
+      = process.env.NEXT_PUBLIC_GTM_CONTAINER_ID ?? DEFAULT_GTM_CONTAINER_ID;
 
     if (!gaMeasurementId && !gtmContainerId) {
       return;
