@@ -26,6 +26,7 @@ import React, { Suspense } from 'react';
 import { AccessibilityModal } from '@/components/accessibility/AccessibilityModal';
 import { SignOutButton } from '@/components/auth/SignOutButton';
 import { BrandSelector } from '@/components/BrandSelector';
+import { LegalLinksFooter } from '@/components/legal/LegalLinksFooter';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
 import { SubscriptionLimitsMeters } from '@/components/subscription/SubscriptionLimitsMeters';
 import { Button } from '@/components/ui/button';
@@ -310,6 +311,7 @@ export function DashboardShell({ children, showGetlateTestNav }: Props) {
           )}
         </header>
         <main className="flex-1 overflow-x-hidden overflow-y-auto px-0 py-6">{children}</main>
+        <LegalLinksFooter />
       </div>
     </div>
   );
