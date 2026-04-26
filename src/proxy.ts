@@ -3,8 +3,8 @@ import { createServerClient } from '@supabase/ssr';
 import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 
-import { AppConfig } from './utils/AppConfig';
 import { routing } from './libs/I18nRouting';
+import { AppConfig } from './utils/AppConfig';
 
 // Disable automatic locale detection from browser headers
 // Always use the default locale (Hebrew) unless explicitly specified in the URL
@@ -19,7 +19,7 @@ const locales = AppConfig.locales;
 const localePattern = new RegExp(`^/(${locales.join('|')})(/|$)`);
 
 // Public paths that don't require authentication (without locale prefix)
-const PUBLIC_PATHS = ['/', '/sign-in', '/sign-up'];
+const PUBLIC_PATHS = ['/', '/sign-in', '/sign-up', '/privacy', '/terms'];
 
 // Auth-related paths where authenticated users should be redirected to dashboard
 const AUTH_PATHS = ['/sign-in', '/sign-up'];
