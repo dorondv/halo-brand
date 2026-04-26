@@ -1,12 +1,42 @@
 import type { NextRequest } from 'next/server';
-import type { Conversation, MetaPlatform } from '@/libs/meta-inbox';
+import type { Conversation } from '@/libs/meta-inbox';
+import type { ZernioCommentedPost, ZernioInboxConversation } from '@/libs/zernio-inbox';
 import { and, eq } from 'drizzle-orm';
 import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createMetaInboxClient } from '@/libs/meta-inbox';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import {
+  mapZernioPlatformToMeta,
+  normalizeDbPlatformForInbox,
+  resolveZernioApiKey,
+  zernioCommentInboxPlatformFilter,
+  zernioListCommentedPosts,
+  zernioListConversations,
+  zernioPlatformFilter,
+} from '@/libs/zernio-inbox';
 import { socialAccounts } from '@/models/Schema';
+
+function resolveGetlateAccountIdFromRow(
+  supabaseValue: string | null | undefined,
+  psd: Record<string, unknown> | null,
+): string | undefined {
+  const v = supabaseValue?.trim();
+  if (v) {
+    return v;
+  }
+  if (!psd) {
+    return undefined;
+  }
+  const direct = (psd.getlateAccountId ?? psd.getlate_account_id) as string | undefined;
+  if (typeof direct === 'string' && direct.trim()) {
+    return direct.trim();
+  }
+  const nested = psd.account as Record<string, unknown> | undefined;
+  const id = (nested?._id ?? nested?.id) as string | undefined;
+  return typeof id === 'string' && id.trim() ? id.trim() : undefined;
+}
 
 /**
  * Helper function to fetch Instagram Business Account ID from Meta API
@@ -136,8 +166,8 @@ async function fetchInstagramAccountData(
 }
 
 /**
- * Helper function to get real access token from Getlate API
- * For accounts managed by Getlate, we need to fetch the actual token from Getlate API
+ * Helper function to get real access token from Publishing integration API
+ * For accounts managed by Publishing integration, we need to fetch the actual token from Publishing integration API
  */
 const getGetlateAccessToken = async (
   getlateAccountId: string,
@@ -160,7 +190,7 @@ const getGetlateAccessToken = async (
       return null;
     }
 
-    // Fetch raw account data from Getlate
+    // Fetch raw account data from Publishing integration
     const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
     const instagramAccount = rawAccounts.find(
       (acc: any) => (acc._id || acc.id) === getlateAccountId && acc.platform === 'instagram',
@@ -200,6 +230,8 @@ const getGetlateAccessToken = async (
  * - accountId: The social account ID (from our database)
  * - type: 'chat' | 'comment' (default: 'chat')
  * - filter: 'all' | 'unread' | 'read' (default: 'all')
+ * - cursor: optional — Zernio next page (from previous response `nextCursor`)
+ * - limit: optional page size (default 50, max 100; Zernio only)
  */
 export async function GET(request: NextRequest) {
   try {
@@ -214,12 +246,15 @@ export async function GET(request: NextRequest) {
     const accountId = searchParams.get('accountId');
     const type = (searchParams.get('type') || 'chat') as 'chat' | 'comment';
     const filter = (searchParams.get('filter') || 'all') as 'all' | 'unread' | 'read';
+    const cursorParam = searchParams.get('cursor') ?? undefined;
+    const limitRaw = Number.parseInt(searchParams.get('limit') || '50', 10);
+    const pageLimit = Math.min(Math.max(Number.isFinite(limitRaw) ? limitRaw : 50, 1), 100);
 
     if (!accountId) {
       return NextResponse.json({ error: 'accountId is required' }, { status: 400 });
     }
 
-    // Fetch account details (including getlate_account_id if it exists)
+    // Fetch account details (including provider account id column when present)
     const [account] = await db
       .select()
       .from(socialAccounts)
@@ -231,7 +266,7 @@ export async function GET(request: NextRequest) {
       )
       .limit(1);
 
-    // Also fetch getlate_account_id from Supabase (it might not be in Drizzle schema)
+    // Also read provider account id from Supabase (may be absent from Drizzle types)
     const { data: accountWithGetlate } = await supabase
       .from('social_accounts')
       .select('getlate_account_id, brand_id')
@@ -243,18 +278,20 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Account not found' }, { status: 404 });
     }
 
-    const getlateAccountId = accountWithGetlate?.getlate_account_id;
     const brandId = accountWithGetlate?.brand_id || account.brandId;
-
-    const platform = account.platform as MetaPlatform;
     const platformSpecificData = account.platformSpecificData as Record<string, unknown> | null;
+    const getlateAccountId = resolveGetlateAccountIdFromRow(
+      accountWithGetlate?.getlate_account_id,
+      platformSpecificData,
+    );
+    const platform = normalizeDbPlatformForInbox(account.platform);
 
-    // Check if we need to get access token from Getlate (for Getlate-managed accounts)
+    // Check if we need to get access token from Publishing integration (for Publishing integration-managed accounts)
     let actualAccessToken = account.accessToken;
     const isGetlateManaged = account.accessToken === 'getlate-managed' || (account.accessToken?.length || 0) < 50;
 
     if (isGetlateManaged && getlateAccountId) {
-      // Get user's Getlate API key
+      // Get user's Publishing integration API key
       const { data: userRecord } = await supabase
         .from('users')
         .select('getlate_api_key')
@@ -274,7 +311,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    // Create Meta client with actual access token (from Getlate if needed)
+    // Create Meta client with actual access token (from Publishing integration if needed)
     const metaClient = createMetaInboxClient(
       actualAccessToken,
       account.refreshToken || undefined,
@@ -288,150 +325,363 @@ export async function GET(request: NextRequest) {
     );
 
     let conversations: Conversation[] = [];
+    let nextCursorOut: string | null = null;
+    let hasMoreOut = false;
 
     try {
       if (type === 'chat') {
-        // Fetch chat conversations
-        if (platform === 'facebook') {
-          // Try selectedPageId first (from Getlate), then pageId as fallback
-          const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
-          const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+        let usedZernioInbox = false;
+        const zernioKey = await resolveZernioApiKey(supabase, user.id);
+        const { data: brandForZernio } = brandId
+          ? await supabase
+              .from('brands')
+              .select('getlate_profile_id')
+              .eq('id', brandId)
+              .maybeSingle()
+          : { data: null };
+        const zernioProfileId = brandForZernio?.getlate_profile_id;
 
-          if (pageId && pageAccessToken) {
-            conversations = await metaClient.getFacebookConversations(pageId, pageAccessToken);
-          }
-        } else if (platform === 'instagram') {
-          // For Instagram DMs, accountId should be the Instagram Business Account ID
-          let igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
-          const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
-          const pageId = platformSpecificData?.pageId as string | undefined;
-
-          // If we don't have a valid Instagram Business Account ID, try to fetch it
-          if (!igBusinessAccountId || igBusinessAccountId === account.accountId) {
-            // Use pageAccessToken if available (it's a Meta token), otherwise try actualAccessToken
-            // The Getlate token might not be a valid Meta token, so prefer pageAccessToken
-            const tokenToUse = pageAccessToken && pageAccessToken.length >= 50
-              ? pageAccessToken
-              : actualAccessToken;
-
-            // Pass pageId and pageAccessToken if available to help with fetching
-            const instagramData = await fetchInstagramAccountData(
-              tokenToUse,
-              pageId || undefined,
-              pageAccessToken && pageAccessToken.length >= 50 ? pageAccessToken : undefined,
-            );
-
-            if (instagramData.igBusinessAccountId) {
-              igBusinessAccountId = instagramData.igBusinessAccountId;
-
-              // Update platformSpecificData with fetched value for future use
-              const updatedPlatformData = {
-                ...platformSpecificData,
-                igBusinessAccountId: instagramData.igBusinessAccountId,
-                ...(instagramData.pageAccessToken ? { pageAccessToken: instagramData.pageAccessToken } : {}),
-                ...(instagramData.pageId ? { pageId: instagramData.pageId } : {}),
+        if (zernioKey && zernioProfileId && getlateAccountId) {
+          const mapZernioRows = (rows: ZernioInboxConversation[]): Conversation[] =>
+            rows.map((r) => {
+              const unread = r.unreadCount ?? 0;
+              const zSid = r.accountId?.trim() || getlateAccountId;
+              return {
+                id: r.id,
+                accountId: account.accountId,
+                platform: mapZernioPlatformToMeta(r.platform),
+                type: 'chat' as const,
+                contactName: r.participantName || r.accountUsername || 'Unknown',
+                contactAvatar: r.participantPicture,
+                lastMessage: r.lastMessage || '',
+                lastMessageTime: r.updatedTime || new Date().toISOString(),
+                unreadCount: unread,
+                status: unread > 0 ? 'unread' : 'read',
+                zernioSocialAccountId: zSid,
+                inboxAccountId: accountId,
               };
+            });
 
-              await db
-                .update(socialAccounts)
-                .set({
-                  platformSpecificData: updatedPlatformData,
-                  updatedAt: new Date(),
-                })
-                .where(eq(socialAccounts.id, accountId));
+          const setChatPagination = (zData: { pagination?: { hasMore?: boolean; nextCursor?: string } }) => {
+            nextCursorOut = zData.pagination?.nextCursor ?? null;
+            hasMoreOut = !!zData.pagination?.hasMore;
+          };
+
+          if (cursorParam) {
+            try {
+              const zf = zernioPlatformFilter(platform);
+              const zData = await zernioListConversations(zernioKey, {
+                profileId: zernioProfileId,
+                accountId: getlateAccountId,
+                ...(zf ? { platform: zf } : {}),
+                limit: pageLimit,
+                cursor: cursorParam,
+              });
+              conversations = mapZernioRows(zData.data || []);
+              setChatPagination(zData);
+              usedZernioInbox = true;
+            } catch (zErr) {
+              console.error('[API] Zernio inbox conversations page failed:', zErr);
+            }
+          } else {
+            try {
+              const zf = zernioPlatformFilter(platform);
+              let zData = await zernioListConversations(zernioKey, {
+                profileId: zernioProfileId,
+                accountId: getlateAccountId,
+                ...(zf ? { platform: zf } : {}),
+                limit: pageLimit,
+              });
+              let rows = zData.data || [];
+              if (rows.length === 0 && zf) {
+                zData = await zernioListConversations(zernioKey, {
+                  profileId: zernioProfileId,
+                  accountId: getlateAccountId,
+                  limit: pageLimit,
+                });
+                rows = zData.data || [];
+              }
+              conversations = mapZernioRows(rows);
+              setChatPagination(zData);
+              usedZernioInbox = true;
+            } catch (zErr) {
+              console.error('[API] Zernio inbox conversations failed, retrying without platform filter:', zErr);
+              try {
+                const zData = await zernioListConversations(zernioKey, {
+                  profileId: zernioProfileId,
+                  accountId: getlateAccountId,
+                  limit: pageLimit,
+                });
+                const rows = zData.data || [];
+                conversations = mapZernioRows(rows);
+                setChatPagination(zData);
+                usedZernioInbox = true;
+              } catch (zErr2) {
+                console.error('[API] Zernio inbox conversations failed, using Meta Graph:', zErr2);
+              }
             }
           }
+        }
 
-          conversations = await metaClient.getInstagramConversations(igBusinessAccountId);
-        } else if (platform === 'threads') {
+        if (!usedZernioInbox) {
+        // Fetch chat conversations (Meta Graph API)
+          if (platform === 'facebook') {
+          // Try selectedPageId first (from Publishing integration), then pageId as fallback
+            const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
+            const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+
+            if (pageId && pageAccessToken) {
+              conversations = await metaClient.getFacebookConversations(pageId, pageAccessToken);
+            }
+          } else if (platform === 'instagram') {
+          // For Instagram DMs, accountId should be the Instagram Business Account ID
+            let igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
+            const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+            const pageId = platformSpecificData?.pageId as string | undefined;
+
+            // If we don't have a valid Instagram Business Account ID, try to fetch it
+            if (!igBusinessAccountId || igBusinessAccountId === account.accountId) {
+            // Use pageAccessToken if available (it's a Meta token), otherwise try actualAccessToken
+            // The Publishing integration token might not be a valid Meta token, so prefer pageAccessToken
+              const tokenToUse = pageAccessToken && pageAccessToken.length >= 50
+                ? pageAccessToken
+                : actualAccessToken;
+
+              // Pass pageId and pageAccessToken if available to help with fetching
+              const instagramData = await fetchInstagramAccountData(
+                tokenToUse,
+                pageId || undefined,
+                pageAccessToken && pageAccessToken.length >= 50 ? pageAccessToken : undefined,
+              );
+
+              if (instagramData.igBusinessAccountId) {
+                igBusinessAccountId = instagramData.igBusinessAccountId;
+
+                // Update platformSpecificData with fetched value for future use
+                const updatedPlatformData = {
+                  ...platformSpecificData,
+                  igBusinessAccountId: instagramData.igBusinessAccountId,
+                  ...(instagramData.pageAccessToken ? { pageAccessToken: instagramData.pageAccessToken } : {}),
+                  ...(instagramData.pageId ? { pageId: instagramData.pageId } : {}),
+                };
+
+                await db
+                  .update(socialAccounts)
+                  .set({
+                    platformSpecificData: updatedPlatformData,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(socialAccounts.id, accountId));
+              }
+            }
+
+            conversations = await metaClient.getInstagramConversations(igBusinessAccountId);
+          } else if (platform === 'threads') {
           // Threads uses similar API to Instagram
-          const igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
-          conversations = await metaClient.getInstagramConversations(igBusinessAccountId);
+            const igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
+            conversations = await metaClient.getInstagramConversations(igBusinessAccountId);
+          }
         }
       } else if (type === 'comment') {
-        // Fetch comment conversations
-        if (platform === 'facebook') {
-          // Try selectedPageId first (from Getlate), then pageId as fallback
-          const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
-          const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+        let usedZernioComments = false;
+        const zernioKeyComments = await resolveZernioApiKey(supabase, user.id);
+        const { data: brandForZernioComments } = brandId
+          ? await supabase
+              .from('brands')
+              .select('getlate_profile_id')
+              .eq('id', brandId)
+              .maybeSingle()
+          : { data: null };
+        const zernioProfileIdComments = brandForZernioComments?.getlate_profile_id;
 
-          if (pageId && pageAccessToken) {
-            conversations = await metaClient.getFacebookComments(pageId, pageAccessToken);
+        if (zernioKeyComments && zernioProfileIdComments && getlateAccountId) {
+          const mapZernioCommentPosts = (rows: ZernioCommentedPost[]): Conversation[] =>
+            rows.map((p) => {
+              const zSid = p.accountId?.trim() || getlateAccountId;
+              const cc = p.commentCount ?? 0;
+              const metaPlat = mapZernioPlatformToMeta(p.platform || platform);
+              return {
+                id: p.id,
+                accountId: account.accountId,
+                platform: metaPlat,
+                type: 'comment' as const,
+                contactName: p.accountUsername || 'Post',
+                commentCount: cc,
+                lastMessage:
+                  cc > 0
+                    ? `${cc} comment${cc === 1 ? '' : 's'}`
+                    : (p.content || '').slice(0, 140),
+                lastMessageTime: p.createdTime || new Date().toISOString(),
+                unreadCount: 0,
+                status: 'read' as const,
+                postId: p.id,
+                postContent: p.content || '',
+                postImageUrl: p.picture,
+                zernioSocialAccountId: zSid,
+                inboxAccountId: accountId,
+              };
+            });
+
+          const setCommentPagination = (z: { pagination?: { hasMore?: boolean; nextCursor?: string } }) => {
+            nextCursorOut = z.pagination?.nextCursor ?? null;
+            hasMoreOut = !!z.pagination?.hasMore;
+          };
+
+          if (cursorParam) {
+            try {
+              const zcf = zernioCommentInboxPlatformFilter(platform);
+              const zCommentData = await zernioListCommentedPosts(zernioKeyComments, {
+                profileId: zernioProfileIdComments,
+                accountId: getlateAccountId,
+                minComments: 1,
+                ...(zcf ? { platform: zcf } : {}),
+                limit: pageLimit,
+                cursor: cursorParam,
+              });
+              const rows = zCommentData.data || [];
+              conversations = mapZernioCommentPosts(rows).sort(
+                (a, b) =>
+                  new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime(),
+              );
+              setCommentPagination(zCommentData);
+              usedZernioComments = true;
+            } catch (zCommentErr) {
+              console.error('[API] Zernio inbox comments page failed:', zCommentErr);
+            }
+          } else {
+            try {
+              const zcf = zernioCommentInboxPlatformFilter(platform);
+              let zCommentData = await zernioListCommentedPosts(zernioKeyComments, {
+                profileId: zernioProfileIdComments,
+                accountId: getlateAccountId,
+                minComments: 1,
+                ...(zcf ? { platform: zcf } : {}),
+                limit: pageLimit,
+              });
+              let rows = zCommentData.data || [];
+              if (rows.length === 0 && zcf) {
+                zCommentData = await zernioListCommentedPosts(zernioKeyComments, {
+                  profileId: zernioProfileIdComments,
+                  accountId: getlateAccountId,
+                  minComments: 1,
+                  limit: pageLimit,
+                });
+                rows = zCommentData.data || [];
+              }
+              conversations = mapZernioCommentPosts(rows).sort(
+                (a, b) =>
+                  new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime(),
+              );
+              setCommentPagination(zCommentData);
+              usedZernioComments = true;
+            } catch (zCommentErr) {
+              console.error('[API] Zernio inbox comments failed, retrying without platform filter:', zCommentErr);
+              try {
+                const zFallback = await zernioListCommentedPosts(zernioKeyComments, {
+                  profileId: zernioProfileIdComments,
+                  accountId: getlateAccountId,
+                  minComments: 1,
+                  limit: pageLimit,
+                });
+                const rowsFb = zFallback.data || [];
+                conversations = mapZernioCommentPosts(rowsFb).sort(
+                  (a, b) =>
+                    new Date(b.lastMessageTime).getTime() - new Date(a.lastMessageTime).getTime(),
+                );
+                setCommentPagination(zFallback);
+                usedZernioComments = true;
+              } catch (zCommentErr2) {
+                console.error('[API] Zernio inbox comments failed, falling back to Meta Graph:', zCommentErr2);
+              }
+            }
           }
-        } else if (platform === 'instagram') {
+        }
+
+        if (!usedZernioComments) {
+        // Fetch comment conversations (Meta Graph — Facebook / Instagram only)
+          if (platform === 'facebook') {
+          // Try selectedPageId first (from Publishing integration), then pageId as fallback
+            const pageId = (platformSpecificData?.selectedPageId || platformSpecificData?.pageId) as string | undefined;
+            const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+
+            if (pageId && pageAccessToken) {
+              conversations = await metaClient.getFacebookComments(pageId, pageAccessToken);
+            }
+          } else if (platform === 'instagram') {
           // For Instagram comments, accountId should be the Instagram Business Account ID
           // Instagram Business Accounts are linked to Facebook Pages, so we need the page access token
-          let igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
-          let pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
-          let pageId = platformSpecificData?.pageId as string | undefined;
+            let igBusinessAccountId = platformSpecificData?.igBusinessAccountId as string | undefined || account.accountId;
+            let pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+            let pageId = platformSpecificData?.pageId as string | undefined;
 
-          // Check if igBusinessAccountId is actually a Getlate account ID (MongoDB ObjectId format)
-          // MongoDB ObjectIds are 24 hex characters
-          const isLikelyGetlateId = igBusinessAccountId && /^[0-9a-f]{24}$/i.test(igBusinessAccountId);
+            // Check if igBusinessAccountId is actually a Publishing integration account ID (MongoDB ObjectId format)
+            // MongoDB ObjectIds are 24 hex characters
+            const isLikelyGetlateId = igBusinessAccountId && /^[0-9a-f]{24}$/i.test(igBusinessAccountId);
 
-          // We need to fetch igBusinessAccountId if:
-          // 1. It's missing
-          // 2. It's the same as account.accountId (fallback value)
-          // 3. It looks like a Getlate account ID (MongoDB ObjectId)
-          // We only need to fetch pageAccessToken if it's missing or invalid
-          const needsIgBusinessAccountId = !igBusinessAccountId || igBusinessAccountId === account.accountId || isLikelyGetlateId;
-          const needsPageAccessToken = !pageAccessToken || pageAccessToken.length < 50;
+            // We need to fetch igBusinessAccountId if:
+            // 1. It's missing
+            // 2. It's the same as account.accountId (fallback value)
+            // 3. It looks like a Publishing integration account ID (MongoDB ObjectId)
+            // We only need to fetch pageAccessToken if it's missing or invalid
+            const needsIgBusinessAccountId = !igBusinessAccountId || igBusinessAccountId === account.accountId || isLikelyGetlateId;
+            const needsPageAccessToken = !pageAccessToken || pageAccessToken.length < 50;
 
-          if (needsIgBusinessAccountId || needsPageAccessToken) {
+            if (needsIgBusinessAccountId || needsPageAccessToken) {
             // Use pageAccessToken if available, otherwise try actualAccessToken
             // pageAccessToken is more likely to work since it's a page token
-            const tokenToUse = pageAccessToken && pageAccessToken.length >= 50
-              ? pageAccessToken
-              : actualAccessToken;
+              const tokenToUse = pageAccessToken && pageAccessToken.length >= 50
+                ? pageAccessToken
+                : actualAccessToken;
 
-            // Pass pageId and pageAccessToken if available to help with fetching
-            const instagramData = await fetchInstagramAccountData(
-              tokenToUse,
-              pageId || undefined,
-              pageAccessToken && pageAccessToken.length >= 50 ? pageAccessToken : undefined,
-            );
+              // Pass pageId and pageAccessToken if available to help with fetching
+              const instagramData = await fetchInstagramAccountData(
+                tokenToUse,
+                pageId || undefined,
+                pageAccessToken && pageAccessToken.length >= 50 ? pageAccessToken : undefined,
+              );
 
-            if (instagramData.igBusinessAccountId) {
-              igBusinessAccountId = instagramData.igBusinessAccountId;
-            }
+              if (instagramData.igBusinessAccountId) {
+                igBusinessAccountId = instagramData.igBusinessAccountId;
+              }
 
-            // Only update pageAccessToken if we don't have a valid one or if we fetched a new one
-            if (needsPageAccessToken && instagramData.pageAccessToken) {
-              pageAccessToken = instagramData.pageAccessToken;
-            } else if (instagramData.pageAccessToken && instagramData.pageAccessToken !== pageAccessToken) {
+              // Only update pageAccessToken if we don't have a valid one or if we fetched a new one
+              if (needsPageAccessToken && instagramData.pageAccessToken) {
+                pageAccessToken = instagramData.pageAccessToken;
+              } else if (instagramData.pageAccessToken && instagramData.pageAccessToken !== pageAccessToken) {
               // Update if we got a different (possibly newer) token
-              pageAccessToken = instagramData.pageAccessToken;
+                pageAccessToken = instagramData.pageAccessToken;
+              }
+
+              if (instagramData.pageId) {
+                pageId = instagramData.pageId;
+              }
+
+              // Update platformSpecificData with fetched values for future use
+              if (instagramData.igBusinessAccountId || (needsPageAccessToken && instagramData.pageAccessToken)) {
+                const updatedPlatformData = {
+                  ...platformSpecificData,
+                  ...(instagramData.igBusinessAccountId ? { igBusinessAccountId: instagramData.igBusinessAccountId } : {}),
+                  ...(needsPageAccessToken && instagramData.pageAccessToken ? { pageAccessToken: instagramData.pageAccessToken } : {}),
+                  ...(instagramData.pageId ? { pageId: instagramData.pageId } : {}),
+                };
+
+                await db
+                  .update(socialAccounts)
+                  .set({
+                    platformSpecificData: updatedPlatformData,
+                    updatedAt: new Date(),
+                  })
+                  .where(eq(socialAccounts.id, accountId));
+              }
             }
 
-            if (instagramData.pageId) {
-              pageId = instagramData.pageId;
+            if (!pageAccessToken || pageAccessToken.length < 50) {
+              conversations = []; // Return empty array instead of trying with invalid token
+            } else if (!igBusinessAccountId || igBusinessAccountId === account.accountId || /^[0-9a-f]{24}$/i.test(igBusinessAccountId)) {
+              conversations = [];
+            } else {
+              conversations = await metaClient.getInstagramComments(igBusinessAccountId, pageAccessToken);
             }
-
-            // Update platformSpecificData with fetched values for future use
-            if (instagramData.igBusinessAccountId || (needsPageAccessToken && instagramData.pageAccessToken)) {
-              const updatedPlatformData = {
-                ...platformSpecificData,
-                ...(instagramData.igBusinessAccountId ? { igBusinessAccountId: instagramData.igBusinessAccountId } : {}),
-                ...(needsPageAccessToken && instagramData.pageAccessToken ? { pageAccessToken: instagramData.pageAccessToken } : {}),
-                ...(instagramData.pageId ? { pageId: instagramData.pageId } : {}),
-              };
-
-              await db
-                .update(socialAccounts)
-                .set({
-                  platformSpecificData: updatedPlatformData,
-                  updatedAt: new Date(),
-                })
-                .where(eq(socialAccounts.id, accountId));
-            }
-          }
-
-          if (!pageAccessToken || pageAccessToken.length < 50) {
-            conversations = []; // Return empty array instead of trying with invalid token
-          } else if (!igBusinessAccountId || igBusinessAccountId === account.accountId || /^[0-9a-f]{24}$/i.test(igBusinessAccountId)) {
-            conversations = [];
-          } else {
-            conversations = await metaClient.getInstagramComments(igBusinessAccountId, pageAccessToken);
           }
         }
       }
@@ -463,6 +713,7 @@ export async function GET(request: NextRequest) {
     // For chat conversations, use contactAvatar if available, otherwise fallback to account avatar
     const conversationsWithAvatar = filteredConversations.map(conv => ({
       ...conv,
+      inboxAccountId: accountId,
       // For comment conversations, prioritize contactAvatar (commenter's avatar)
       // For chat conversations, use contactAvatar if available, otherwise account avatar
       contactAvatar: conv.type === 'comment'
@@ -473,6 +724,8 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({
       conversations: conversationsWithAvatar,
       accountAvatar, // Also return account avatar separately for UI use
+      nextCursor: nextCursorOut,
+      hasMore: hasMoreOut,
     });
   } catch (error) {
     console.error('[API] Error fetching conversations:', error);

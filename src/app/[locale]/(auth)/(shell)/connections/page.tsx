@@ -31,11 +31,11 @@ import {
 } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
+import { resolveAvatarUrlFromStoredPlatformData } from '@/utils/socialAccountAvatar';
 
 // Force dynamic rendering - this page requires authentication
 
@@ -167,7 +167,6 @@ const getPlatformConfigs = (t: (key: string) => string): Record<
 
 export default function ConnectionsPage() {
   const t = useTranslations('Integrations');
-  const tLinkedIn = useTranslations('CreatePost.LinkedIn');
   const locale = useLocale();
   const isRTL = locale === 'he';
   const searchParams = useSearchParams();
@@ -183,8 +182,12 @@ export default function ConnectionsPage() {
   const [newBrandName, setNewBrandName] = useState('');
   const [brandLogoFile, setBrandLogoFile] = useState<File | null>(null);
   const [isUploadingLogo, setIsUploadingLogo] = useState(false);
+  const [isSubmittingBrand, setIsSubmittingBrand] = useState(false);
+  const [brandCreationStage, setBrandCreationStage] = useState<'idle' | 'checking_limits' | 'uploading_logo' | 'creating_brand' | 'finalizing'>('idle');
   const [accountToDisconnect, setAccountToDisconnect] = useState<SocialAccount | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
   const [isConnectingOAuth, setIsConnectingOAuth] = useState<string | null>(null);
+  const [isRefreshingAccounts, setIsRefreshingAccounts] = useState(false);
   const [brandToDelete, setBrandToDelete] = useState<Brand | null>(null);
   const [isDeletingBrand, setIsDeletingBrand] = useState(false);
 
@@ -198,7 +201,7 @@ export default function ConnectionsPage() {
   // LinkedIn organizations dialog state
   const [linkedinAccountForOrgs, setLinkedinAccountForOrgs] = useState<SocialAccount | null>(null);
   const [linkedinAccountName, setLinkedinAccountName] = useState<string | null>(null); // Store personal account name
-  const [linkedinOrganizations, setLinkedinOrganizations] = useState<Array<{ id: string; name: string; urn?: string }>>([]);
+  const [linkedinOrganizations, setLinkedinOrganizations] = useState<Array<{ id: string; name: string; urn?: string; vanityName?: string }>>([]);
   const [isLoadingLinkedInOrgs, setIsLoadingLinkedInOrgs] = useState(false);
   const [isSavingLinkedInOrg, setIsSavingLinkedInOrg] = useState(false);
   const [selectedLinkedInOrgId, setSelectedLinkedInOrgId] = useState<string | null>(null);
@@ -223,64 +226,84 @@ export default function ConnectionsPage() {
     platform: string;
     profileId: string;
     tempToken: string;
-    userProfile: string;
-    connectToken: string;
+    userProfile?: string;
+    /** Present for legacy headless redirects; optional after GET /connect/pending-data exchange. */
+    connectToken?: string;
     organizations?: string; // LinkedIn organizations (URL-encoded JSON)
     brandId?: string;
   } | null>(null);
+  const [isResolvingLinkedInHeadless, setIsResolvingLinkedInHeadless] = useState(false);
+  /** Dedupe LinkedIn pending-data fetch for the same callback URL (e.g. React Strict Mode). */
+  const linkedInPendingOAuthUrlRef = useRef<string | null>(null);
+  const facebookPendingOAuthUrlRef = useRef<string | null>(null);
   const [isLoadingHeadlessPages, setIsLoadingHeadlessPages] = useState(false);
   const [headlessFacebookPages, setHeadlessFacebookPages] = useState<Array<{ id: string; name: string; pageId?: string }>>([]);
   const [selectedHeadlessFacebookPageId, setSelectedHeadlessFacebookPageId] = useState<string | null>(null);
   const [isSavingHeadlessSelection, setIsSavingHeadlessSelection] = useState(false);
 
   const platformConfigs = getPlatformConfigs(t as any);
+  const isBrandCreationBusy = isSubmittingBrand || isUploadingLogo;
+  const brandCreationStatusText = (() => {
+    if (brandCreationStage === 'checking_limits') {
+      return t('brand_creation_checking_limits');
+    }
+    if (brandCreationStage === 'uploading_logo') {
+      return t('brand_creation_uploading_logo');
+    }
+    if (brandCreationStage === 'creating_brand') {
+      return t('brand_creation_creating_profile');
+    }
+    if (brandCreationStage === 'finalizing') {
+      return t('brand_creation_finalizing');
+    }
+    return t('creating');
+  })();
+
+  const parseApiErrorMessage = useCallback(async (response: Response, fallback: string) => {
+    try {
+      const rawBody = await response.text();
+      if (!rawBody || !rawBody.trim()) {
+        return fallback;
+      }
+
+      try {
+        const parsed = JSON.parse(rawBody) as {
+          error?: string;
+          message?: string;
+          warning?: string;
+        };
+        return parsed.error || parsed.message || parsed.warning || fallback;
+      } catch {
+        return rawBody.trim() || fallback;
+      }
+    } catch {
+      return fallback;
+    }
+  }, []);
+
+  const getCurrentUserId = useCallback(async () => {
+    const supabase = createSupabaseBrowserClient();
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+
+    if (sessionError || !session) {
+      return null;
+    }
+
+    return session.user.id;
+  }, []);
 
   const loadBrands = useCallback(async () => {
     setIsLoading(true);
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error('[Connections] Error getting session:', sessionError);
-        setIsLoading(false);
-        return;
-      }
-
-      if (!session) {
-        setIsLoading(false);
-        return;
-      }
-
-      // Get or create user in users table
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      let userId = userRecord?.id;
-
-      // If user doesn't exist in users table, create it
+      const userId = await getCurrentUserId();
       if (!userId) {
-        const { data: newUser } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-              plan: 'free',
-              is_active: true,
-            },
-          ])
-          .select('id')
-          .single();
-
-        userId = newUser?.id || session.user.id;
+        setIsLoading(false);
+        return;
       }
 
-      // Fetch brands for this user (including Getlate profile ID)
+      const supabase = createSupabaseBrowserClient();
+
+      // Fetch brands for this user (including Publishing integration profile ID)
       const { data, error } = await supabase
         .from('brands')
         .select('id,name,description,logo_url,getlate_profile_id')
@@ -314,227 +337,204 @@ export default function ConnectionsPage() {
       setBrands([]);
     }
     setIsLoading(false);
+  }, [getCurrentUserId]);
+
+  const mapCanonicalAccounts = useCallback((rows: any[] | null | undefined): SocialAccount[] => {
+    const canonicalRows: any[] = [];
+    const seenKeys = new Set<string>();
+    for (const acc of rows || []) {
+      const dedupeKey = acc.getlate_account_id
+        ? `getlate:${acc.getlate_account_id}`
+        : `native:${String(acc.platform || '').toLowerCase()}:${acc.account_id || ''}`;
+      if (seenKeys.has(dedupeKey)) {
+        continue;
+      }
+      seenKeys.add(dedupeKey);
+      canonicalRows.push(acc);
+    }
+
+    return canonicalRows.map((acc) => {
+      const platformSpecific = acc.platform_specific_data as Record<string, unknown> | null;
+      // Normalize platform: 'twitter' -> 'x' for display, but keep original for matching
+      const normalizedPlatform = (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform;
+
+      const facebookPageMeta = platformSpecific?.facebookPage as Record<string, unknown> | undefined;
+      const facebookFollowerCountRaw = facebookPageMeta?.follower_count;
+      const followerCount
+        = typeof platformSpecific?.follower_count === 'number'
+          ? platformSpecific.follower_count
+          : typeof facebookFollowerCountRaw === 'number'
+            ? facebookFollowerCountRaw
+            : 0;
+
+      // For Facebook, use page name if available, otherwise use account name
+      let displayName = (platformSpecific?.display_name as string) || acc.account_name || '';
+      let handle = acc.account_name || '';
+
+      if (acc.platform === 'facebook' && platformSpecific?.facebookPage) {
+        const facebookPage = platformSpecific.facebookPage as Record<string, unknown> | undefined;
+        if (facebookPage?.name) {
+          // Use page name for Facebook accounts with selected page
+          displayName = facebookPage.name as string;
+          handle = facebookPage.name as string;
+        }
+      }
+
+      // For LinkedIn, use organization name if posting as organization, otherwise use account name
+      if (acc.platform === 'linkedin') {
+        if (platformSpecific?.linkedinPostingType === 'organization') {
+          const linkedinOrg = platformSpecific.linkedinOrganization as Record<string, unknown> | undefined;
+
+          // Prioritize company name over ID
+          if (linkedinOrg?.name && String(linkedinOrg.name).trim()) {
+            // Use the company name if available
+            displayName = String(linkedinOrg.name).trim();
+            handle = String(linkedinOrg.name).trim();
+          } else {
+            // Fallback to company ID if name is not available
+            let companyId: string | undefined;
+
+            if (linkedinOrg?.id) {
+              companyId = String(linkedinOrg.id);
+            } else if (linkedinOrg?.urn) {
+              // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
+              const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
+              if (urnMatch) {
+                companyId = urnMatch[1];
+              }
+            } else if (platformSpecific?.linkedinOrganizationUrl) {
+              // Extract ID from URL format: linkedin.com/company/123456
+              const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
+              if (urlMatch) {
+                companyId = urlMatch[1];
+              }
+            }
+
+            if (companyId) {
+              // Display company ID as fallback if name not available
+              displayName = companyId;
+              handle = companyId;
+            }
+          }
+        } else {
+          // For personal mode, explicitly use account name
+          displayName = acc.account_name || '';
+          handle = acc.account_name || '';
+        }
+      }
+
+      return {
+        id: acc.id,
+        brand_id: acc.brand_id,
+        platform: normalizedPlatform,
+        handle,
+        display_name: displayName,
+        avatar_url: resolveAvatarUrlFromStoredPlatformData(platformSpecific ?? undefined),
+        follower_count: followerCount,
+        is_connected: true,
+        last_sync: (platformSpecific?.last_sync as string) || undefined,
+        getlate_account_id: acc.getlate_account_id || undefined,
+      };
+    });
   }, []);
 
-  const loadAccountsFromDB = useCallback(async (skipSync = false, forceSync = false) => {
-    if (!selectedBrandId) {
+  const loadAccountsFromDB = useCallback(async (
+    skipSync = false,
+    forceSync = false,
+    /** OAuth return URL includes brandId before React state updates; use this so the list loads immediately */
+    brandIdOverride?: string | null,
+  ) => {
+    const effectiveBrandId = brandIdOverride ?? selectedBrandId;
+    if (!effectiveBrandId) {
       setAccounts([]);
       return;
     }
     try {
+      setIsRefreshingAccounts(true);
+      const userId = await getCurrentUserId();
+      if (!userId) {
+        setAccounts([]);
+        return;
+      }
+
       const supabase = createSupabaseBrowserClient();
+      const currentBrand = brands.find(b => b.id === effectiveBrandId) ?? null;
 
-      // Get current user to filter accounts by user_id
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-
-      if (sessionError) {
-        console.error('[Connections] Error getting session:', sessionError);
-        setAccounts([]);
-        return;
+      // Optional sync: refresh follower data from Publishing integration + DB. Do not replace UI with an empty list
+      // when the response has no rows (avoids a flash of "all disconnected" after DB already loaded).
+      if (forceSync && !skipSync && currentBrand?.getlate_profile_id) {
+        const syncResponse = await fetch(`/api/getlate/accounts?brandId=${effectiveBrandId}`);
+        if (syncResponse.ok) {
+          const syncData = await syncResponse.json().catch(() => ({ accounts: [] }));
+          if (Array.isArray(syncData.accounts)) {
+            const mapped = mapCanonicalAccounts(syncData.accounts);
+            if (mapped.length > 0) {
+              setAccounts(mapped);
+              return;
+            }
+            // Fall through to DB load — empty sync result should not wipe previously loaded connections
+          }
+        }
       }
 
-      if (!session) {
-        setAccounts([]);
-        return;
-      }
-
-      // Get user ID from users table
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
-
-      // Load accounts from database (show data from DB immediately - no waiting for Getlate)
+      // Load accounts from database (show data from DB immediately - no waiting for Publishing integration)
       // Filter by both user_id and brand_id to ensure only current user's accounts are shown
       const { data, error } = await supabase
         .from('social_accounts')
-        .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id')
+        .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id,updated_at')
         .eq('user_id', userId)
-        .eq('brand_id', selectedBrandId)
+        .eq('brand_id', effectiveBrandId)
         .eq('is_active', true)
-        .order('platform', { ascending: true });
+        .order('updated_at', { ascending: false });
 
       if (error) {
         console.error('[Connections] Error loading accounts:', error);
         setAccounts([]);
       } else {
-        const accountsData: SocialAccount[] = (data || []).map((acc) => {
-          const platformSpecific = acc.platform_specific_data as Record<string, unknown> | null;
-          // Normalize platform: 'twitter' -> 'x' for display, but keep original for matching
-          const normalizedPlatform = (acc.platform === 'twitter' ? 'x' : acc.platform) as Platform;
-
-          // For Facebook, use page name if available, otherwise use account name
-          let displayName = (platformSpecific?.display_name as string) || acc.account_name || '';
-          let handle = acc.account_name || '';
-
-          if (acc.platform === 'facebook' && platformSpecific?.facebookPage) {
-            const facebookPage = platformSpecific.facebookPage as Record<string, unknown> | undefined;
-            if (facebookPage?.name) {
-              // Use page name for Facebook accounts with selected page
-              displayName = facebookPage.name as string;
-              handle = facebookPage.name as string;
-            }
-          }
-
-          // For LinkedIn, use organization name if posting as organization, otherwise use account name
-          if (acc.platform === 'linkedin') {
-            if (platformSpecific?.linkedinPostingType === 'organization') {
-              const linkedinOrg = platformSpecific.linkedinOrganization as Record<string, unknown> | undefined;
-
-              // Prioritize company name over ID
-              if (linkedinOrg?.name && String(linkedinOrg.name).trim()) {
-                // Use the company name if available
-                displayName = String(linkedinOrg.name).trim();
-                handle = String(linkedinOrg.name).trim();
-              } else {
-                // Fallback to company ID if name is not available
-                let companyId: string | undefined;
-
-                if (linkedinOrg?.id) {
-                  companyId = String(linkedinOrg.id);
-                } else if (linkedinOrg?.urn) {
-                  // Extract ID from URN format: urn:li:organization:123456 or urn:li:organizationBrand:123456
-                  const urnMatch = String(linkedinOrg.urn).match(/urn:li:organization(?:Brand)?:(\d+)/);
-                  if (urnMatch) {
-                    companyId = urnMatch[1];
-                  }
-                } else if (platformSpecific?.linkedinOrganizationUrl) {
-                  // Extract ID from URL format: linkedin.com/company/123456
-                  const urlMatch = String(platformSpecific.linkedinOrganizationUrl).match(/\/company\/(\d+)/);
-                  if (urlMatch) {
-                    companyId = urlMatch[1];
-                  }
-                }
-
-                if (companyId) {
-                  // Display company ID as fallback if name not available
-                  displayName = companyId;
-                  handle = companyId;
-                }
-              }
-            } else {
-              // For personal mode, explicitly use account name
-              displayName = acc.account_name || '';
-              handle = acc.account_name || '';
-            }
-          }
-
-          return {
-            id: acc.id,
-            brand_id: acc.brand_id,
-            platform: normalizedPlatform,
-            handle,
-            display_name: displayName,
-            avatar_url: (platformSpecific?.avatar_url as string) || undefined,
-            follower_count: (platformSpecific?.follower_count as number) || 0,
-            is_connected: true,
-            last_sync: (platformSpecific?.last_sync as string) || undefined,
-            getlate_account_id: acc.getlate_account_id || undefined,
-          };
-        });
-
-        setAccounts(accountsData);
-      }
-
-      // Only sync from Getlate if explicitly requested (e.g., after OAuth connection)
-      // This prevents automatic polling/interval fetching
-      const currentBrand = selectedBrandId ? brands.find(b => b.id === selectedBrandId) : null;
-      if (forceSync && !skipSync && currentBrand?.getlate_profile_id) {
-        // Don't await - let it run in background
-        fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`)
-          .then(async (response) => {
-            if (response.ok) {
-              // Small delay to ensure database write is complete
-              await new Promise(resolve => setTimeout(resolve, 500));
-              // Reload accounts from DB after sync completes (skip sync to avoid loop)
-              void loadAccountsFromDB(true);
-            }
-          })
-          .catch(() => {
-            // Silently fail - DB data is already shown
-          });
+        setAccounts(mapCanonicalAccounts(data));
       }
     } catch {
       setAccounts([]);
+    } finally {
+      setIsRefreshingAccounts(false);
     }
-  }, [selectedBrandId, brands]);
+  }, [selectedBrandId, brands, getCurrentUserId, mapCanonicalAccounts]);
 
-  const syncNow = useCallback(async (silent = false) => {
-    if (!selectedBrandId || !selectedBrand?.getlate_profile_id) {
-      if (!silent) {
-        showToast(
-          t('sync_error_no_brand') || 'No brand selected or brand not linked to Getlate profile',
-          'error',
-        );
-      }
+  const refreshAccountsAfterConnect = useCallback((brandIdOverride?: string | null) => {
+    const effectiveBrandId = brandIdOverride ?? selectedBrandId;
+    if (!effectiveBrandId) {
       return;
     }
 
-    try {
-      const response = await fetch(`/api/getlate/accounts?brandId=${selectedBrandId}`);
+    // 1) Immediate DB read for fast UI feedback
+    void loadAccountsFromDB(true, false, effectiveBrandId);
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Unknown error' }));
-        throw new Error(errorData.error || 'Failed to sync accounts');
-      }
+    // 2) Delayed force sync for eventual consistency after OAuth callback write latency
+    window.setTimeout(() => {
+      void loadAccountsFromDB(false, true, effectiveBrandId);
+    }, 1200);
 
-      // Small delay to ensure database write is complete
-      await new Promise(resolve => setTimeout(resolve, 500));
-
-      // Reload accounts from DB to show updated follower counts
-      await loadAccountsFromDB(true, false);
-
-      if (!silent) {
-        showToast(
-          t('sync_success_description') || 'Accounts synced successfully. Follower counts updated.',
-          'success',
-        );
-      }
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : 'Failed to sync accounts';
-      console.error('[Connections] Sync error:', errorMessage);
-      // Only show error toast if not silent (silent mode for background sync)
-      if (!silent) {
-        showToast(errorMessage, 'error');
-      }
-    }
-  }, [selectedBrandId, selectedBrand, loadAccountsFromDB, showToast, t]);
+    // 3) Final DB read to render the synced canonical row
+    window.setTimeout(() => {
+      void loadAccountsFromDB(true, false, effectiveBrandId);
+    }, 2600);
+  }, [selectedBrandId, loadAccountsFromDB]);
 
   useEffect(() => {
-    // Load brands on mount - using setTimeout to avoid cascading renders warning
-    const timeoutId = setTimeout(() => {
-      void loadBrands();
-    }, 0);
-
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    void loadBrands();
+    return undefined;
   }, [loadBrands]);
 
-  // Track last synced brand to avoid redundant syncs
-  const lastSyncedBrandId = useRef<string | null>(null);
-
   useEffect(() => {
-    // Load accounts when selected brand changes - only when brand actually changes
+    // Load accounts from DB only. Do not auto-run a Publishing integration sync on every brand select — that was
+    // overwriting the UI when Publishing integration briefly reported isConnected=false. User can refresh/sync
+    // after OAuth or via explicit actions that call loadAccountsFromDB(..., true).
     if (selectedBrandId) {
-      // Load accounts from DB first (immediate, shows existing data)
       void loadAccountsFromDB(false, false);
-
-      // If brand has Getlate profile and hasn't been synced yet, sync in background
-      const currentBrand = brands.find(b => b.id === selectedBrandId);
-      if (currentBrand?.getlate_profile_id && lastSyncedBrandId.current !== selectedBrandId) {
-        lastSyncedBrandId.current = selectedBrandId;
-        // Trigger sync in background (silent mode - no toast notifications)
-        void syncNow(true);
-      }
     } else {
       // Clear accounts when no brand is selected
       // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
       setAccounts([]);
-      lastSyncedBrandId.current = null; // Reset when brand is cleared
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedBrandId, brands]); // Depend on brand ID and brands array
@@ -544,32 +544,225 @@ export default function ConnectionsPage() {
     const headless = searchParams.get('headless');
     const step = searchParams.get('step');
     const platform = searchParams.get('platform');
-    const profileId = searchParams.get('profileId');
-    const tempToken = searchParams.get('tempToken');
-    const userProfile = searchParams.get('userProfile');
-    const connectToken = searchParams.get('connect_token');
+    const profileId = searchParams.get('profileId') || searchParams.get('profile_id');
+    const tempToken = searchParams.get('tempToken') || searchParams.get('temp_token');
+    const userProfile = searchParams.get('userProfile') || searchParams.get('user_profile');
+    const connectToken = searchParams.get('connect_token') || searchParams.get('connectToken');
+    const pendingDataToken = searchParams.get('pendingDataToken') || searchParams.get('pending_data_token');
     const organizations = searchParams.get('organizations');
     const brandId = searchParams.get('brandId');
 
-    // Check if this is a headless mode callback
-    if (headless === 'true' && step && platform && profileId && tempToken && userProfile && connectToken) {
-      // Clean up URL immediately
+    if (headless !== 'true' || !step || !platform) {
+      return undefined;
+    }
+
+    const urlKey = searchParams.toString();
+
+    // LinkedIn headless with pendingDataToken — https://docs.getlate.dev/connect/get-pending-oauth-data
+    if (platform === 'linkedin' && step === 'select_organization' && pendingDataToken) {
+      if (linkedInPendingOAuthUrlRef.current === urlKey) {
+        return undefined;
+      }
+      linkedInPendingOAuthUrlRef.current = urlKey;
       window.history.replaceState({}, '', window.location.pathname);
 
-      // Set headless mode data to trigger selection dialog
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
+      setIsResolvingLinkedInHeadless(true);
+      void fetch(`/api/getlate/connect/pending-data?token=${encodeURIComponent(pendingDataToken)}`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Failed to load LinkedIn connection data' }));
+            showToast((err as { error?: string }).error || 'Failed to load LinkedIn connection data', 'error');
+            linkedInPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const data = (await response.json()) as {
+            profileId?: string;
+            tempToken?: string;
+            userProfile?: Record<string, unknown>;
+            organizations?: Array<Record<string, unknown>>;
+            connectToken?: string;
+            connect_token?: string;
+          };
+          const resolvedProfileId = data.profileId || profileId;
+          const resolvedTempToken = data.tempToken || tempToken;
+          if (!resolvedProfileId || !resolvedTempToken) {
+            showToast('LinkedIn connection data is incomplete. Try connecting again.', 'error');
+            linkedInPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const profileStr = data.userProfile
+            ? encodeURIComponent(JSON.stringify(data.userProfile))
+            : (userProfile || undefined);
+
+          setHeadlessModeData({
+            step,
+            platform,
+            profileId: resolvedProfileId,
+            tempToken: resolvedTempToken,
+            userProfile: profileStr,
+            connectToken: data.connectToken || data.connect_token || connectToken || undefined,
+            brandId: brandId || undefined,
+          });
+
+          if (Array.isArray(data.organizations) && data.organizations.length > 0) {
+            setLinkedinOrganizations(
+              data.organizations
+                .map((org: Record<string, unknown>) => ({
+                  id: String(org.id ?? org._id ?? ''),
+                  name: String(org.name ?? org.organizationName ?? 'Organization'),
+                  urn: (org.urn ?? org.organizationUrn) as string | undefined,
+                  vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+                }))
+                .filter(o => o.id),
+            );
+          } else if (organizations) {
+            try {
+              const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
+              if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
+                setLinkedinOrganizations(decodedOrgs.map((org: Record<string, unknown>) => ({
+                  id: String(org.id ?? org._id ?? ''),
+                  name: String(org.name ?? org.organizationName ?? 'Organization'),
+                  urn: (org.urn ?? org.organizationUrn) as string | undefined,
+                  vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+                })).filter(o => o.id));
+              }
+            } catch (error) {
+              console.error('Error parsing LinkedIn organizations:', error);
+            }
+          }
+
+          if (brandId && brands.length > 0) {
+            const brandToSelect = brands.find(b => b.id === brandId);
+            if (brandToSelect && selectedBrandId !== brandId) {
+              setSelectedBrandId(brandId);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('LinkedIn pending OAuth fetch:', error);
+          showToast('Failed to load LinkedIn connection data', 'error');
+          linkedInPendingOAuthUrlRef.current = null;
+        })
+        .finally(() => {
+          setIsResolvingLinkedInHeadless(false);
+        });
+
+      return undefined;
+    }
+
+    // Facebook headless with pendingDataToken — same exchange as LinkedIn (Zernio GET /connect/pending-data)
+    if (platform === 'facebook' && step === 'select_page' && pendingDataToken) {
+      if (facebookPendingOAuthUrlRef.current === urlKey) {
+        return undefined;
+      }
+      facebookPendingOAuthUrlRef.current = urlKey;
+      window.history.replaceState({}, '', window.location.pathname);
+
+      setIsLoadingHeadlessPages(true);
+      void fetch(`/api/getlate/connect/pending-data?token=${encodeURIComponent(pendingDataToken)}`)
+        .then(async (response) => {
+          if (!response.ok) {
+            const err = await response.json().catch(() => ({ error: 'Failed to load Facebook connection data' }));
+            showToast((err as { error?: string }).error || 'Failed to load Facebook connection data', 'error');
+            facebookPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const data = (await response.json()) as {
+            profileId?: string;
+            tempToken?: string;
+            userProfile?: Record<string, unknown>;
+            connectToken?: string;
+            connect_token?: string;
+            pages?: Array<Record<string, unknown>>;
+          };
+          const resolvedProfileId = data.profileId || profileId;
+          const resolvedTempToken = data.tempToken || tempToken;
+          if (!resolvedProfileId || !resolvedTempToken) {
+            showToast('Facebook connection data is incomplete. Try connecting again.', 'error');
+            facebookPendingOAuthUrlRef.current = null;
+            return;
+          }
+          const profileStr = data.userProfile
+            ? encodeURIComponent(JSON.stringify(data.userProfile))
+            : (userProfile || undefined);
+          const resolvedConnect = data.connectToken || data.connect_token || connectToken || undefined;
+
+          setHeadlessModeData({
+            step,
+            platform,
+            profileId: resolvedProfileId,
+            tempToken: resolvedTempToken,
+            userProfile: profileStr,
+            connectToken: resolvedConnect,
+            brandId: brandId || undefined,
+          });
+
+          const mapFbPage = (p: Record<string, unknown>) => ({
+            id: String(p.id ?? p._id ?? p.pageId ?? p.facebookPageId ?? ''),
+            name: String(p.name ?? p.pageName ?? p.title ?? 'Page'),
+            pageId: (p.pageId ?? p.facebookPageId ?? p.id ?? p._id) as string | undefined,
+          });
+
+          if (Array.isArray(data.pages) && data.pages.length > 0) {
+            setHeadlessFacebookPages(
+              data.pages.map(mapFbPage).filter(p => p.id),
+            );
+          } else {
+            const headers: Record<string, string> = {};
+            if (resolvedConnect) {
+              headers['X-Connect-Token'] = resolvedConnect;
+            }
+            const listRes = await fetch(
+              `/api/getlate/facebook/select-page?profileId=${encodeURIComponent(resolvedProfileId)}&tempToken=${encodeURIComponent(resolvedTempToken)}`,
+              { headers },
+            );
+            if (listRes.ok) {
+              const listJson = await listRes.json();
+              const raw = (listJson.pages || []) as Array<Record<string, unknown>>;
+              setHeadlessFacebookPages(raw.map(mapFbPage).filter(p => p.id));
+            } else {
+              const err = await listRes.json().catch(() => ({ error: 'Failed to fetch Facebook pages' }));
+              showToast((err as { error?: string }).error || 'Failed to fetch Facebook pages', 'error');
+              facebookPendingOAuthUrlRef.current = null;
+              setHeadlessModeData(null);
+            }
+          }
+
+          if (brandId && brands.length > 0) {
+            const brandToSelect = brands.find(b => b.id === brandId);
+            if (brandToSelect && selectedBrandId !== brandId) {
+              setSelectedBrandId(brandId);
+            }
+          }
+        })
+        .catch((error) => {
+          console.error('Facebook pending OAuth fetch:', error);
+          showToast('Failed to load Facebook connection data', 'error');
+          facebookPendingOAuthUrlRef.current = null;
+        })
+        .finally(() => {
+          setIsLoadingHeadlessPages(false);
+        });
+
+      return undefined;
+    }
+
+    // Legacy headless: inline query params (Facebook page pick, LinkedIn org list in URL, etc.)
+    const canLegacyFacebookList = platform === 'facebook' && step === 'select_page' && profileId && tempToken;
+    if (profileId && tempToken && (connectToken || canLegacyFacebookList)) {
+      window.history.replaceState({}, '', window.location.pathname);
+
       setHeadlessModeData({
         step,
         platform,
         profileId,
         tempToken,
-        userProfile,
-        connectToken,
+        userProfile: userProfile || undefined,
+        connectToken: connectToken || undefined,
         organizations: organizations || undefined,
         brandId: brandId || undefined,
       });
 
-      // If brandId is in URL, sync it to context
       if (brandId && brands.length > 0) {
         const brandToSelect = brands.find(b => b.id === brandId);
         if (brandToSelect && selectedBrandId !== brandId) {
@@ -577,22 +770,22 @@ export default function ConnectionsPage() {
         }
       }
 
-      // For Facebook, fetch pages immediately
       if (platform === 'facebook' && step === 'select_page') {
-        // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
         setIsLoadingHeadlessPages(true);
+        const listHeaders: Record<string, string> = {};
+        if (connectToken) {
+          listHeaders['X-Connect-Token'] = connectToken;
+        }
         fetch(`/api/getlate/facebook/select-page?profileId=${encodeURIComponent(profileId)}&tempToken=${encodeURIComponent(tempToken)}`, {
-          headers: {
-            'X-Connect-Token': connectToken,
-          },
+          headers: listHeaders,
         })
           .then(async (response) => {
             if (response.ok) {
               const data = await response.json();
               setHeadlessFacebookPages(data.pages || []);
             } else {
-              const error = await response.json().catch(() => ({ error: 'Failed to fetch pages' }));
-              showToast(error.error || 'Failed to fetch Facebook pages', 'error');
+              const err = await response.json().catch(() => ({ error: 'Failed to fetch pages' }));
+              showToast((err as { error?: string }).error || 'Failed to fetch Facebook pages', 'error');
               setHeadlessModeData(null);
             }
           })
@@ -606,23 +799,24 @@ export default function ConnectionsPage() {
           });
       }
 
-      // For LinkedIn, parse organizations from URL-encoded JSON
       if (platform === 'linkedin' && step === 'select_organization' && organizations) {
         try {
           const decodedOrgs = JSON.parse(decodeURIComponent(organizations));
           if (Array.isArray(decodedOrgs) && decodedOrgs.length > 0) {
-            // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-            setLinkedinOrganizations(decodedOrgs.map((org: any) => ({
-              id: org.id || org._id,
-              name: org.name || org.organizationName,
-              urn: org.urn || org.organizationUrn,
-            })));
+            setLinkedinOrganizations(decodedOrgs.map((org: Record<string, unknown>) => ({
+              id: String(org.id ?? org._id ?? ''),
+              name: String(org.name ?? org.organizationName ?? 'Organization'),
+              urn: (org.urn ?? org.organizationUrn) as string | undefined,
+              vanityName: (org.vanityName ?? org.vanity_name) as string | undefined,
+            })).filter(o => o.id));
           }
         } catch (error) {
           console.error('Error parsing LinkedIn organizations:', error);
         }
       }
     }
+
+    return undefined;
   }, [searchParams, brands, selectedBrandId, setSelectedBrandId, showToast]);
 
   // Handle OAuth callback - check for success, cancellation, or error messages
@@ -677,9 +871,6 @@ export default function ConnectionsPage() {
       // Both indicate success
       showToast(t('connection_success'), 'success');
 
-      // Check if sync completed successfully (get from original params before cleanup)
-      const synced = searchParams.get('synced') === 'true';
-
       // Reset ref after a delay to allow for new callbacks
       const successTimeout = setTimeout(() => {
         processedCallbackRef.current.delete(callbackKey);
@@ -689,99 +880,17 @@ export default function ConnectionsPage() {
       // The callback route already synced accounts, so we need to reload from DB
       const brandIdFromUrl = searchParams.get('brandId');
 
-      // If brandId is in URL, sync it to context
-      if (brandIdFromUrl && brands.length > 0) {
-        const brandToSelect = brands.find(b => b.id === brandIdFromUrl);
-        if (brandToSelect && selectedBrandId !== brandIdFromUrl) {
-          setSelectedBrandId(brandIdFromUrl);
-        }
+      // Sync OAuth return brand into context (do not wait for `brands` — that blocked updates when brands were still loading)
+      if (brandIdFromUrl && selectedBrandId !== brandIdFromUrl) {
+        setSelectedBrandId(brandIdFromUrl);
       }
 
-      // Wait a bit for database commit, then reload accounts
-      // Use a longer delay to ensure sync completed on server
-      const reloadTimeout = setTimeout(async () => {
-        const currentBrandId = brandIdFromUrl || selectedBrandId;
-
-        if (currentBrandId) {
-          // Clear accounts first to force a fresh load
-          setAccounts([]);
-
-          // Wait a bit more to ensure database is fully updated
-          await new Promise<void>((resolve) => {
-            const timeoutId = setTimeout(() => {
-              resolve();
-            }, 500);
-            // Store timeout ID for potential cleanup if needed
-            // Note: timeoutId is assigned for linting compliance
-            void timeoutId;
-          });
-
-          // Reload from DB - sync already completed on server side
-          await loadAccountsFromDB(true, false); // skipSync=true to avoid double sync, forceSync=false
-
-          // Sync follower counts to ensure latest data and reload accounts
-          const currentBrand = brands.find(b => b.id === currentBrandId);
-          if (currentBrand?.getlate_profile_id) {
-            // Wait a bit before syncing to ensure DB is ready
-            await new Promise<void>((resolve) => {
-              const timeoutId = setTimeout(() => {
-                resolve();
-              }, 500);
-              // Store timeout ID for potential cleanup if needed
-              // Note: timeoutId is assigned for linting compliance
-              void timeoutId;
-            });
-            await syncNow(true);
-          }
-        }
-      }, 1500); // Wait 1.5 seconds for DB commit
-
-      // If sync failed on server, retry sync once
-      let retryTimeout: NodeJS.Timeout | undefined;
-      if (!synced) {
-        retryTimeout = setTimeout(async () => {
-          const currentBrandId = brandIdFromUrl || selectedBrandId;
-
-          if (currentBrandId) {
-            // Clear accounts to force refresh
-            setAccounts([]);
-
-            // Wait a bit before retry
-            await new Promise<void>((resolve) => {
-              const timeoutId = setTimeout(() => {
-                resolve();
-              }, 500);
-              // Store timeout ID for potential cleanup if needed
-              // Note: timeoutId is assigned for linting compliance
-              void timeoutId;
-            });
-
-            // Retry sync from Getlate
-            await loadAccountsFromDB(false, true); // skipSync=false, forceSync=true to force sync
-
-            // Also sync follower counts after retry and reload accounts
-            const currentBrand = brands.find(b => b.id === currentBrandId);
-            if (currentBrand?.getlate_profile_id) {
-              await new Promise<void>((resolve) => {
-                const timeoutId = setTimeout(() => {
-                  resolve();
-                }, 500);
-                // Store timeout ID for potential cleanup if needed
-                // Note: timeoutId is assigned for linting compliance
-                void timeoutId;
-              });
-              await syncNow(true);
-            }
-          }
-        }, 2000);
-      }
+      // Pass brandId from URL so loads run against the correct brand in the same tick as the toast (setState is async)
+      const reloadBrandId = brandIdFromUrl ?? selectedBrandId;
+      refreshAccountsAfterConnect(reloadBrandId);
 
       return () => {
         clearTimeout(successTimeout);
-        clearTimeout(reloadTimeout);
-        if (retryTimeout) {
-          clearTimeout(retryTimeout);
-        }
       };
     } else if (error) {
       showToast(t('connection_error'), 'error');
@@ -799,12 +908,24 @@ export default function ConnectionsPage() {
     }
 
     return undefined;
-  }, [searchParams, selectedBrandId, brands, loadAccountsFromDB, showToast, t, setSelectedBrandId, syncNow]);
+  }, [
+    searchParams,
+    selectedBrandId,
+    brands,
+    loadAccountsFromDB,
+    refreshAccountsAfterConnect,
+    showToast,
+    t,
+    setSelectedBrandId,
+  ]);
 
   const handleCreateBrand = async () => {
     if (!newBrandName.trim()) {
       return;
     }
+
+    setIsSubmittingBrand(true);
+    setBrandCreationStage('checking_limits');
 
     // Check brand limit before creating
     try {
@@ -819,6 +940,8 @@ export default function ConnectionsPage() {
                 : `You've reached your brand limit (${limitsData.limits.maxBrands}). Upgrade your plan to create more brands.`,
               'error',
             );
+            setIsSubmittingBrand(false);
+            setBrandCreationStage('idle');
             return;
           }
         }
@@ -832,23 +955,19 @@ export default function ConnectionsPage() {
       const supabase = createSupabaseBrowserClient();
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
+        setIsSubmittingBrand(false);
+        setBrandCreationStage('idle');
         return;
       }
 
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       let logoUrl: string | null = null;
 
       // Upload logo if provided
       if (brandLogoFile) {
         setIsUploadingLogo(true);
+        setBrandCreationStage('uploading_logo');
         try {
           // Validate file type (only images)
           if (!brandLogoFile.type.startsWith('image/')) {
@@ -892,7 +1011,8 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Create brand via API to handle Getlate profile automatically
+      // Create brand via API to handle Publishing integration profile automatically
+      setBrandCreationStage('creating_brand');
       const brandResponse = await fetch('/api/brands', {
         method: 'POST',
         headers: {
@@ -912,7 +1032,7 @@ export default function ConnectionsPage() {
         return;
       }
 
-      const { brand: newBrandData } = await brandResponse.json();
+      const { brand: newBrandData, warning } = await brandResponse.json();
 
       const newBrand: Brand = {
         id: newBrandData.id,
@@ -926,13 +1046,27 @@ export default function ConnectionsPage() {
       setBrandLogoFile(null);
       setIsCreatingBrand(false);
       showToast(t('brand_created_success'), 'success');
+      if (warning) {
+        showToast(String(warning), 'error');
+      } else if (!newBrandData.getlate_profile_id) {
+        showToast(
+          isRTL
+            ? 'המותג נוצר, אך לא נוצר פרופיל חיבור לרשתות. בדוק את הגדרות האינטגרציה או את מגבלת הפרופילים.'
+            : 'Brand created, but no social connection profile was created. Check integration settings or profile limits.',
+          'error',
+        );
+      }
       // Reload brands to ensure consistency
+      setBrandCreationStage('finalizing');
       await loadBrands();
     } catch (error) {
       console.error('Error creating brand:', error);
       const errorMessage = error instanceof Error ? error.message : t('brand_creation_error');
       showToast(errorMessage, 'error');
       // Error will be handled by reloading brands - if creation failed, it won't appear
+    } finally {
+      setIsSubmittingBrand(false);
+      setBrandCreationStage('idle');
     }
   };
 
@@ -940,6 +1074,9 @@ export default function ConnectionsPage() {
     if (!selectedBrandId || !selectedBrand) {
       return;
     }
+
+    // Show immediate feedback on click (before checks/network).
+    setIsConnectingOAuth(platform);
 
     // Check social account limit before connecting (per brand)
     try {
@@ -950,10 +1087,11 @@ export default function ConnectionsPage() {
           if (!limitsData.canConnectAccount) {
             showToast(
               isRTL
-                ? `הגעת למגבלת חשבונות חברתיים (${limitsData.limits.maxSocialAccounts}). שדרג את התוכנית שלך כדי לחבר עוד חשבונות.`
+                ? `הגעת למגבלת חשבונות סושיאל (${limitsData.limits.maxSocialAccounts}). שדרג את התוכנית שלך כדי לחבר עוד חשבונות.`
                 : `You've reached your social account limit (${limitsData.limits.maxSocialAccounts}). Upgrade your plan to connect more accounts.`,
               'error',
             );
+            setIsConnectingOAuth(null);
             return;
           }
         }
@@ -963,200 +1101,82 @@ export default function ConnectionsPage() {
       // Continue with connection attempt even if limit check fails
     }
 
-    setIsConnectingOAuth(platform);
-
     try {
-      const supabase = createSupabaseBrowserClient();
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        setIsConnectingOAuth(null);
-        return;
-      }
+      const connectPayload = {
+        platform: platform === 'x' ? 'twitter' : platform,
+        brandId: selectedBrandId,
+        redirectUrl: `${window.location.origin}/api/getlate/callback?brandId=${selectedBrandId}&locale=${locale}`,
+      };
 
-      // Get or create user in users table (same pattern as loadBrands)
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      let userId = userRecord?.id;
-
-      // If user doesn't exist in users table, create it
-      if (!userId) {
-        const { data: newUser } = await supabase
-          .from('users')
-          .insert([
-            {
-              id: session.user.id,
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || session.user.email?.split('@')[0] || 'User',
-              plan: 'free',
-              is_active: true,
-            },
-          ])
-          .select('id')
-          .single();
-
-        userId = newUser?.id || session.user.id;
-      }
-
-      // Check if brand has a Getlate profile, create if not
-      // First, try to select all columns including getlate_profile_id
-      let { data: brandData, error: brandError } = await supabase
-        .from('brands')
-        .select('id, getlate_profile_id, name, user_id')
-        .eq('id', selectedBrandId)
-        .eq('user_id', userId)
-        .maybeSingle();
-
-      // If the error is about the column not existing, try again without getlate_profile_id
-      if (brandError && brandError.message && brandError.message.includes('does not exist')) {
-        // Column doesn't exist yet - select without it
-        const { data: brandDataWithoutGetlate, error: brandErrorWithoutGetlate } = await supabase
-          .from('brands')
-          .select('id, name, user_id')
-          .eq('id', selectedBrandId)
-          .eq('user_id', userId)
-          .maybeSingle();
-
-        if (brandErrorWithoutGetlate && (brandErrorWithoutGetlate.message || brandErrorWithoutGetlate.code)) {
-          console.error('Error fetching brand:', brandErrorWithoutGetlate.message || brandErrorWithoutGetlate.code);
-          setIsConnectingOAuth(null);
-          return;
-        }
-
-        if (!brandDataWithoutGetlate) {
-          console.error('Brand not found or does not belong to current user', {
-            brandId: selectedBrandId,
-            userId,
-          });
-          setIsConnectingOAuth(null);
-          return;
-        }
-
-        // Add getlate_profile_id as null since column doesn't exist
-        brandData = { ...brandDataWithoutGetlate, getlate_profile_id: null };
-        brandError = null;
-      } else if (brandError && (brandError.message || brandError.code)) {
-        // Other error
-        console.error('Error fetching brand:', brandError.message || brandError.code || brandError);
-        setIsConnectingOAuth(null);
-        return;
-      }
-
-      if (!brandData) {
-        console.error('Brand not found or does not belong to current user', {
-          brandId: selectedBrandId,
-          userId,
+      const requestConnect = async () => {
+        const connectResponse = await fetch('/api/getlate/connect', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(connectPayload),
         });
-        setIsConnectingOAuth(null);
-        return;
-      }
 
-      // If brand doesn't have a Getlate profile, create one
-      // Note: getlate_profile_id might be null if the column doesn't exist yet
-      if (!brandData.getlate_profile_id) {
+        if (!connectResponse.ok) {
+          const errorMessage = await parseApiErrorMessage(
+            connectResponse,
+            t('connection_error') || 'Failed to initiate connection',
+          );
+          return { ok: false as const, errorMessage };
+        }
+
+        const responseData = await connectResponse.json();
+        const authUrl = responseData?.authUrl as string | undefined;
+        if (!authUrl || typeof authUrl !== 'string' || authUrl === 'undefined') {
+          return { ok: false as const, errorMessage: t('connection_error') || 'Failed to initiate connection' };
+        }
+
+        return { ok: true as const, authUrl };
+      };
+
+      let connectAttempt = await requestConnect();
+
+      // Auto-create profile if missing, then retry once.
+      if (!connectAttempt.ok && connectAttempt.errorMessage.toLowerCase().includes('brand not linked to getlate profile')) {
         const profileResponse = await fetch('/api/getlate/profiles', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
-            name: brandData.name || selectedBrand?.name || '',
+            name: selectedBrand?.name || '',
             brandId: selectedBrandId,
           }),
         });
 
         if (!profileResponse.ok) {
-          const error = await profileResponse.json().catch(() => ({ error: 'Failed to create profile' }));
-          console.error('Error creating Getlate profile:', error);
+          const profileErrorMessage = await parseApiErrorMessage(
+            profileResponse,
+            t('connection_error') || 'Failed to create profile',
+          );
+          showToast(profileErrorMessage, 'error');
           setIsConnectingOAuth(null);
           return;
         }
 
-        // Get the profile ID from the response
-        const responseData = await profileResponse.json();
-
-        const { profile, profileId } = responseData;
-
-        // Use profile ID from response, or try to extract from profile object
-        let profileIdToUse = profileId || profile?.id;
-
-        // Debug logging
-        if (!profileIdToUse) {
-          console.warn('Profile ID not found in response:', {
-            hasProfileId: !!profileId,
-            hasProfile: !!profile,
-            profileIdValue: profileId,
-            profileIdFromProfile: profile?.id,
-            fullResponse: responseData,
-          });
-        }
-
-        if (!profileIdToUse) {
-          // Fallback: reload brand data to get the new profile ID
-          // Wait a bit for the database update to complete
-          await new Promise(resolve => setTimeout(resolve, 500));
-
-          const { data: updatedBrand, error: reloadError } = await supabase
-            .from('brands')
-            .select('id, getlate_profile_id')
-            .eq('id', selectedBrandId)
-            .maybeSingle(); // Use maybeSingle to avoid throwing if not found
-
-          if (!reloadError && updatedBrand?.getlate_profile_id) {
-            profileIdToUse = updatedBrand.getlate_profile_id;
-          }
-        }
-
-        if (!profileIdToUse) {
-          console.error('Failed to get Getlate profile ID after creation', {
-            responseData,
-            brandId: selectedBrandId,
-          });
-          setIsConnectingOAuth(null);
-          return;
-        }
-
-        brandData = { ...brandData, getlate_profile_id: profileIdToUse };
+        connectAttempt = await requestConnect();
       }
 
-      // Initiate OAuth flow
-      const connectResponse = await fetch('/api/getlate/connect', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          platform: platform === 'x' ? 'twitter' : platform,
-          brandId: selectedBrandId,
-          redirectUrl: `${window.location.origin}/api/getlate/callback?brandId=${selectedBrandId}`,
-        }),
-      });
-
-      if (!connectResponse.ok) {
-        const error = await connectResponse.json().catch(() => ({ error: 'Failed to initiate connection' }));
-        console.error('Error initiating OAuth:', error);
+      if (!connectAttempt.ok) {
+        showToast(connectAttempt.errorMessage, 'error');
         setIsConnectingOAuth(null);
         return;
       }
 
-      const responseData = await connectResponse.json();
-      const { authUrl } = responseData;
-
-      // Validate authUrl before redirecting
-      if (!authUrl || typeof authUrl !== 'string' || authUrl === 'undefined') {
-        console.error('Invalid authUrl received:', authUrl, 'Full response:', responseData);
-        setIsConnectingOAuth(null);
-        return;
-      }
-
-      // Redirect to OAuth URL immediately
-      // Don't set state after this - we're leaving the page
-      window.location.href = authUrl;
+      // Clear loading state before navigation (helps if redirect is delayed or blocked).
+      setIsConnectingOAuth(null);
+      window.location.href = connectAttempt.authUrl;
     } catch (error) {
       console.error('Error connecting with OAuth:', error);
+      showToast(
+        error instanceof Error ? error.message : (t('connection_error') || 'Failed to connect'),
+        'error',
+      );
       setIsConnectingOAuth(null);
     }
   };
@@ -1168,77 +1188,22 @@ export default function ConnectionsPage() {
 
     // Store account info before closing modal
     const accountIdToDisconnect = accountToDisconnect.id;
+    const getlateAccountId = accountToDisconnect.getlate_account_id;
 
     try {
-      const supabase = createSupabaseBrowserClient();
+      setIsDisconnecting(true);
+      const accountId = accountToDisconnect.id;
+      setAccounts(prev => prev.filter(acc => acc.id !== accountId));
+      setAccountToDisconnect(null);
 
-      // Get current user to ensure we only disconnect user's own accounts
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
+      const userId = await getCurrentUserId();
+      if (!userId) {
         showToast(t('connection_error'), 'error');
-        setAccountToDisconnect(null);
+        await loadAccountsFromDB(true, false);
         return;
       }
 
-      // Get user ID from users table
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
-
-      // Get Getlate account ID if available
-      // First, fetch the account with getlate_account_id to ensure we have it
-      const { data: accountWithGetlate } = await supabase
-        .from('social_accounts')
-        .select('id, getlate_account_id, platform, account_name')
-        .eq('id', accountIdToDisconnect)
-        .eq('user_id', userId)
-        .single();
-
-      const getlateAccountId = accountWithGetlate?.getlate_account_id;
-
-      // First, disconnect from Getlate if account is linked
-      if (getlateAccountId) {
-        try {
-          const disconnectResponse = await fetch('/api/getlate/disconnect', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              accountId: accountIdToDisconnect,
-              getlateAccountId,
-            }),
-          });
-
-          const disconnectResult = await disconnectResponse.json();
-
-          if (!disconnectResponse.ok) {
-            console.error('[Disconnect] ❌ Failed to disconnect from Getlate:', disconnectResult);
-            const errorMsg = disconnectResult.error || t('unknown_error');
-            showToast(
-              t('disconnect_getlate_failed', { error: errorMsg }),
-              'error',
-            );
-            setAccountToDisconnect(null); // Close modal on error
-            // Continue with local disconnect even if Getlate disconnect fails
-          } else if (disconnectResult.warning) {
-            console.warn('[Disconnect] ⚠️ Getlate disconnect warning:', disconnectResult.warning);
-            showToast(t('disconnect_getlate_warning'), 'info');
-          }
-        } catch (getlateError) {
-          console.error('[Disconnect] ❌ Error calling Getlate disconnect API:', getlateError);
-          showToast(
-            t('disconnect_getlate_error'),
-            'error',
-          );
-          setAccountToDisconnect(null); // Close modal on error
-          // Continue with local disconnect even if Getlate API call fails
-        }
-      }
+      const supabase = createSupabaseBrowserClient();
 
       // Get current platform data before updating
       const { data: currentAccount } = await supabase
@@ -1249,7 +1214,7 @@ export default function ConnectionsPage() {
         .single();
 
       // Deactivate account instead of deleting (soft delete)
-      // Also set a flag to prevent Getlate sync from reactivating it
+      // Also set a flag to prevent Publishing integration sync from reactivating it
       // Filter by both id and user_id to ensure user can only disconnect their own accounts
       const currentPlatformData = (currentAccount?.platform_specific_data as Record<string, unknown>) || {};
       const { error } = await supabase
@@ -1269,30 +1234,55 @@ export default function ConnectionsPage() {
       if (error) {
         console.error('Error disconnecting account:', error);
         showToast(t('connection_error'), 'error');
-        setAccountToDisconnect(null); // Close modal on error
+        await loadAccountsFromDB(true, false);
         return;
       }
 
-      setAccountToDisconnect(null);
       showToast(t('account_disconnected_success'), 'success');
 
-      // Reload accounts with skipSync=true to prevent Getlate sync from reactivating it
-      await loadAccountsFromDB(true, false);
+      // Reload accounts with skipSync=true to prevent Publishing integration sync from reactivating it
+      void loadAccountsFromDB(true, false);
 
-      // Sync follower counts for remaining accounts and reload
-      if (selectedBrand?.getlate_profile_id) {
-        await syncNow(true);
+      // Disconnect from Publishing integration in background so UI is not blocked.
+      if (getlateAccountId) {
+        void fetch('/api/getlate/disconnect', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            accountId: accountIdToDisconnect,
+            getlateAccountId,
+          }),
+        })
+          .then(async (response) => {
+            const disconnectResult = await response.json().catch(() => ({}));
+            if (!response.ok) {
+              const errorMsg = (disconnectResult as { error?: string }).error || t('unknown_error');
+              showToast(t('disconnect_getlate_failed', { error: errorMsg }), 'error');
+              return;
+            }
+
+            if ((disconnectResult as { warning?: string }).warning) {
+              showToast(t('disconnect_getlate_warning'), 'info');
+            }
+          })
+          .catch(() => {
+            showToast(t('disconnect_getlate_error'), 'error');
+          });
       }
     } catch (error) {
       console.error('Error disconnecting account:', error);
       showToast(t('connection_error'), 'error');
-      setAccountToDisconnect(null); // Close modal on error
+      await loadAccountsFromDB(true, false);
+    } finally {
+      setIsDisconnecting(false);
     }
   };
 
   const handleOpenFacebookPages = async (account: SocialAccount) => {
     if (!account.getlate_account_id) {
-      showToast(t('account_not_linked') || 'Account not linked to Getlate', 'error');
+      showToast(t('account_not_linked') || 'Account not linked to publishing', 'error');
       return;
     }
 
@@ -1380,14 +1370,8 @@ export default function ConnectionsPage() {
       setFacebookAccountForPages(null);
       setSelectedFacebookPageId(null);
       setFacebookPages([]);
-      // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await loadAccountsFromDB(false, true); // Force sync to get updated followers count
-
-      // Also sync follower counts to ensure latest data and reload accounts
-      if (selectedBrand?.getlate_profile_id) {
-        await syncNow(true);
-      }
+      // Atomic refresh so connection + follower counts update together.
+      await loadAccountsFromDB(false, true);
     } catch (error) {
       console.error('Error saving Facebook page:', error);
       showToast(
@@ -1401,7 +1385,7 @@ export default function ConnectionsPage() {
 
   const handleOpenLinkedInOrganizations = async (account: SocialAccount) => {
     if (!account.getlate_account_id) {
-      showToast(t('account_not_linked') || 'Account not linked to Getlate', 'error');
+      showToast(t('account_not_linked') || 'Account not linked to publishing', 'error');
       return;
     }
 
@@ -1485,22 +1469,30 @@ export default function ConnectionsPage() {
     if (!headlessModeData || !selectedHeadlessFacebookPageId) {
       return;
     }
+    const connectToken = headlessModeData.connectToken;
+    const brandIdForReload = headlessModeData.brandId || selectedBrandId;
 
     setIsSavingHeadlessSelection(true);
     try {
       let userProfileObj: any;
       try {
-        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+        userProfileObj = headlessModeData.userProfile
+          ? JSON.parse(decodeURIComponent(headlessModeData.userProfile))
+          : {};
       } catch {
         userProfileObj = {};
       }
 
+      const postHeaders: Record<string, string> = {
+        'Content-Type': 'application/json',
+      };
+      if (connectToken) {
+        postHeaders['X-Connect-Token'] = connectToken;
+      }
+
       const response = await fetch('/api/getlate/facebook/select-page', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Connect-Token': headlessModeData.connectToken,
-        },
+        headers: postHeaders,
         body: JSON.stringify({
           profileId: headlessModeData.profileId,
           pageId: selectedHeadlessFacebookPageId,
@@ -1520,19 +1512,9 @@ export default function ConnectionsPage() {
       setSelectedHeadlessFacebookPageId(null);
       setHeadlessFacebookPages([]);
 
-      // Reload accounts after a delay
-      setTimeout(async () => {
-        const brandId = headlessModeData.brandId || selectedBrandId;
-        if (brandId) {
-          await loadAccountsFromDB(false, true);
-
-          // Sync follower counts and reload accounts
-          const currentBrand = brands.find(b => b.id === brandId);
-          if (currentBrand?.getlate_profile_id) {
-            await syncNow(true);
-          }
-        }
-      }, 1000);
+      if (brandIdForReload) {
+        refreshAccountsAfterConnect(brandIdForReload);
+      }
     } catch (error) {
       console.error('Error saving Facebook page:', error);
       showToast(
@@ -1553,17 +1535,21 @@ export default function ConnectionsPage() {
     try {
       let userProfileObj: any;
       try {
-        userProfileObj = JSON.parse(decodeURIComponent(headlessModeData.userProfile));
+        userProfileObj = headlessModeData.userProfile
+          ? JSON.parse(decodeURIComponent(headlessModeData.userProfile))
+          : {};
       } catch {
         userProfileObj = {};
       }
 
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (headlessModeData.connectToken) {
+        headers['X-Connect-Token'] = headlessModeData.connectToken;
+      }
+
       const response = await fetch('/api/getlate/linkedin/select-organization', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Connect-Token': headlessModeData.connectToken,
-        },
+        headers,
         body: JSON.stringify({
           profileId: headlessModeData.profileId,
           tempToken: headlessModeData.tempToken,
@@ -1584,19 +1570,10 @@ export default function ConnectionsPage() {
       setLinkedinOrganizations([]);
       setSelectedLinkedInOrgId(null);
 
-      // Reload accounts after a delay
-      setTimeout(async () => {
-        const brandId = headlessModeData.brandId || selectedBrandId;
-        if (brandId) {
-          await loadAccountsFromDB(false, true);
-
-          // Sync follower counts and reload accounts
-          const currentBrand = brands.find(b => b.id === brandId);
-          if (currentBrand?.getlate_profile_id) {
-            await syncNow(true);
-          }
-        }
-      }, 1000);
+      const brandId = headlessModeData.brandId || selectedBrandId;
+      if (brandId) {
+        refreshAccountsAfterConnect(brandId);
+      }
     } catch (error) {
       console.error('Error saving LinkedIn organization:', error);
       showToast(
@@ -1608,98 +1585,37 @@ export default function ConnectionsPage() {
     }
   };
 
-  const handleSaveLinkedInOrganization = async () => {
+  /** Manage Settings: same posting choice as first-time headless connect (personal vs org from API list). */
+  const applyManageLinkedInPosting = async (
+    postingType: 'personal' | 'organization',
+    org?: { id: string; name: string; urn?: string; vanityName?: string },
+  ) => {
     if (!linkedinAccountForOrgs) {
       return;
     }
 
-    // Validate organization posting config if posting as organization
-    if (linkedInPostingConfig.postingType === 'organization') {
-      if (!linkedInPostingConfig.organizationUrl || !linkedInPostingConfig.organizationUrl.trim()) {
-        showToast(
-          (tLinkedIn('missing_url') as string) || 'Please provide a LinkedIn organization URL or URN',
-          'error',
-        );
-        return;
-      }
-
-      // Validate that URL contains numeric ID
-      const urlOrUrn = linkedInPostingConfig.organizationUrl.trim();
-      const hasNumericId = urlOrUrn.match(/\/company\/(\d+)/) || urlOrUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
-      if (!hasNumericId) {
-        showToast(
-          (tLinkedIn('invalid_url_toast') as string)
-          || 'LinkedIn organization URL must contain a numeric ID. Please check the URL format.',
-          'error',
-        );
-        return;
-      }
-
-      // Validate that company name is provided
-      if (!linkedInPostingConfig.organizationName || !linkedInPostingConfig.organizationName.trim()) {
-        showToast(
-          (tLinkedIn('missing_company_name') as string) || 'Please provide the company name',
-          'error',
-        );
-        return;
-      }
+    if (postingType === 'organization' && !org) {
+      showToast(t('save_org_error') || 'Failed to save LinkedIn settings', 'error');
+      return;
     }
 
     setIsSavingLinkedInOrg(true);
     try {
       const supabase = createSupabaseBrowserClient();
 
-      // Track resolved organization references locally to avoid mutating state
       let organizationId: string | undefined;
       let organizationName: string | undefined;
       let organizationUrn: string | undefined;
-      let organizationUrlValue = linkedInPostingConfig.organizationUrl?.trim();
+      let organizationUrlValue: string | undefined;
 
-      if (linkedInPostingConfig.postingType === 'organization') {
-        // If an organization was selected from the list, use it (prioritize this)
-        if (selectedLinkedInOrgId) {
-          const selectedOrg = linkedinOrganizations.find(o => o.id === selectedLinkedInOrgId);
-          if (selectedOrg) {
-            organizationId = selectedOrg.id;
-            organizationName = selectedOrg.name; // Use the name from the selected organization
-            organizationUrn = selectedOrg.urn;
-            if (!organizationUrlValue && selectedOrg.urn) {
-              organizationUrlValue = selectedOrg.urn;
-              setLinkedInPostingConfig(prev => ({
-                ...prev,
-                organizationUrl: prev.organizationUrl || selectedOrg.urn || '',
-                organizationUrn: prev.organizationUrn || selectedOrg.urn,
-                organizationName: prev.organizationName || selectedOrg.name || '',
-              }));
-            }
-          }
-        }
+      if (postingType === 'organization' && org) {
+        organizationId = org.id;
+        organizationName = org.name;
+        organizationUrn = org.urn;
+        organizationUrlValue = org.urn
+          || (org.vanityName ? `https://www.linkedin.com/company/${org.vanityName}/` : undefined);
 
-        // If no organization selected from list but URL is provided, use URL/URN
-        if (!organizationId && organizationUrlValue) {
-          organizationUrn = linkedInPostingConfig.organizationUrn;
-          // Extract ID from URL or URN
-          const urlMatch = organizationUrlValue.match(/\/company\/(\d+)/);
-          const urnMatch = organizationUrlValue.match(/urn:li:organization(?:Brand)?:(\d+)/);
-          organizationId = urlMatch?.[1] || urnMatch?.[1];
-          // Use the manually entered company name
-          organizationName = linkedInPostingConfig.organizationName?.trim();
-          if (!organizationName) {
-            // Fallback: use ID if name not provided (shouldn't happen due to validation)
-            organizationName = organizationId || organizationUrlValue;
-          }
-
-          // If still no ID, try to extract from URN if available
-          if (!organizationId && organizationUrn) {
-            const urnIdMatch = organizationUrn.match(/urn:li:organization(?:Brand)?:(\d+)/);
-            if (urnIdMatch) {
-              organizationId = urnIdMatch[1];
-            }
-          }
-        }
-
-        // If we have organization info and getlate_account_id, update via API
-        if (organizationId && linkedinAccountForOrgs.getlate_account_id) {
+        if (linkedinAccountForOrgs.getlate_account_id) {
           const response = await fetch('/api/getlate/linkedin-organizations', {
             method: 'PUT',
             headers: {
@@ -1708,7 +1624,7 @@ export default function ConnectionsPage() {
             body: JSON.stringify({
               accountId: linkedinAccountForOrgs.getlate_account_id,
               organizationId,
-              organizationName: organizationName || linkedInPostingConfig.organizationName || organizationUrlValue || 'LinkedIn Organization',
+              organizationName: organizationName || 'LinkedIn Organization',
               organizationUrn,
               sourceUrl: organizationUrlValue || organizationUrn,
             }),
@@ -1719,21 +1635,17 @@ export default function ConnectionsPage() {
             throw new Error(error.error || 'Failed to save organization selection');
           }
 
-          // Update organization name from API response if available
           const responseData = await response.json();
           if (responseData.organization?.name && responseData.organization.name !== organizationName) {
             organizationName = responseData.organization.name;
           }
         }
       } else {
-        // If posting as personal, clear organization data and update Getlate API
         organizationId = undefined;
         organizationName = undefined;
         organizationUrn = undefined;
 
-        // If switching to personal, update Getlate API with account name
         if (linkedinAccountForOrgs.getlate_account_id) {
-          // Fetch account name from social_accounts table
           const { data: accountData } = await supabase
             .from('social_accounts')
             .select('account_name')
@@ -1763,7 +1675,6 @@ export default function ConnectionsPage() {
         }
       }
 
-      // Update platform_specific_data with posting config
       const { data: currentAccount } = await supabase
         .from('social_accounts')
         .select('platform_specific_data')
@@ -1773,22 +1684,21 @@ export default function ConnectionsPage() {
       const platformData = (currentAccount?.platform_specific_data as Record<string, unknown>) || {};
       const updatedData: Record<string, unknown> = {
         ...platformData,
-        linkedinPostingType: linkedInPostingConfig.postingType,
+        linkedinPostingType: postingType,
       };
 
-      if (linkedInPostingConfig.postingType === 'organization' && organizationId) {
-        updatedData.linkedinPageType = linkedInPostingConfig.pageType;
+      if (postingType === 'organization' && organizationId) {
+        updatedData.linkedinPageType = linkedInPostingConfig.pageType || 'company';
         updatedData.linkedinOrganizationUrl = organizationUrlValue;
         updatedData.linkedinOrganizationUrn = organizationUrn;
         updatedData.linkedinOrganization = {
           id: organizationId,
-          name: organizationName || linkedInPostingConfig.organizationName || organizationId || organizationUrlValue || 'LinkedIn Organization',
+          name: organizationName || organizationId || 'LinkedIn Organization',
           urn: organizationUrn,
           sourceUrl: organizationUrlValue || organizationUrn,
           updatedAt: new Date().toISOString(),
         };
       } else {
-        // Clear organization-related data when posting as personal
         delete updatedData.linkedinPageType;
         delete updatedData.linkedinOrganizationUrl;
         delete updatedData.linkedinOrganizationUrn;
@@ -1810,14 +1720,7 @@ export default function ConnectionsPage() {
       setSelectedLinkedInOrgId(null);
       setLinkedinOrganizations([]);
       setLinkedInPostingConfig({ postingType: 'personal' });
-      // Small delay to ensure database write is complete, then sync accounts from Getlate to get updated followers count
-      await new Promise(resolve => setTimeout(resolve, 500));
-      await loadAccountsFromDB(false, true); // Force sync to get updated followers count
-
-      // Also sync follower counts to ensure latest data and reload accounts
-      if (selectedBrand?.getlate_profile_id) {
-        await syncNow(true);
-      }
+      await loadAccountsFromDB(false, true);
     } catch (error) {
       console.error('Error saving LinkedIn settings:', error);
       showToast(
@@ -1899,15 +1802,15 @@ export default function ConnectionsPage() {
           className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
           <div className={isRTL ? 'text-right' : 'text-left'}>
-            <h1 className="bg-gradient-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent">
+            <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
-            <p className="mt-2 text-lg text-slate-500">{t('subtitle')}</p>
+            <p className="mt-2 text-lg text-slate-500 dark:text-slate-400">{t('subtitle')}</p>
           </div>
         </motion.div>
 
         {/* Brands Section */}
-        <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+        <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/80">
           <CardHeader>
             <div className="flex items-center justify-between">
               <div className={cn(isRTL ? 'text-right flex-1' : 'text-left flex-1')}>
@@ -1916,24 +1819,29 @@ export default function ConnectionsPage() {
               </div>
               <Button
                 onClick={() => setIsCreatingBrand(true)}
+                disabled={isBrandCreationBusy}
                 className={cn(
                   'shrink-0 text-white',
                   isRTL
                     ? 'bg-gradient-to-l from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700'
-                    : 'bg-gradient-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700',
+                    : 'bg-linear-to-r from-pink-500 to-pink-600 hover:from-pink-600 hover:to-pink-700',
                 )}
               >
                 {isRTL
                   ? (
                       <>
-                        {t('new_brand')}
-                        <Plus className="mr-2 h-4 w-4" />
+                        {isBrandCreationBusy ? t('creating') : t('new_brand')}
+                        {isBrandCreationBusy
+                          ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          : <Plus className="mr-2 h-4 w-4" />}
                       </>
                     )
                   : (
                       <>
-                        <Plus className="ml-2 h-4 w-4" />
-                        {t('new_brand')}
+                        {isBrandCreationBusy
+                          ? <Loader2 className="ml-2 h-4 w-4 animate-spin" />
+                          : <Plus className="ml-2 h-4 w-4" />}
+                        {isBrandCreationBusy ? t('creating') : t('new_brand')}
                       </>
                     )}
               </Button>
@@ -1944,25 +1852,36 @@ export default function ConnectionsPage() {
               ? (
                   <div className="py-8 text-center">
                     <div className="mx-auto mb-4 h-8 w-8 animate-spin rounded-full border-b-2 border-pink-500"></div>
-                    <p className="text-slate-500">{t('loading_brands')}</p>
+                    <p className="text-slate-500 dark:text-slate-400">{t('loading_brands')}</p>
                   </div>
                 )
               : isCreatingBrand
                 ? (
-                    <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6">
+                    <div
+                      className={cn(
+                        'space-y-6 rounded-xl border p-6 text-slate-800',
+                        'border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50',
+                        'dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:[background-image:none]',
+                      )}
+                    >
                       <div className="space-y-2">
-                        <Label htmlFor="brandName">{t('brand_name')}</Label>
+                        <Label htmlFor="brandName" className="text-slate-800 dark:text-slate-100">
+                          {t('brand_name')}
+                        </Label>
                         <Input
                           id="brandName"
                           placeholder={t('brand_name_placeholder')}
                           value={newBrandName}
                           onChange={e => setNewBrandName(e.target.value)}
-                          className="bg-white"
+                          className="border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                           dir={isRTL ? 'rtl' : 'ltr'}
+                          disabled={isBrandCreationBusy}
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="brandLogo">{t('logo_optional')}</Label>
+                        <Label htmlFor="brandLogo" className="text-slate-800 dark:text-slate-100">
+                          {t('logo_optional')}
+                        </Label>
                         <div className="relative">
                           <input
                             type="file"
@@ -1970,16 +1889,25 @@ export default function ConnectionsPage() {
                             accept="image/*"
                             onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
                             className={cn(
-                              'block w-full text-sm bg-white rounded-md border border-gray-300',
-                              'file:border-0 file:bg-white file:text-gray-700 file:text-sm file:font-medium',
-                              'file:cursor-pointer hover:file:bg-gray-50',
-                              'text-gray-500',
+                              'block w-full rounded-md border text-sm file:leading-tight',
+                              'border-gray-300 bg-white text-slate-800',
+                              'dark:border-slate-500 dark:bg-slate-900 dark:text-slate-200',
+                              'file:border-0 file:text-sm file:font-medium file:cursor-pointer',
+                              'file:bg-slate-100 file:text-slate-800 file:hover:bg-slate-200',
+                              'dark:file:bg-slate-700 dark:file:text-slate-50 dark:hover:file:bg-slate-600',
                               isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
                             )}
                             dir={isRTL ? 'rtl' : 'ltr'}
+                            disabled={isBrandCreationBusy}
                           />
                         </div>
                       </div>
+                      {isBrandCreationBusy && (
+                        <div className={cn('flex items-center gap-2 rounded-md border border-pink-200 bg-white/80 px-3 py-2 text-xs text-pink-700 dark:border-pink-700 dark:bg-gray-900/70 dark:text-pink-300', isRTL ? 'flex-row-reverse text-right' : '')}>
+                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <span>{brandCreationStatusText}</span>
+                        </div>
+                      )}
                       <div className={cn('flex gap-3 pt-2', isRTL ? 'justify-start' : 'justify-end')}>
                         <Button
                           variant="outline"
@@ -1988,29 +1916,36 @@ export default function ConnectionsPage() {
                             setNewBrandName('');
                             setBrandLogoFile(null);
                           }}
-                          className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
-                          disabled={isUploadingLogo}
+                          className="border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
+                          disabled={isBrandCreationBusy}
                         >
                           {t('cancel')}
                         </Button>
                         <Button
                           onClick={handleCreateBrand}
                           className="bg-pink-600 text-white hover:bg-pink-700"
-                          disabled={!newBrandName.trim() || isUploadingLogo}
+                          disabled={!newBrandName.trim() || isBrandCreationBusy}
                         >
-                          {isRTL
+                          {isBrandCreationBusy
                             ? (
                                 <>
-                                  {t('create_brand')}
-                                  <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  {brandCreationStatusText}
+                                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'mr-2' : 'ml-2')} />
                                 </>
                               )
-                            : (
-                                <>
-                                  <CheckCircle2 className="ml-2 h-4 w-4" />
-                                  {t('create_brand')}
-                                </>
-                              )}
+                            : isRTL
+                              ? (
+                                  <>
+                                    {t('create_brand')}
+                                    <CheckCircle2 className="mr-2 h-4 w-4" />
+                                  </>
+                                )
+                              : (
+                                  <>
+                                    <CheckCircle2 className="ml-2 h-4 w-4" />
+                                    {t('create_brand')}
+                                  </>
+                                )}
                         </Button>
                       </div>
                     </div>
@@ -2019,7 +1954,7 @@ export default function ConnectionsPage() {
                   ? (
                       <div className="py-8 text-center">
                         <Briefcase className="mx-auto mb-4 h-12 w-12 text-gray-400" />
-                        <p className="mb-4 text-slate-500">{t('no_brands')}</p>
+                        <p className="mb-4 text-slate-500 dark:text-slate-400">{t('no_brands')}</p>
                       </div>
                     )
                   : (
@@ -2030,8 +1965,8 @@ export default function ConnectionsPage() {
                             dir={isRTL ? 'rtl' : 'ltr'}
                             className={`relative rounded-lg border-2 p-4 transition-all duration-300 ${
                               selectedBrandId === brand.id
-                                ? 'border-pink-500 bg-pink-50'
-                                : 'border-gray-200 bg-white/50 hover:border-pink-300'
+                                ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/30'
+                                : 'border-gray-200 bg-white/50 hover:border-pink-300 dark:border-gray-600 dark:bg-gray-800/50 dark:hover:border-pink-700'
                             }`}
                           >
                             <div
@@ -2058,12 +1993,12 @@ export default function ConnectionsPage() {
                                       />
                                     )
                                   : (
-                                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100">
-                                        <Briefcase className="h-5 w-5 text-pink-500" />
+                                      <div className="flex h-10 w-10 items-center justify-center rounded-full bg-pink-100 dark:bg-gray-700">
+                                        <Briefcase className="h-5 w-5 text-pink-500 dark:text-pink-400" />
                                       </div>
                                     )}
                                 <div className="flex-1">
-                                  <p className="font-semibold text-slate-800">{brand.name}</p>
+                                  <p className="font-semibold text-slate-800 dark:text-slate-100">{brand.name}</p>
                                 </div>
                               </div>
                             </div>
@@ -2074,7 +2009,7 @@ export default function ConnectionsPage() {
                                 setBrandToDelete(brand);
                               }}
                               className={cn(
-                                'absolute top-2 rounded-md p-1.5 text-gray-400 transition-colors hover:bg-red-50 hover:text-red-600',
+                                'absolute top-2 rounded-md p-1.5 text-gray-400 dark:text-gray-500 transition-colors hover:bg-red-50 dark:hover:bg-gray-700 hover:text-red-600',
                                 isRTL ? 'left-2' : 'right-2',
                               )}
                               aria-label={`Delete ${brand.name}`}
@@ -2091,7 +2026,7 @@ export default function ConnectionsPage() {
 
         {/* Connected Accounts Section */}
         {selectedBrand && (
-          <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm">
+          <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/80">
             <CardHeader>
               <CardTitle className={isRTL ? 'text-right' : 'text-left'}>
                 {t('connected_accounts_for')}
@@ -2101,9 +2036,15 @@ export default function ConnectionsPage() {
               <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
                 {t('connect_accounts_description')}
               </CardDescription>
-              <div className={cn('mt-2 flex items-start gap-2 rounded-md bg-blue-50 p-3', isRTL ? 'flex-row-reverse text-right' : 'text-left')}>
-                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600" />
-                <p className="text-xs text-blue-800">
+              {isRefreshingAccounts && (
+                <div className={cn('mt-2 inline-flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400', isRTL ? 'flex-row-reverse' : '')}>
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <span>{t('syncing_accounts')}</span>
+                </div>
+              )}
+              <div className={cn('mt-2 flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-900/30 p-3', isRTL ? 'flex-row-reverse text-right' : 'text-left')}>
+                <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
+                <p className="text-xs text-blue-800 dark:text-blue-200">
                   {t('follower_count_disclaimer')}
                 </p>
               </div>
@@ -2139,7 +2080,7 @@ export default function ConnectionsPage() {
                   return (
                     <div
                       key={platform}
-                      className="rounded-xl border border-gray-200 bg-white/50 p-4 shadow-sm transition-shadow hover:shadow-md"
+                      className="rounded-xl border border-gray-200 bg-white/50 p-4 shadow-sm transition-shadow hover:shadow-md dark:border-gray-600 dark:bg-gray-800/50"
                     >
                       <div className="flex items-start justify-between gap-4">
                         <div className="flex min-w-0 flex-1 items-center gap-3">
@@ -2147,14 +2088,14 @@ export default function ConnectionsPage() {
                             <Icon className={`h-6 w-6 ${config.color}`} />
                           </div>
                           <div className={cn('flex-1 min-w-0', isRTL ? 'text-right' : 'text-left')}>
-                            <h3 className="truncate font-semibold text-slate-800">{config.name}</h3>
+                            <h3 className="truncate font-semibold text-slate-800 dark:text-slate-100">{config.name}</h3>
                             {connectedAccount
                               ? (
                                   <>
-                                    <p className="truncate text-sm font-medium text-slate-700">
+                                    <p className="truncate text-sm font-medium text-slate-700 dark:text-slate-200">
                                       {connectedAccount.handle}
                                     </p>
-                                    <p className="text-xs text-slate-500">
+                                    <p className="text-xs text-slate-500 dark:text-slate-400">
                                       {connectedAccount.follower_count?.toLocaleString()}
                                       {' '}
                                       {t('followers')}
@@ -2162,7 +2103,7 @@ export default function ConnectionsPage() {
                                   </>
                                 )
                               : (
-                                  <p className="text-sm text-slate-500">{t('not_connected')}</p>
+                                  <p className="text-sm text-slate-500 dark:text-slate-400">{t('not_connected')}</p>
                                 )}
                           </div>
                         </div>
@@ -2176,7 +2117,7 @@ export default function ConnectionsPage() {
                                       onClick={() => handleOpenFacebookPages(connectedAccount)}
                                       variant="outline"
                                       size="sm"
-                                      className="w-full border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-50"
+                                      className="w-full border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                                     >
                                       <Settings className={cn('h-3.5 w-3.5', isRTL ? 'ml-1.5' : 'mr-1.5')} />
                                       {t('change_pages') || 'Change Pages'}
@@ -2188,7 +2129,7 @@ export default function ConnectionsPage() {
                                       onClick={() => handleOpenLinkedInOrganizations(connectedAccount)}
                                       variant="outline"
                                       size="sm"
-                                      className="w-full border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-50"
+                                      className="w-full border-gray-300 bg-white text-xs text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
                                     >
                                       <Settings className={cn('h-3.5 w-3.5', isRTL ? 'ml-1.5' : 'mr-1.5')} />
                                       {(t('manage_linkedin_settings') as string) || 'Manage Settings'}
@@ -2209,7 +2150,7 @@ export default function ConnectionsPage() {
                                   onClick={() => handleOAuthConnect(platform)}
                                   disabled={isConnectingOAuth === platform}
                                   size="sm"
-                                  className="bg-gradient-to-r from-pink-500 to-pink-600 text-xs text-white hover:from-pink-600 hover:to-pink-700"
+                                  className="bg-linear-to-r from-pink-500 to-pink-600 text-xs text-white hover:from-pink-600 hover:to-pink-700"
                                 >
                                   {isConnectingOAuth === platform
                                     ? (
@@ -2232,12 +2173,12 @@ export default function ConnectionsPage() {
 
         {/* Delete Brand Confirmation Dialog */}
         <Dialog open={!!brandToDelete} onOpenChange={open => !open && setBrandToDelete(null)}>
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'}>
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('delete_brand_title')}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              <p className="text-slate-600">
+              <p className="text-slate-600 dark:text-white">
                 {t('delete_brand_message', { name: brandToDelete?.name || '' })}
               </p>
             </div>
@@ -2246,7 +2187,7 @@ export default function ConnectionsPage() {
                 variant="outline"
                 onClick={() => setBrandToDelete(null)}
                 disabled={isDeletingBrand}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
               </Button>
@@ -2276,21 +2217,34 @@ export default function ConnectionsPage() {
         {/* Disconnect Confirmation Dialog */}
         <Dialog
           open={!!accountToDisconnect}
-          onOpenChange={() => setAccountToDisconnect(null)}
+          onOpenChange={(open) => {
+            if (!open && !isDisconnecting) {
+              setAccountToDisconnect(null);
+            }
+          }}
         >
           <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="sm:max-w-md">
             <DialogHeader>
               <DialogTitle>{t('are_you_sure')}</DialogTitle>
             </DialogHeader>
-            <p className="text-sm text-gray-600">
+            <p className="text-sm text-gray-600 dark:text-white">
               {t('disconnect_warning', { handle: accountToDisconnect?.handle || '' })}
             </p>
             <DialogFooter className={cn(isRTL ? 'flex-row-reverse' : '')}>
-              <Button variant="outline" onClick={() => setAccountToDisconnect(null)}>
+              <Button variant="outline" onClick={() => setAccountToDisconnect(null)} disabled={isDisconnecting}>
                 {t('cancel')}
               </Button>
-              <Button onClick={handleDisconnect} className="bg-red-600 text-white hover:bg-red-700">
-                {t('yes_disconnect')}
+              <Button onClick={handleDisconnect} className="bg-red-600 text-white hover:bg-red-700" disabled={isDisconnecting}>
+                {isDisconnecting
+                  ? (
+                      <>
+                        <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                        {t('disconnecting')}
+                      </>
+                    )
+                  : (
+                      t('yes_disconnect')
+                    )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2332,11 +2286,20 @@ export default function ConnectionsPage() {
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
-                                  : 'border-gray-200 bg-white hover:border-pink-300',
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                  : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
-                              <p className="font-semibold text-gray-800">{page.name}</p>
+                              <p
+                                className={cn(
+                                  'font-semibold',
+                                  isSelected
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-gray-800 dark:text-gray-100',
+                                )}
+                              >
+                                {page.name}
+                              </p>
                             </button>
                           );
                         })}
@@ -2348,7 +2311,7 @@ export default function ConnectionsPage() {
                 variant="outline"
                 onClick={() => setFacebookAccountForPages(null)}
                 disabled={isSavingFacebookPage}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
               </Button>
@@ -2372,7 +2335,7 @@ export default function ConnectionsPage() {
           </DialogContent>
         </Dialog>
 
-        {/* LinkedIn Posting Settings Dialog */}
+        {/* LinkedIn Manage Settings: same picker as first-time connect (personal vs organizations from API) */}
         <Dialog
           open={!!linkedinAccountForOrgs}
           onOpenChange={(open) => {
@@ -2381,12 +2344,13 @@ export default function ConnectionsPage() {
               setLinkedinAccountName(null);
               setLinkedInPostingConfig({ postingType: 'personal' });
               setSelectedLinkedInOrgId(null);
+              setLinkedinOrganizations([]);
             }
           }}
         >
-          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          <DialogContent dir={isRTL ? 'rtl' : 'ltr'} className="max-w-md">
             <DialogHeader>
-              <DialogTitle>{(t('manage_linkedin_settings') as string) || 'Manage LinkedIn Account'}</DialogTitle>
+              <DialogTitle>{(t('select_linkedin_organization') as string) || 'Select LinkedIn Organization'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
               {isLoadingLinkedInOrgs
@@ -2396,222 +2360,107 @@ export default function ConnectionsPage() {
                       <p className="mt-2 text-sm text-gray-500">{t('loading') || 'Loading...'}</p>
                     </div>
                   )
-                : (
-                    <div className="space-y-4">
-                      {/* Posting Type Selection */}
+                : linkedinOrganizations.length === 0
+                  ? (
                       <div className="space-y-3">
-                        <Label className="text-sm font-medium text-gray-900">
-                          {(tLinkedIn('choose_posting_type') as string) || 'Choose how you want to post'}
-                        </Label>
-
-                        {/* Personal Option */}
-                        <label
-                          htmlFor="linkedin-posting-type-personal"
-                          className={cn(
-                            'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-all',
-                            linkedInPostingConfig.postingType === 'personal'
-                              ? 'border-pink-500 bg-pink-50'
-                              : 'border-gray-200 hover:border-pink-200 hover:bg-gray-50',
-                          )}
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {(t('linkedin_personal_only') as string) || 'You can post as your personal account. No organizations available.'}
+                        </p>
+                        <Button
+                          onClick={() => void applyManageLinkedInPosting('personal')}
+                          disabled={isSavingLinkedInOrg}
+                          className="w-full bg-pink-600 text-white hover:bg-pink-700"
                         >
-                          <input
-                            id="linkedin-posting-type-personal"
-                            type="radio"
-                            name="linkedin-posting-type"
-                            value="personal"
-                            checked={linkedInPostingConfig.postingType === 'personal'}
-                            onChange={() => setLinkedInPostingConfig({
-                              postingType: 'personal',
-                              organizationName: undefined, // Clear company name when switching to personal
-                              organizationUrl: undefined,
-                              organizationUrn: undefined,
-                            })}
-                            aria-label={(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
-                            className="mt-1 h-4 w-4 cursor-pointer border-gray-300 text-pink-500 focus:ring-pink-500"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <User className="h-5 w-5 text-gray-600" />
-                              <span className="font-medium text-gray-900">
-                                {(tLinkedIn('post_as_yourself') as string) || 'Post as yourself'}
-                              </span>
-                            </div>
-                            {linkedinAccountName && (
-                              <p className="mt-1 text-sm text-gray-600">{linkedinAccountName}</p>
-                            )}
-                          </div>
-                        </label>
-
-                        {/* Organization Option */}
-                        <label
-                          htmlFor="linkedin-posting-type-organization"
-                          className={cn(
-                            'flex cursor-pointer items-start gap-3 rounded-lg border-2 p-4 transition-all',
-                            linkedInPostingConfig.postingType === 'organization'
-                              ? 'border-pink-500 bg-pink-50'
-                              : 'border-gray-200 hover:border-pink-200 hover:bg-gray-50',
-                          )}
-                        >
-                          <input
-                            id="linkedin-posting-type-organization"
-                            type="radio"
-                            name="linkedin-posting-type"
-                            value="organization"
-                            checked={linkedInPostingConfig.postingType === 'organization'}
-                            onChange={() => setLinkedInPostingConfig({ postingType: 'organization' })}
-                            aria-label={(tLinkedIn('post_as_organization') as string) || 'Post as Organization (Company or Showcase)'}
-                            className="mt-1 h-4 w-4 cursor-pointer border-gray-300 text-pink-500 focus:ring-pink-500"
-                          />
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2">
-                              <Building2 className="h-5 w-5 text-gray-600" />
-                              <span className="font-medium text-gray-900">
-                                {(tLinkedIn('post_as_organization') as string) || 'Post as Organization (Company or Showcase)'}
-                              </span>
-                            </div>
-                            <p className="mt-1 text-xs text-gray-500">
-                              {(tLinkedIn('requires_admin_access') as string) || 'Requires organization admin access'}
-                            </p>
-                          </div>
-                        </label>
-                      </div>
-
-                      {/* Organization Details */}
-                      {linkedInPostingConfig.postingType === 'organization' && (
-                        <div className="space-y-4 rounded-lg border border-gray-200 bg-gray-50 p-4">
-                          {/* Page Type Selector */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-page-type" className="text-sm font-medium text-gray-900">
-                              {(tLinkedIn('page_type') as string) || 'Page type:'}
-                            </Label>
-                            <Select
-                              value={linkedInPostingConfig.pageType || 'company'}
-                              onValueChange={value =>
-                                setLinkedInPostingConfig({ ...linkedInPostingConfig, pageType: value as LinkedInPageType })}
-                            >
-                              <SelectTrigger id="linkedin-page-type" dir={isRTL ? 'rtl' : 'ltr'}>
-                                <SelectValue
-                                  selectedLabel={
-                                    linkedInPostingConfig.pageType === 'showcase'
-                                      ? (tLinkedIn('showcase_page') as string) || 'Showcase Page'
-                                      : (tLinkedIn('company_page') as string) || 'Company Page'
-                                  }
-                                  placeholder={(tLinkedIn('select_page_type') as string) || 'Select page type'}
-                                />
-                              </SelectTrigger>
-                              <SelectContent dir={isRTL ? 'rtl' : 'ltr'}>
-                                <SelectItem value="company" dir={isRTL ? 'rtl' : 'ltr'}>
-                                  {(tLinkedIn('company_page') as string) || 'Company Page'}
-                                </SelectItem>
-                                <SelectItem value="showcase" dir={isRTL ? 'rtl' : 'ltr'}>
-                                  {(tLinkedIn('showcase_page') as string) || 'Showcase Page'}
-                                </SelectItem>
-                              </SelectContent>
-                            </Select>
-                          </div>
-
-                          {/* URL/URN Input */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-org-url" className="text-sm font-medium text-gray-900">
-                              {(tLinkedIn('url_label') as string) || 'LinkedIn Page URL or URN (Numeric ID Required):'}
-                            </Label>
-                            <Input
-                              id="linkedin-org-url"
-                              type="text"
-                              placeholder={(tLinkedIn('url_placeholder') as string) || 'https://www.linkedin.com/company/69179664'}
-                              value={linkedInPostingConfig.organizationUrl || ''}
-                              onChange={(e) => {
-                                const url = e.target.value;
-                                let urn: string | undefined;
-                                if (url.startsWith('urn:li:organization:') || url.startsWith('urn:li:organizationBrand:')) {
-                                  urn = url;
-                                } else {
-                                  const match = url.match(/\/company\/(\d+)/);
-                                  if (match) {
-                                    urn = `urn:li:organization:${match[1]}`;
-                                  }
-                                }
-                                setLinkedInPostingConfig({
-                                  ...linkedInPostingConfig,
-                                  organizationUrl: url,
-                                  organizationUrn: urn,
-                                });
-                              }}
-                              className={cn(
-                                'border-gray-300 focus:border-pink-500',
-                                linkedInPostingConfig.organizationUrl && !linkedInPostingConfig.organizationUrl.match(/\/company\/(\d+)/) && !linkedInPostingConfig.organizationUrl.match(/urn:li:organization(?:Brand)?:(\d+)/)
-                                  ? 'border-red-300 focus:border-red-500'
-                                  : '',
+                          {isSavingLinkedInOrg
+                            ? (
+                                <>
+                                  <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {t('saving') || 'Saving...'}
+                                </>
+                              )
+                            : (
+                                <>
+                                  <User className={cn('h-4 w-4', isRTL ? 'ml-2' : 'mr-2')} />
+                                  {(t('post_as_personal') as string) || 'Post as Personal Account'}
+                                </>
                               )}
-                              dir={isRTL ? 'rtl' : 'ltr'}
-                            />
-                            {linkedInPostingConfig.organizationUrl && !linkedInPostingConfig.organizationUrl.match(/\/company\/(\d+)/) && !linkedInPostingConfig.organizationUrl.match(/urn:li:organization(?:Brand)?:(\d+)/) && (
-                              <p className="text-xs text-red-600">
-                                {(tLinkedIn('invalid_url') as string) || 'Invalid URL format. Please provide a URL with numeric ID or a URN.'}
-                              </p>
-                            )}
-                          </div>
-
-                          {/* Company Name Input */}
-                          <div className="space-y-2">
-                            <Label htmlFor="linkedin-org-name" className="text-sm font-medium text-gray-900">
-                              {(tLinkedIn('company_name_label') as string) || 'Company Name:'}
-                              {' '}
-                              <span className="text-red-500">*</span>
-                            </Label>
-                            <Input
-                              id="linkedin-org-name"
-                              type="text"
-                              placeholder={(tLinkedIn('company_name_placeholder') as string) || 'Enter company name'}
-                              value={linkedInPostingConfig.organizationName || ''}
-                              onChange={(e) => {
-                                setLinkedInPostingConfig({
-                                  ...linkedInPostingConfig,
-                                  organizationName: e.target.value,
-                                });
-                              }}
-                              className="border-gray-300 focus:border-pink-500"
-                              dir={isRTL ? 'rtl' : 'ltr'}
-                              required
-                            />
-                            <p className="text-xs text-gray-500">
-                              {(tLinkedIn('company_name_hint') as string) || 'Enter the official name of the LinkedIn company page'}
-                            </p>
-                          </div>
-
-                          {/* Help Text */}
-                          <div className="rounded-md border border-blue-200 bg-blue-50 p-3">
-                            <div className="flex gap-2">
-                              <Info className="h-5 w-5 shrink-0 text-blue-600" />
-                              <div className="space-y-2 text-xs text-blue-900">
-                                <p className="font-medium">{(tLinkedIn('how_to_get_url') as string) || '📌 How to get the correct URL:'}</p>
-                                <ol className="ml-4 list-decimal space-y-1">
-                                  <li>{(tLinkedIn('step_1') as string) || 'Navigate to your LinkedIn Company or Showcase Page'}</li>
-                                  <li>{(tLinkedIn('step_2') as string) || 'Open the admin area; copy a URL that contains the NUMERIC ID'}</li>
-                                  <li>{(tLinkedIn('step_3') as string) || 'Or paste a full URN like urn:li:organization:123 or urn:li:organizationBrand:456'}</li>
-                                </ol>
-                                <div className="mt-2 space-y-1">
-                                  <p className="font-medium">{(tLinkedIn('valid_examples') as string) || '✅ Valid:'}</p>
-                                  <p className="font-mono text-xs">
-                                    ✅
-                                    {(tLinkedIn('valid_example_1') as string) || 'linkedin.com/company/107655573/'}
-                                  </p>
-                                  <p className="font-mono text-xs">
-                                    ✅
-                                    {(tLinkedIn('valid_example_2') as string) || 'urn:li:organizationBrand:123456'}
-                                  </p>
-                                  <p className="font-mono text-xs">
-                                    ❌
-                                    {(tLinkedIn('invalid_example') as string) || 'Invalid: vanity URLs like linkedin.com/company/company-name/'}
-                                  </p>
-                                </div>
-                              </div>
+                        </Button>
+                      </div>
+                    )
+                  : (
+                      <div className="space-y-3">
+                        <p className="text-sm text-gray-600 dark:text-gray-400">
+                          {(t('select_posting_account') as string) || 'Select how you want to post:'}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => void applyManageLinkedInPosting('personal')}
+                          disabled={isSavingLinkedInOrg}
+                          className={cn(
+                            'w-full rounded-lg border-2 p-4 text-left transition-all',
+                            linkedInPostingConfig.postingType === 'personal'
+                              ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                              : 'border-gray-200 bg-white hover:border-pink-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-pink-700',
+                          )}
+                        >
+                          <div className="flex items-center gap-2">
+                            <User className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                            <div>
+                              <span className="font-medium text-gray-900 dark:text-gray-100">
+                                {(t('post_as_personal') as string) || 'Post as Personal Account'}
+                              </span>
+                              {linkedinAccountName && (
+                                <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">{linkedinAccountName}</p>
+                              )}
                             </div>
                           </div>
+                        </button>
+                        <div className="max-h-64 space-y-2 overflow-y-auto">
+                          {linkedinOrganizations.map((org) => {
+                            const isCurrent = selectedLinkedInOrgId === org.id;
+                            return (
+                              <button
+                                key={org.id}
+                                type="button"
+                                onClick={() =>
+                                  void applyManageLinkedInPosting('organization', {
+                                    id: org.id,
+                                    name: org.name,
+                                    ...(org.urn ? { urn: org.urn } : {}),
+                                    ...(org.vanityName ? { vanityName: org.vanityName } : {}),
+                                  })}
+                                disabled={isSavingLinkedInOrg}
+                                className={cn(
+                                  'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                  isCurrent
+                                    ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                    : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
+                                )}
+                              >
+                                <div className="flex items-center gap-2">
+                                  <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
+                                  <div>
+                                    <p
+                                      className={cn(
+                                        'font-semibold',
+                                        isCurrent
+                                          ? 'text-gray-900 dark:text-white'
+                                          : 'text-gray-800 dark:text-gray-100',
+                                      )}
+                                    >
+                                      {org.name}
+                                    </p>
+                                    {org.urn && (
+                                      <p className="text-xs text-gray-500 dark:text-gray-400">{org.urn}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              </button>
+                            );
+                          })}
                         </div>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
             </div>
             <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
               <Button
@@ -2620,27 +2469,12 @@ export default function ConnectionsPage() {
                   setLinkedinAccountForOrgs(null);
                   setLinkedInPostingConfig({ postingType: 'personal' });
                   setSelectedLinkedInOrgId(null);
+                  setLinkedinOrganizations([]);
                 }}
                 disabled={isSavingLinkedInOrg}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
-              </Button>
-              <Button
-                onClick={handleSaveLinkedInOrganization}
-                disabled={isSavingLinkedInOrg}
-                className="bg-pink-600 text-white hover:bg-pink-700"
-              >
-                {isSavingLinkedInOrg
-                  ? (
-                      <>
-                        <Loader2 className={cn('h-4 w-4 animate-spin', isRTL ? 'ml-2' : 'mr-2')} />
-                        {t('saving') || 'Saving...'}
-                      </>
-                    )
-                  : (
-                      t('save') || 'Save'
-                    )}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -2654,6 +2488,7 @@ export default function ConnectionsPage() {
               setHeadlessModeData(null);
               setSelectedHeadlessFacebookPageId(null);
               setHeadlessFacebookPages([]);
+              facebookPendingOAuthUrlRef.current = null;
             }
           }}
         >
@@ -2688,11 +2523,20 @@ export default function ConnectionsPage() {
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
-                                  : 'border-gray-200 bg-white hover:border-pink-300',
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                  : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
-                              <p className="font-semibold text-gray-800">{page.name}</p>
+                              <p
+                                className={cn(
+                                  'font-semibold',
+                                  isSelected
+                                    ? 'text-gray-900 dark:text-white'
+                                    : 'text-gray-800 dark:text-gray-100',
+                                )}
+                              >
+                                {page.name}
+                              </p>
                             </button>
                           );
                         })}
@@ -2706,9 +2550,10 @@ export default function ConnectionsPage() {
                   setHeadlessModeData(null);
                   setSelectedHeadlessFacebookPageId(null);
                   setHeadlessFacebookPages([]);
+                  facebookPendingOAuthUrlRef.current = null;
                 }}
                 disabled={isSavingHeadlessSelection}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
               </Button>
@@ -2734,12 +2579,17 @@ export default function ConnectionsPage() {
 
         {/* Headless Mode: LinkedIn Organization Selection Dialog */}
         <Dialog
-          open={headlessModeData?.platform === 'linkedin' && headlessModeData?.step === 'select_organization'}
+          open={
+            isResolvingLinkedInHeadless
+            || (headlessModeData?.platform === 'linkedin' && headlessModeData?.step === 'select_organization')
+          }
           onOpenChange={(open) => {
             if (!open) {
               setHeadlessModeData(null);
               setSelectedLinkedInOrgId(null);
               setLinkedinOrganizations([]);
+              setIsResolvingLinkedInHeadless(false);
+              linkedInPendingOAuthUrlRef.current = null;
             }
           }}
         >
@@ -2748,7 +2598,15 @@ export default function ConnectionsPage() {
               <DialogTitle>{(t('select_linkedin_organization') as string) || 'Select LinkedIn Account'}</DialogTitle>
             </DialogHeader>
             <div className="space-y-4">
-              {linkedinOrganizations.length === 0
+              {isResolvingLinkedInHeadless
+                ? (
+                    <div className="flex flex-col items-center justify-center gap-3 py-8">
+                      <Loader2 className="h-8 w-8 animate-spin text-pink-500" />
+                      <p className="text-center text-sm text-gray-600">Loading…</p>
+                    </div>
+                  )
+                : null}
+              {!isResolvingLinkedInHeadless && linkedinOrganizations.length === 0
                 ? (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-600">
@@ -2775,7 +2633,9 @@ export default function ConnectionsPage() {
                       </Button>
                     </div>
                   )
-                : (
+                : null}
+              {!isResolvingLinkedInHeadless && linkedinOrganizations.length > 0
+                ? (
                     <div className="space-y-3">
                       <p className="text-sm text-gray-600">
                         {(t('select_posting_account') as string) || 'Select how you want to post:'}
@@ -2808,22 +2668,31 @@ export default function ConnectionsPage() {
                               onClick={() => handleSaveHeadlessLinkedInOrganization('organization', {
                                 id: org.id,
                                 name: org.name,
-                                vanityName: org.urn,
+                                ...(org.vanityName ? { vanityName: org.vanityName } : {}),
                               })}
                               disabled={isSavingHeadlessSelection}
                               className={cn(
                                 'w-full rounded-lg border-2 p-3 text-left transition-all',
                                 isSelected
-                                  ? 'border-pink-500 bg-pink-50'
-                                  : 'border-gray-200 bg-white hover:border-pink-300',
+                                  ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
+                                  : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
                               )}
                             >
                               <div className="flex items-center gap-2">
-                                <Building2 className="h-5 w-5 text-gray-600" />
+                                <Building2 className="h-5 w-5 text-gray-600 dark:text-gray-400" />
                                 <div>
-                                  <p className="font-semibold text-gray-800">{org.name}</p>
+                                  <p
+                                    className={cn(
+                                      'font-semibold',
+                                      isSelected
+                                        ? 'text-gray-900 dark:text-white'
+                                        : 'text-gray-800 dark:text-gray-100',
+                                    )}
+                                  >
+                                    {org.name}
+                                  </p>
                                   {org.urn && (
-                                    <p className="text-xs text-gray-500">{org.urn}</p>
+                                    <p className="text-xs text-gray-500 dark:text-gray-400">{org.urn}</p>
                                   )}
                                 </div>
                               </div>
@@ -2832,7 +2701,8 @@ export default function ConnectionsPage() {
                         })}
                       </div>
                     </div>
-                  )}
+                  )
+                : null}
             </div>
             <DialogFooter className={cn('gap-2', isRTL ? 'flex-row-reverse' : '')}>
               <Button
@@ -2841,9 +2711,11 @@ export default function ConnectionsPage() {
                   setHeadlessModeData(null);
                   setSelectedLinkedInOrgId(null);
                   setLinkedinOrganizations([]);
+                  setIsResolvingLinkedInHeadless(false);
+                  linkedInPendingOAuthUrlRef.current = null;
                 }}
-                disabled={isSavingHeadlessSelection}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                disabled={isSavingHeadlessSelection || isResolvingLinkedInHeadless}
+                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-200 dark:hover:bg-gray-700"
               >
                 {t('cancel')}
               </Button>

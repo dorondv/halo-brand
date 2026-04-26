@@ -1,6 +1,15 @@
 'use client';
 
+import { getStoredConsent } from '@/libs/consent';
 import { getCountryFromLanguage, getCountryFromTimezone } from './timezoneToCountry';
+
+function hasAnalyticsConsentFromStorage(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const stored = getStoredConsent();
+  return stored?.analytics_storage === 'granted';
+}
 
 /**
  * UTM Parameters and Click IDs
@@ -215,6 +224,10 @@ export async function trackEvent(
     return;
   }
 
+  if (!hasAnalyticsConsentFromStorage()) {
+    return;
+  }
+
   // Get current UTM params
   const currentUTM = extractUTMParams();
   const currentGeo = getGeoData();
@@ -276,7 +289,7 @@ export async function trackEvent(
 
 /**
  * Initialize tracking on page load
- * Automatically tracks pageview events
+ * Automatically tracks pageview events using history API interception
  */
 export function initTracking(): void {
   if (typeof window === 'undefined') {
@@ -286,20 +299,19 @@ export function initTracking(): void {
   // Track initial pageview
   trackEvent('pageview');
 
-  // Track pageviews on navigation (for SPA)
-  let lastUrl = window.location.href;
-  const observer = new MutationObserver(() => {
-    const currentUrl = window.location.href;
-    if (currentUrl !== lastUrl) {
-      lastUrl = currentUrl;
-      trackEvent('pageview');
-    }
-  });
+  // Intercept history.pushState and replaceState for SPA navigation
+  const originalPushState = history.pushState.bind(history);
+  const originalReplaceState = history.replaceState.bind(history);
 
-  observer.observe(document.body, {
-    childList: true,
-    subtree: true,
-  });
+  history.pushState = (...args: Parameters<typeof history.pushState>) => {
+    originalPushState(...args);
+    trackEvent('pageview');
+  };
+
+  history.replaceState = (...args: Parameters<typeof history.replaceState>) => {
+    originalReplaceState(...args);
+    trackEvent('pageview');
+  };
 
   // Also listen to popstate for browser back/forward
   window.addEventListener('popstate', () => {

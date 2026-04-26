@@ -5,16 +5,32 @@ import { z } from 'zod';
 import { db } from '@/libs/DB';
 import { createMetaInboxClient } from '@/libs/meta-inbox';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { resolveZernioApiKey, zernioReplyToComment, zernioSendMessage } from '@/libs/zernio-inbox';
 import { socialAccounts } from '@/models/Schema';
 
 const replySchema = z.object({
   conversationId: z.string(),
   message: z.string().min(1),
   accountId: z.string(),
-  platform: z.enum(['facebook', 'instagram', 'threads']),
-  commentId: z.string().optional(), // For comment replies
+  platform: z.enum([
+    'facebook',
+    'instagram',
+    'threads',
+    'twitter',
+    'bluesky',
+    'reddit',
+    'telegram',
+    'linkedin',
+    'youtube',
+    'tiktok',
+    'pinterest',
+  ]),
+  commentId: z.string().optional(), // For comment replies (or post id for new top-level on Meta / Zernio)
+  /** Zernio comment inbox: the post id (required for Zernio comment reply; Meta ignores it) */
+  postId: z.string().optional(),
   mentionUserId: z.string().optional(), // User ID to mention (Facebook user ID or Instagram username)
   mentionName: z.string().optional(), // Name/username to mention
+  zernioSocialAccountId: z.string().optional(),
 });
 
 /**
@@ -40,7 +56,17 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { conversationId, message, accountId, platform, commentId, mentionUserId, mentionName } = validation.data;
+    const {
+      conversationId,
+      message,
+      accountId,
+      platform,
+      commentId,
+      postId: postIdBody,
+      mentionUserId,
+      mentionName,
+      zernioSocialAccountId,
+    } = validation.data;
 
     // Fetch account details
     const [account] = await db
@@ -60,6 +86,41 @@ export async function POST(request: NextRequest) {
 
     const platformSpecificData = account.platformSpecificData as Record<string, unknown> | null;
     const pageAccessToken = platformSpecificData?.pageAccessToken as string | undefined;
+
+    if (zernioSocialAccountId && !commentId) {
+      const apiKey = await resolveZernioApiKey(supabase, user.id);
+      if (!apiKey) {
+        return NextResponse.json({ error: 'Zernio API key not configured' }, { status: 400 });
+      }
+      const result = await zernioSendMessage(apiKey, conversationId, zernioSocialAccountId, message);
+      if (!result.success) {
+        return NextResponse.json({ error: 'Failed to send message' }, { status: 500 });
+      }
+      return NextResponse.json({
+        success: true,
+        messageId: result.messageId,
+      });
+    }
+
+    if (zernioSocialAccountId && commentId && postIdBody) {
+      const apiKey = await resolveZernioApiKey(supabase, user.id);
+      if (apiKey) {
+        const targetCommentId = commentId === postIdBody ? undefined : commentId;
+        const result = await zernioReplyToComment(
+          apiKey,
+          postIdBody,
+          zernioSocialAccountId,
+          message,
+          targetCommentId,
+        );
+        if (result.success) {
+          return NextResponse.json({
+            success: true,
+            messageId: result.commentId,
+          });
+        }
+      }
+    }
 
     // Create Meta client
     const metaClient = createMetaInboxClient(

@@ -3,7 +3,7 @@
 import { Building2, CheckCircle2, Plus } from 'lucide-react';
 import { useLocale, useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState } from 'react';
+import { startTransition, useEffect, useRef, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useToast } from '@/components/ui/toast';
 import { useBrand } from '@/contexts/BrandContext';
 import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
@@ -42,6 +43,7 @@ export function BrandSelector() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const { selectedBrandId, setSelectedBrandId } = useBrand();
+  const { showToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const isUpdatingUrlRef = useRef(false);
@@ -118,6 +120,8 @@ export function BrandSelector() {
     const pagesThatUseBrand = ['/dashboard', '/create-post', '/calendar', '/inbox'];
     const shouldSyncURL = pagesThatUseBrand.some(page => pathname.includes(page));
 
+    let rafId: number | undefined;
+
     if (brandParam && brandParam !== 'all') {
       // URL has brand param (and it's not "all") - sync to context
       if (selectedBrandId !== brandParam) {
@@ -135,9 +139,20 @@ export function BrandSelector() {
       params.set('brand', selectedBrandId);
       const queryString = params.toString();
       const url = queryString ? `${pathname}?${queryString}` : pathname;
-      router.replace(url, { scroll: false });
+      // Defer until after App Router init — sync-on-mount replace() can throw
+      // "Router action dispatched before initialization" if run in the same tick as first paint.
+      rafId = requestAnimationFrame(() => {
+        startTransition(() => {
+          router.replace(url, { scroll: false });
+        });
+      });
     }
     // Note: If no brand param and selectedBrandId is null, that's "all brands" - don't add param to URL
+    return () => {
+      if (rafId !== undefined) {
+        cancelAnimationFrame(rafId);
+      }
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []); // Only run on mount
 
@@ -227,14 +242,7 @@ export function BrandSelector() {
         return;
       }
 
-      // Get user ID
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       let logoUrl: string | null = null;
 
@@ -284,7 +292,7 @@ export function BrandSelector() {
         }
       }
 
-      // Create brand via API to handle Getlate profile automatically
+      // Create brand via API to handle Publishing integration profile automatically
       const brandResponse = await fetch('/api/brands', {
         method: 'POST',
         headers: {
@@ -303,7 +311,7 @@ export function BrandSelector() {
         throw new Error(error.error || 'Failed to create brand. Please try again.');
       }
 
-      const { brand: data } = await brandResponse.json();
+      const { brand: data, warning } = await brandResponse.json();
 
       // Refresh brands list
       await fetchBrands();
@@ -315,6 +323,16 @@ export function BrandSelector() {
       setIsModalOpen(false);
       setBrandName('');
       setBrandLogoFile(null);
+      if (warning) {
+        showToast(String(warning), 'error');
+      } else if (!data.getlate_profile_id) {
+        showToast(
+          isRTL
+            ? 'המותג נוצר, אך פרופיל החיבור לרשתות לא נוצר. בדוק את הגדרות האינטגרציה או את מגבלת הפרופילים.'
+            : 'Brand created, but social connection profile was not created. Check integration settings or profile limits.',
+          'error',
+        );
+      }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);
       console.error('Error creating brand:', errorMessage);
@@ -365,7 +383,7 @@ export function BrandSelector() {
         {/* Add Brand Button */}
         <Button
           variant="outline"
-          className="w-full justify-start gap-2 bg-white hover:bg-gray-50"
+          className="w-full justify-start gap-2 bg-white hover:bg-gray-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
           onClick={() => setIsModalOpen(true)}
         >
           <Plus className="h-4 w-4" />
@@ -383,9 +401,18 @@ export function BrandSelector() {
               {t('brand_create_modal_description')}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-6 rounded-xl border border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50 p-6">
+          <div
+            className={cn(
+              'space-y-6 rounded-xl border p-6 text-slate-800',
+              'border-pink-200/50 bg-gradient-to-br from-pink-50 to-pink-100/50',
+              /* bg-gradient sets background-image; must clear it in dark mode or the panel stays light */
+              'dark:border-slate-600 dark:bg-slate-950 dark:text-slate-100 dark:[background-image:none]',
+            )}
+          >
             <div className="space-y-2">
-              <Label htmlFor="brand-name">{tIntegrations('brand_name')}</Label>
+              <Label htmlFor="brand-name" className="text-slate-800 dark:text-slate-100">
+                {tIntegrations('brand_name')}
+              </Label>
               <Input
                 id="brand-name"
                 placeholder={tIntegrations('brand_name_placeholder')}
@@ -396,13 +423,15 @@ export function BrandSelector() {
                     void handleCreateBrand();
                   }
                 }}
-                className="bg-white"
+                className="border-slate-200 bg-white text-slate-900 placeholder:text-slate-500 dark:border-slate-500 dark:bg-slate-900 dark:text-slate-50 dark:placeholder:text-slate-400"
                 dir={isRTL ? 'rtl' : 'ltr'}
                 disabled={isCreating || isUploadingLogo}
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="brand-logo">{tIntegrations('logo_optional')}</Label>
+              <Label htmlFor="brand-logo" className="text-slate-800 dark:text-slate-100">
+                {tIntegrations('logo_optional')}
+              </Label>
               <div className="relative">
                 <input
                   type="file"
@@ -410,10 +439,12 @@ export function BrandSelector() {
                   accept="image/*"
                   onChange={e => setBrandLogoFile(e.target.files?.[0] || null)}
                   className={cn(
-                    'block w-full text-sm bg-white rounded-md border border-gray-300',
-                    'file:border-0 file:bg-white file:text-gray-700 file:text-sm file:font-medium',
-                    'file:cursor-pointer hover:file:bg-gray-50',
-                    'text-gray-500',
+                    'block w-full rounded-md border text-sm file:leading-tight',
+                    'border-gray-300 bg-white text-slate-800',
+                    'dark:border-slate-500 dark:bg-slate-900 dark:text-slate-200',
+                    'file:border-0 file:text-sm file:font-medium file:cursor-pointer',
+                    'file:bg-slate-100 file:text-slate-800 file:hover:bg-slate-200',
+                    'dark:file:bg-slate-700 dark:file:text-slate-50 dark:hover:file:bg-slate-600',
                     isRTL ? 'file:ml-4 file:py-2 file:px-4' : 'file:mr-4 file:py-2 file:px-4',
                   )}
                   dir={isRTL ? 'rtl' : 'ltr'}
@@ -429,7 +460,7 @@ export function BrandSelector() {
                   setBrandName('');
                   setBrandLogoFile(null);
                 }}
-                className="border-gray-300 bg-white text-gray-700 hover:bg-gray-50"
+                className="border-gray-300 bg-white text-gray-800 hover:bg-gray-50 dark:border-slate-500 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700"
                 disabled={isCreating || isUploadingLogo}
               >
                 {tIntegrations('cancel')}

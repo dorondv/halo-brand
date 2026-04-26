@@ -1,6 +1,8 @@
 'use client';
 
+import { useLocale } from 'next-intl';
 import { useEffect, useRef } from 'react';
+import { useCookieConsent } from '@/contexts/useCookieConsent';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 
 declare global {
@@ -40,129 +42,131 @@ type ChatwootWidgetProps = {
   agentName?: string;
 };
 
+function normalizeBaseUrl(url: string): string {
+  return url.replace(/\/$/, '');
+}
+
 export function ChatwootWidget({
   websiteToken,
   baseUrl = 'https://app.chatwoot.com',
   agentName = 'branda',
 }: ChatwootWidgetProps) {
-  const timeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const intervalRef = useRef<NodeJS.Timeout | null>(null);
-  const readyTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const readyIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const locale = useLocale();
+  const { ready } = useCookieConsent();
+  const hasInitializedRun = useRef(false);
+  /** Skip duplicate setUser when auth refreshes with the same identity (TOKEN_REFRESHED fires often). */
+  const lastIdentityKeyRef = useRef<string | null>(null);
 
+  // Load SDK after cookie consent UI has read stored preferences (avoids hydration mismatch).
+  // Support chat is not gated on "functional" cookies so users who reject non-essential still see help.
   useEffect(() => {
     const token = websiteToken;
 
-    if (!token) {
-      console.warn('Chatwoot website token not configured');
+    if (!ready || !token) {
+      if (!token && process.env.NODE_ENV === 'development') {
+        console.warn('Chatwoot website token not configured');
+      }
       return;
     }
 
-    // Set widget settings before loading SDK
+    const base = normalizeBaseUrl(baseUrl);
+    const sdkUrl = `${base}/packs/js/sdk.js`;
+
     window.chatwootSettings = {
       hideMessageBubble: false,
       position: 'right',
-      locale: 'en',
+      locale: locale === 'he' ? 'he' : 'en',
       type: 'standard',
       launcherTitle: `Chat with ${agentName}`,
     };
 
-    // Check if SDK is already loaded
-    if (window.chatwootSDK && window.$chatwoot) {
-      initializeWidget(token, baseUrl);
+    const tryRun = (): boolean => {
+      if (hasInitializedRun.current) {
+        return true;
+      }
+      if (window.chatwootSDK && typeof window.chatwootSDK.run === 'function') {
+        try {
+          window.chatwootSDK.run({
+            websiteToken: token,
+            baseUrl: base,
+          });
+          hasInitializedRun.current = true;
+          if (process.env.NODE_ENV === 'development') {
+            console.warn('Chatwoot widget initialized');
+          }
+          return true;
+        } catch (error) {
+          console.error('Error initializing Chatwoot widget:', error);
+        }
+      }
+      return false;
+    };
+
+    if (tryRun()) {
       return;
     }
 
-    // Load Chatwoot SDK
-    const script = document.createElement('script');
-    script.src = `${baseUrl}/packs/js/sdk.js`;
-    script.async = true;
-    script.defer = true;
+    let script = document.querySelector<HTMLScriptElement>(`script[src="${sdkUrl}"]`);
+    if (!script) {
+      script = document.createElement('script');
+      script.src = sdkUrl;
+      script.async = true;
+      script.defer = true;
+      document.body.appendChild(script);
+    }
 
-    script.onload = () => {
-      // Wait for SDK to be available
-      const checkSDK = setInterval(() => {
-        if (window.chatwootSDK && typeof window.chatwootSDK.run === 'function') {
-          clearInterval(checkSDK);
-          initializeWidget(token, baseUrl);
-        }
-      }, 100);
-      intervalRef.current = checkSDK;
+    const poll = setInterval(() => {
+      if (tryRun()) {
+        clearInterval(poll);
+      }
+    }, 100);
 
-      // Timeout after 10 seconds
-      timeoutRef.current = setTimeout(() => {
-        if (intervalRef.current) {
-          clearInterval(intervalRef.current);
-        }
-        if (!window.chatwootSDK) {
-          console.error('Chatwoot SDK failed to load');
-        }
-      }, 10000);
-    };
+    const timeout = setTimeout(() => {
+      clearInterval(poll);
+      if (!hasInitializedRun.current && !window.chatwootSDK) {
+        console.error('Chatwoot SDK failed to load');
+      }
+    }, 10000);
 
-    script.onerror = () => {
-      console.error('Failed to load Chatwoot SDK script');
-    };
-
-    document.body.appendChild(script);
-
-    // Cleanup function
     return () => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-        intervalRef.current = null;
-      }
+      clearInterval(poll);
+      clearTimeout(timeout);
     };
-  }, [websiteToken, baseUrl, agentName]);
+  }, [ready, websiteToken, baseUrl, agentName, locale]);
 
   // Set user identity when authenticated
   useEffect(() => {
-    // Clear any existing interval/timeout on mount/unmount
-    if (readyIntervalRef.current) {
-      clearInterval(readyIntervalRef.current);
-      readyIntervalRef.current = null;
+    if (!ready) {
+      return;
     }
-    if (readyTimeoutRef.current) {
-      clearTimeout(readyTimeoutRef.current);
-      readyTimeoutRef.current = null;
-    }
+
+    let readyPoll: ReturnType<typeof setInterval> | null = null;
+    let readyPollTimeout: ReturnType<typeof setTimeout> | null = null;
+
+    const clearReadyPoll = () => {
+      if (readyPoll !== null) {
+        clearInterval(readyPoll);
+        readyPoll = null;
+      }
+      if (readyPollTimeout !== null) {
+        clearTimeout(readyPollTimeout);
+        readyPollTimeout = null;
+      }
+    };
 
     const setUserIdentity = async () => {
       if (!window.$chatwoot) {
-        // Clear any existing interval/timeout before creating new ones
-        if (readyIntervalRef.current) {
-          clearInterval(readyIntervalRef.current);
-          readyIntervalRef.current = null;
-        }
-        if (readyTimeoutRef.current) {
-          clearTimeout(readyTimeoutRef.current);
-          readyTimeoutRef.current = null;
-        }
+        clearReadyPoll();
 
         // Wait for Chatwoot to be ready
-        const checkReady = setInterval(() => {
+        readyPoll = setInterval(() => {
           if (window.$chatwoot) {
-            if (readyIntervalRef.current) {
-              clearInterval(readyIntervalRef.current);
-              readyIntervalRef.current = null;
-            }
-            if (readyTimeoutRef.current) {
-              clearTimeout(readyTimeoutRef.current);
-              readyTimeoutRef.current = null;
-            }
-            setUserIdentity();
+            clearReadyPoll();
+            void setUserIdentity();
           }
         }, 100);
-        readyIntervalRef.current = checkReady;
-        readyTimeoutRef.current = setTimeout(() => {
-          if (readyIntervalRef.current) {
-            clearInterval(readyIntervalRef.current);
-            readyIntervalRef.current = null;
-          }
+        readyPollTimeout = setTimeout(() => {
+          clearReadyPoll();
         }, 10000);
         return;
       }
@@ -189,6 +193,11 @@ export function ChatwootWidget({
           const userEmail = session.user.email || '';
           const avatarUrl = userRecord?.avatar_url || session.user.user_metadata?.avatar_url;
 
+          const identityKey = `${session.user.id}|${userEmail}|${userName}|${avatarUrl ?? ''}|${agentName}`;
+          if (lastIdentityKeyRef.current === identityKey) {
+            return;
+          }
+
           // Set user identity in Chatwoot
           window.$chatwoot.setUser(session.user.id, {
             email: userEmail,
@@ -202,12 +211,10 @@ export function ChatwootWidget({
             agent: agentName,
           });
 
-          // User identity set successfully (no need to log in production)
-          if (process.env.NODE_ENV === 'development') {
-            console.warn('Chatwoot user identity set:', userName);
-          }
+          lastIdentityKeyRef.current = identityKey;
         } else {
           // User is not authenticated, reset Chatwoot user
+          lastIdentityKeyRef.current = null;
           window.$chatwoot.reset();
         }
       } catch (error) {
@@ -226,6 +233,7 @@ export function ChatwootWidget({
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setUserIdentity();
       } else if (event === 'SIGNED_OUT') {
+        lastIdentityKeyRef.current = null;
         if (window.$chatwoot) {
           window.$chatwoot.reset();
         }
@@ -240,32 +248,9 @@ export function ChatwootWidget({
     return () => {
       window.removeEventListener('chatwoot:ready', handleReady);
       subscription.unsubscribe();
-      // Cleanup timeouts/intervals if still running
-      if (readyTimeoutRef.current) {
-        clearTimeout(readyTimeoutRef.current);
-        readyTimeoutRef.current = null;
-      }
-      if (readyIntervalRef.current) {
-        clearInterval(readyIntervalRef.current);
-        readyIntervalRef.current = null;
-      }
+      clearReadyPoll();
     };
-  }, [agentName]);
+  }, [ready, agentName]);
 
   return null; // This component doesn't render anything
-}
-
-function initializeWidget(token: string, baseUrl: string) {
-  try {
-    window.chatwootSDK?.run({
-      websiteToken: token,
-      baseUrl,
-    });
-    // Widget initialized successfully (no need to log in production)
-    if (process.env.NODE_ENV === 'development') {
-      console.warn('Chatwoot widget initialized');
-    }
-  } catch (error) {
-    console.error('Error initializing Chatwoot widget:', error);
-  }
 }

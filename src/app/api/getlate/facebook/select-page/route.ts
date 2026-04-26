@@ -5,7 +5,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * GET /api/getlate/facebook/select-page
+ * GET /api/publishing/facebook/select-page
  * Fetch available Facebook pages during headless OAuth flow
  */
 export async function GET(request: NextRequest) {
@@ -20,11 +20,11 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const profileId = searchParams.get('profileId');
     const tempToken = searchParams.get('tempToken');
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
-    if (!profileId || !tempToken || !connectToken) {
+    if (!profileId || !tempToken) {
       return NextResponse.json(
-        { error: 'Missing required parameters: profileId, tempToken, and X-Connect-Token header' },
+        { error: 'Missing required parameters: profileId and tempToken' },
         { status: 400 },
       );
     }
@@ -40,9 +40,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and fetch pages
+    // Create Publishing integration client and fetch pages
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
-    const pages = await getlateClient.getFacebookPagesForSelection(profileId, tempToken, connectToken);
+    const pages = await getlateClient.getFacebookPagesForSelection(profileId, tempToken, connectToken || undefined);
 
     return NextResponse.json({ pages });
   } catch (error) {
@@ -55,7 +55,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * POST /api/getlate/facebook/select-page
+ * POST /api/publishing/facebook/select-page
  * Save selected Facebook page during headless OAuth flow
  */
 export async function POST(request: NextRequest) {
@@ -82,14 +82,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { profileId, pageId, tempToken, userProfile, redirectUrl } = parse.data;
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
-
-    if (!connectToken) {
-      return NextResponse.json(
-        { error: 'Missing X-Connect-Token header' },
-        { status: 400 },
-      );
-    }
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
     // Get user record to fetch API key
     const { data: userRecord, error: userError } = await supabase
@@ -102,7 +95,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and save page selection
+    // Create Publishing integration client and save page selection
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     await getlateClient.selectFacebookPageForConnection(
       {
@@ -112,7 +105,7 @@ export async function POST(request: NextRequest) {
         userProfile,
         redirectUrl,
       },
-      connectToken,
+      connectToken || undefined,
     );
 
     // After successful page selection, sync accounts

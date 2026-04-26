@@ -35,20 +35,60 @@ const planConfigs: PlanConfig[] = [
     key: 'basic',
     priceMonthly: 29,
     priceAnnual: 276, // $23/month when billed annually
-    featureKeys: ['brands', 'social_accounts', 'posts_per_month', 'post_scheduling', 'analytics_unlimited', 'events_calendar', 'unified_inbox', 'insights_engine'],
+    featureKeys: [
+      'brands',
+      'social_accounts',
+      'posts_per_month',
+      'ai_monthly',
+      'post_scheduling',
+      'analytics_unlimited',
+      'events_calendar',
+      'unified_inbox',
+      'insights_engine',
+    ],
   },
   {
     key: 'pro',
     priceMonthly: 59,
     priceAnnual: 564, // $47/month when billed annually
     isPopular: true,
-    featureKeys: ['brands', 'social_accounts', 'posts_per_month', 'post_scheduling', 'analytics_unlimited', 'events_calendar', 'unified_inbox', 'insights_engine', 'pdf_ppt_reports', 'semantic_analysis', 'brand_sentiment', 'preferred_support'],
+    featureKeys: [
+      'brands',
+      'social_accounts',
+      'posts_per_month',
+      'ai_monthly',
+      'post_scheduling',
+      'analytics_unlimited',
+      'events_calendar',
+      'unified_inbox',
+      'insights_engine',
+      'pdf_ppt_reports',
+      'semantic_analysis',
+      'brand_sentiment',
+      'preferred_support',
+    ],
   },
   {
     key: 'business',
     priceMonthly: 99,
     priceAnnual: 948, // $79/month when billed annually
-    featureKeys: ['brands', 'social_accounts', 'posts_per_month', 'post_scheduling', 'analytics_unlimited', 'events_calendar', 'unified_inbox', 'insights_engine', 'pdf_ppt_reports', 'semantic_analysis', 'brand_sentiment', 'preferred_support'],
+    featureKeys: [
+      'brands',
+      'social_accounts',
+      'posts_per_month',
+      'ai_monthly',
+      'post_scheduling',
+      'analytics_unlimited',
+      'events_calendar',
+      'unified_inbox',
+      'insights_engine',
+      'pdf_ppt_reports',
+      'semantic_analysis',
+      'brand_sentiment',
+      'preferred_support',
+      'api_access',
+      'dedicated_support',
+    ],
   },
 ];
 
@@ -165,7 +205,7 @@ export function PricingClient() {
                         {t('annual')}
                       </span>
                       {isAnnual && (
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
+                        <Badge className="bg-linear-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
                           {t('save_percent', { percent: '20' })}
                         </Badge>
                       )}
@@ -208,7 +248,7 @@ export function PricingClient() {
                         {t('annual')}
                       </span>
                       {isAnnual && (
-                        <Badge className="bg-gradient-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
+                        <Badge className="bg-linear-to-r from-green-500 to-emerald-500 px-3 py-1 text-xs text-white shadow-md sm:text-sm">
                           {t('save_percent', { percent: '20' })}
                         </Badge>
                       )}
@@ -253,7 +293,7 @@ export function PricingClient() {
                 >
                   {isPopular && (
                     <div className="absolute -top-4 left-1/2 z-10 -translate-x-1/2">
-                      <Badge className="bg-gradient-to-r from-pink-500 to-pink-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
+                      <Badge className="bg-linear-to-r from-pink-500 to-pink-600 px-4 py-1.5 text-sm font-semibold text-white shadow-lg">
                         {t(`plan_${planKey}.popular_badge` as any)}
                       </Badge>
                     </div>
@@ -334,7 +374,7 @@ export function PricingClient() {
                       className={cn(
                         'group mt-auto w-full flex items-center justify-center gap-2',
                         'h-12 sm:h-14 text-base sm:text-lg font-semibold',
-                        'bg-gradient-to-r from-pink-500 to-pink-600',
+                        'bg-linear-to-r from-pink-500 to-pink-600',
                         'hover:from-pink-600 hover:to-pink-700',
                         'shadow-lg hover:shadow-xl',
                         'transition-all duration-200',

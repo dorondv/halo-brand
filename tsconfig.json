@@ -1,5 +1,4 @@
-/* eslint-disable jsonc/sort-keys */
-{
+/* eslint-disable jsonc/sort-keys */{
   "compilerOptions": {
     // ======================================================================
     // Language & Environment
@@ -86,15 +85,16 @@
     "node_modules",
     "**/*.spec.ts",
     "**/*.e2e.ts",
-    "project-management-tool/**/*"
+    "project-management-tool/**/*",
+    ".next/dev"
   ],
   "include": [
     "next-env.d.ts",
     "**/*.ts",
     "**/*.tsx",
     ".next/types/**/*.ts",
-    ".next/dev/types/**/*.ts",
     "**/*.mts",
-    "types/**/*.d.ts"
+    "types/**/*.d.ts",
+    ".next/dev/types/**/*.ts"
   ]
 }

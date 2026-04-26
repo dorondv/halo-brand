@@ -5,11 +5,47 @@
 
 import { Env } from './Env';
 
+/** PayPal subscription details returned by the Subscriptions API */
+export interface PayPalSubscriptionDetails {
+  id: string;
+  status: string;
+  start_time?: string;
+  create_time?: string;
+  billing_info?: {
+    trial_ended_at?: string;
+    next_billing_time?: string;
+  };
+  billing_cycles?: Array<{
+    tenure_type: string;
+    frequency?: {
+      interval_count?: number;
+      interval_unit?: string;
+    };
+  }>;
+  [key: string]: unknown;
+}
+
+/** PayPal refund response */
+interface PayPalRefundResponse {
+  id: string;
+  status: string;
+  amount?: { value: string; currency_code: string };
+  [key: string]: unknown;
+}
+
 // PayPal API endpoints
 const PAYPAL_BASE_URL = Env.PAYPAL_MODE === 'live'
   ? 'https://api-m.paypal.com'
   : 'https://api-m.sandbox.paypal.com';
 
+/**
+ * Module-level token cache for PayPal access tokens.
+ *
+ * NOTE (serverless): This cache lives in the module scope and will NOT persist
+ * across cold starts in serverless environments (e.g. Vercel). Each new function
+ * instance starts with `null`, causing a fresh token request. Within a warm
+ * instance, the cache correctly avoids redundant token fetches.
+ */
 let accessTokenCache: { token: string; expiresAt: number } | null = null;
 
 /**
@@ -53,16 +89,17 @@ async function getAccessToken(): Promise<string> {
     };
 
     return data.access_token;
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error getting PayPal access token:', error);
-    throw new Error(`Failed to get PayPal access token: ${error.message}`);
+    throw new Error(`Failed to get PayPal access token: ${message}`);
   }
 }
 
 /**
  * Make authenticated PayPal API request
  */
-async function paypalRequest(endpoint: string, options: RequestInit & { params?: Record<string, any> } = {}): Promise<any> {
+async function paypalRequest<T = unknown>(endpoint: string, options: RequestInit & { params?: Record<string, string | number | boolean | undefined | null> } = {}): Promise<T> {
   const token = await getAccessToken();
   let url = endpoint.startsWith('http') ? endpoint : `${PAYPAL_BASE_URL}${endpoint}`;
 
@@ -95,12 +132,12 @@ async function paypalRequest(endpoint: string, options: RequestInit & { params?:
     throw new Error(`PayPal API error: ${error}`);
   }
 
-  // Handle empty responses
+  // Handle empty responses (204 No Content for cancel/suspend/etc.)
   if (response.status === 204 || response.headers.get('content-length') === '0') {
-    return null;
+    return null as T;
   }
 
-  return await response.json();
+  return await response.json() as T;
 }
 
 /**
@@ -143,12 +180,13 @@ export function getPayPalPlanId(
 /**
  * Get subscription details from PayPal
  */
-export async function getSubscriptionDetails(subscriptionId: string): Promise<any> {
+export async function getSubscriptionDetails(subscriptionId: string): Promise<PayPalSubscriptionDetails> {
   try {
-    return await paypalRequest(`/v1/billing/subscriptions/${subscriptionId}`);
-  } catch (error: any) {
+    return await paypalRequest<PayPalSubscriptionDetails>(`/v1/billing/subscriptions/${subscriptionId}`);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error getting subscription details:', error);
-    throw new Error(`Failed to get subscription details: ${error.message}`);
+    throw new Error(`Failed to get subscription details: ${message}`);
   }
 }
 
@@ -157,7 +195,7 @@ export async function getSubscriptionDetails(subscriptionId: string): Promise<an
  */
 export async function cancelSubscription(subscriptionId: string, reason?: string): Promise<void> {
   try {
-    const body: any = {};
+    const body: Record<string, string> = {};
     if (reason) {
       body.reason = reason;
     }
@@ -166,9 +204,10 @@ export async function cancelSubscription(subscriptionId: string, reason?: string
       method: 'POST',
       body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error cancelling subscription:', error);
-    throw new Error(`Failed to cancel subscription: ${error.message}`);
+    throw new Error(`Failed to cancel subscription: ${message}`);
   }
 }
 
@@ -177,7 +216,7 @@ export async function cancelSubscription(subscriptionId: string, reason?: string
  */
 export async function suspendSubscription(subscriptionId: string, reason?: string): Promise<void> {
   try {
-    const body: any = {};
+    const body: Record<string, string> = {};
     if (reason) {
       body.reason = reason;
     }
@@ -186,9 +225,10 @@ export async function suspendSubscription(subscriptionId: string, reason?: strin
       method: 'POST',
       body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error suspending subscription:', error);
-    throw new Error(`Failed to suspend subscription: ${error.message}`);
+    throw new Error(`Failed to suspend subscription: ${message}`);
   }
 }
 
@@ -197,7 +237,7 @@ export async function suspendSubscription(subscriptionId: string, reason?: strin
  */
 export async function reactivateSubscription(subscriptionId: string, reason?: string): Promise<void> {
   try {
-    const body: any = {};
+    const body: Record<string, string> = {};
     if (reason) {
       body.reason = reason;
     }
@@ -206,9 +246,10 @@ export async function reactivateSubscription(subscriptionId: string, reason?: st
       method: 'POST',
       body: Object.keys(body).length > 0 ? JSON.stringify(body) : undefined,
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error reactivating subscription:', error);
-    throw new Error(`Failed to reactivate subscription: ${error.message}`);
+    throw new Error(`Failed to reactivate subscription: ${message}`);
   }
 }
 
@@ -220,9 +261,9 @@ export async function refundTransaction(
   amount?: number,
   currency: string = 'USD',
   reason?: string,
-): Promise<any> {
+): Promise<PayPalRefundResponse> {
   try {
-    const body: any = {};
+    const body: Record<string, unknown> = {};
 
     if (amount) {
       body.amount = {
@@ -235,13 +276,14 @@ export async function refundTransaction(
       body.note_to_payer = reason;
     }
 
-    return await paypalRequest(`/v2/payments/captures/${captureId}/refund`, {
+    return await paypalRequest<PayPalRefundResponse>(`/v2/payments/captures/${captureId}/refund`, {
       method: 'POST',
       body: JSON.stringify(body),
     });
-  } catch (error: any) {
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error('Error refunding transaction:', error);
-    throw new Error(`Failed to refund transaction: ${error.message}`);
+    throw new Error(`Failed to refund transaction: ${message}`);
   }
 }
 

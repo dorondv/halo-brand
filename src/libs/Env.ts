@@ -7,7 +7,8 @@ export const Env = createEnv({
     DATABASE_URL: z.string().min(1),
     ADMIN_EMAIL: z.string().email().optional(), // Admin email for admin access control
     GETLATE_API_URL: z.string().url().optional(), // Optional, defaults to production API
-    GETLATE_SERVICE_API_KEY: z.string().min(1).optional(), // Service account API key for auto-setup
+    /** Service key: Getlate/Zernio auto-setup and server-side unified inbox (optional; inbox falls back to user getlate_api_key). */
+    GETLATE_SERVICE_API_KEY: z.string().min(1).optional(),
     OPENAI_API_KEY: z.string().min(1).optional(), // OpenAI API key for AI features
     PAYPAL_CLIENT_ID: z.string().min(1).optional(), // PayPal Client ID for subscriptions
     PAYPAL_CLIENT_SECRET: z.string().min(1).optional(), // PayPal Client Secret
@@ -19,6 +20,7 @@ export const Env = createEnv({
     PAYPAL_GOLD_PLAN_MONTHLY: z.string().optional(), // PayPal Gold Plan Monthly ID
     PAYPAL_GOLD_PLAN_ANNUAL: z.string().optional(), // PayPal Gold Plan Annual ID
     SOCIAL_VAULT: z.string().min(1).optional(), // SocialVault API key for fetching comments
+    PAYPAL_WEBHOOK_ID: z.string().min(1).optional(), // PayPal Webhook ID for signature verification
   },
   client: {
     NEXT_PUBLIC_APP_URL: z.string().optional(),
@@ -28,6 +30,9 @@ export const Env = createEnv({
     NEXT_PUBLIC_SUPABASE_ANON_KEY: z.string().min(1),
     NEXT_PUBLIC_GA_MEASUREMENT_ID: z.string().optional(), // Google Analytics Measurement ID (G-XXXXXXXXXX)
     NEXT_PUBLIC_GTM_CONTAINER_ID: z.string().optional(), // Google Tag Manager Container ID (GTM-XXXXXXX)
+    NEXT_PUBLIC_GOOGLE_ADS_ID: z.string().optional(), // Google Ads (AW-XXXXXXXXXX)
+    NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO: z.string().optional(), // e.g. AW-xxx/label for gtag conversion
+    NEXT_PUBLIC_META_PIXEL_ID: z.string().optional(), // Meta Pixel ID (digits)
   },
   shared: {
     NODE_ENV: z.enum(['test', 'development', 'production']).optional(),
@@ -50,6 +55,7 @@ export const Env = createEnv({
     PAYPAL_GOLD_PLAN_MONTHLY: process.env.PAYPAL_GOLD_PLAN_MONTHLY,
     PAYPAL_GOLD_PLAN_ANNUAL: process.env.PAYPAL_GOLD_PLAN_ANNUAL,
     SOCIAL_VAULT: process.env.SOCIAL_VAULT,
+    PAYPAL_WEBHOOK_ID: process.env.PAYPAL_WEBHOOK_ID,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
     NEXT_PUBLIC_POSTHOG_KEY: process.env.NEXT_PUBLIC_POSTHOG_KEY,
     NEXT_PUBLIC_POSTHOG_HOST: process.env.NEXT_PUBLIC_POSTHOG_HOST,
@@ -57,6 +63,9 @@ export const Env = createEnv({
     NEXT_PUBLIC_SUPABASE_ANON_KEY: process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     NEXT_PUBLIC_GA_MEASUREMENT_ID: process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID,
     NEXT_PUBLIC_GTM_CONTAINER_ID: process.env.NEXT_PUBLIC_GTM_CONTAINER_ID,
+    NEXT_PUBLIC_GOOGLE_ADS_ID: process.env.NEXT_PUBLIC_GOOGLE_ADS_ID,
+    NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO: process.env.NEXT_PUBLIC_GOOGLE_ADS_CONVERSION_SEND_TO,
+    NEXT_PUBLIC_META_PIXEL_ID: process.env.NEXT_PUBLIC_META_PIXEL_ID,
     NODE_ENV: process.env.NODE_ENV,
   },
 });

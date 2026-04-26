@@ -1,4 +1,5 @@
 import { setRequestLocale } from 'next-intl/server';
+import { LegalLinksFooter } from '@/components/legal/LegalLinksFooter';
 
 export default async function Layout(props: {
   children: React.ReactNode;
@@ -8,6 +9,9 @@ export default async function Layout(props: {
   setRequestLocale(locale);
 
   return (
-    <>{props.children}</>
+    <div className="flex min-h-screen flex-col">
+      <div className="flex-1">{props.children}</div>
+      <LegalLinksFooter />
+    </div>
   );
 }

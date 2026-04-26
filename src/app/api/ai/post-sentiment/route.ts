@@ -3,7 +3,7 @@ import { generateText } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { fetchCommentsForPost } from '@/libs/socialvault';
-import { getUserSubscription } from '@/libs/subscriptionService';
+import { getUserSubscription, subscriptionShouldApplyPaidPlanLimits } from '@/libs/subscriptionService';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 // Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
@@ -446,11 +446,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const now = new Date();
-  const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-  const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-  if (!isSubscriptionActive || !isNotExpired) {
+  if (!subscriptionShouldApplyPaidPlanLimits(subscription)) {
     return NextResponse.json(
       { error: 'Your subscription is not active. Please renew your subscription to access this feature.' },
       { status: 403 },

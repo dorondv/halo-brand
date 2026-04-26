@@ -1,6 +1,7 @@
 'use client';
 
 import { AlertCircle, CreditCard, DollarSign, Gift, TrendingUp } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { useToast } from '@/components/ui/toast';
 
@@ -25,6 +26,7 @@ type PaymentStats = {
 
 export function AdminDashboard() {
   const toast = useToast();
+  const t = useTranslations('Admin');
   const [subscriptionStats, setSubscriptionStats] = useState<SubscriptionStats | null>(null);
   const [paymentStats, setPaymentStats] = useState<PaymentStats | null>(null);
   const [loading, setLoading] = useState(true);
@@ -107,7 +109,7 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Admin Dashboard</h1>
+        <h1 className="text-3xl font-bold text-gray-900 dark:text-white">{t('admin_dashboard')}</h1>
         <p className="mt-2 text-gray-600 dark:text-gray-400">
           Overview of subscriptions, payments, and user activity
         </p>

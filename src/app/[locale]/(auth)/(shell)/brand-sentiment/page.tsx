@@ -1,6 +1,6 @@
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import { getUserSubscription } from '@/libs/subscriptionService';
+import { getUserSubscription, subscriptionShouldApplyPaidPlanLimits } from '@/libs/subscriptionService';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { BrandSentimentClient } from './BrandSentimentClient';
 
@@ -25,11 +25,7 @@ export default async function BrandSentimentPage() {
     redirect('/pricing?feature=brand_sentiment');
   }
 
-  const now = new Date();
-  const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-  const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-  if (!isSubscriptionActive || !isNotExpired) {
+  if (!subscriptionShouldApplyPaidPlanLimits(subscription)) {
     redirect('/pricing?feature=brand_sentiment');
   }
 

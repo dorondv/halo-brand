@@ -12,14 +12,25 @@ import { cn } from '@/libs/cn';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
 import { formatDateForDisplay, getIntlLocale } from '@/libs/timezone';
 
+function flattenMessagesDeep(msgs: Message[]): Message[] {
+  const out: Message[] = [];
+  for (const m of msgs) {
+    out.push(m);
+    if (m.replies?.length) {
+      out.push(...flattenMessagesDeep(m.replies));
+    }
+  }
+  return out;
+}
+
 // CommentThread component for rendering nested comments
 type CommentThreadProps = {
   message: Message;
   conversation: Conversation | null;
-  messageLikes: Record<string, { liked: boolean; count: number }>;
+  messageLikes: Record<string, { liked: boolean; count: number; likeUri?: string }>;
   likingMessageId: string | null;
   replyingToMessage: Message | null;
-  onLike: (messageId: string) => void;
+  onLike: (message: Message) => void;
   onReply: (message: Message) => void;
   locale: string;
   isRTL: boolean;
@@ -42,6 +53,7 @@ function CommentThread({
   accountId,
   depth = 0,
 }: CommentThreadProps) {
+  const t = useTranslations('Inbox');
   const isOutgoing = message.isOutgoing;
   const messageDate = new Date(message.timestamp);
   const timeString = messageDate.toLocaleTimeString(intlLocale, {
@@ -53,7 +65,7 @@ function CommentThread({
   return (
     <div className={cn(
       'space-y-2',
-      isReply && (isRTL ? 'pr-6 pl-0 border-r-2 border-gray-300' : 'pl-6 border-l-2 border-gray-300'),
+      isReply && (isRTL ? 'pr-6 pl-0 border-r-2 border-gray-300 dark:border-gray-600' : 'pl-6 border-l-2 border-gray-300 dark:border-gray-600'),
     )}
     >
       <motion.div
@@ -84,7 +96,7 @@ function CommentThread({
                           width={isReply ? 24 : 32}
                           height={isReply ? 24 : 32}
                           className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
-                          unoptimized={message.senderAvatar.includes('cdninstagram.com') || message.senderAvatar.includes('fbsbx.com') || message.senderAvatar.includes('fbcdn.net')}
+                          unoptimized={!message.senderAvatar.startsWith('/') && !message.senderAvatar.includes('supabase.co') && !message.senderAvatar.includes('getlate.dev')}
                           onError={(e) => {
                             const target = e.target as HTMLImageElement;
                             target.style.display = 'none';
@@ -120,14 +132,14 @@ function CommentThread({
                 ? 'rounded-bl-sm bg-pink-500 text-white'
                 : 'rounded-br-sm bg-pink-500 text-white'
               : isRTL
-                ? 'rounded-br-sm bg-gray-100 text-gray-900'
-                : 'rounded-bl-sm bg-gray-100 text-gray-900',
+                ? 'rounded-br-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100'
+                : 'rounded-bl-sm bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-gray-100',
           )}
         >
           {/* Sender name */}
           {(message.senderName || (isOutgoing && conversation)) && (
             <p className={cn('mb-1 text-xs font-semibold', isRTL && 'text-right')} style={{ color: isOutgoing ? 'rgba(255, 255, 255, 0.9)' : '#6B7280' }}>
-              {isOutgoing ? (message.senderName || 'You') : message.senderName}
+              {isOutgoing ? (message.senderName || t('you')) : message.senderName}
             </p>
           )}
           <p className={cn('break-words whitespace-pre-wrap', isReply ? 'text-xs' : 'text-sm')}>{message.content}</p>
@@ -135,7 +147,7 @@ function CommentThread({
             <p
               className={cn(
                 isReply ? 'text-xs' : 'text-xs',
-                isOutgoing ? 'text-blue-100' : 'text-gray-500',
+                isOutgoing ? 'text-blue-100' : 'text-gray-500 dark:text-gray-400',
               )}
             >
               {timeString}
@@ -146,13 +158,13 @@ function CommentThread({
                 {/* Like button */}
                 <button
                   type="button"
-                  onClick={() => onLike(message.id)}
+                  onClick={() => onLike(message)}
                   disabled={likingMessageId === message.id}
                   className={cn(
                     'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
                     messageLikes[message.id]?.liked
-                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
-                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                      ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/70'
+                      : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600',
                     isRTL && 'flex-row-reverse',
                   )}
                   title={messageLikes[message.id]?.liked ? 'Unlike' : 'Like'}
@@ -176,8 +188,8 @@ function CommentThread({
                   className={cn(
                     'flex items-center gap-1 rounded-full px-2 py-0.5 transition-colors',
                     replyingToMessage?.id === message.id
-                      ? 'bg-pink-100 text-pink-600 hover:bg-pink-200'
-                      : 'bg-transparent text-gray-500 hover:bg-gray-200',
+                      ? 'bg-pink-100 dark:bg-pink-900/50 text-pink-600 dark:text-pink-300 hover:bg-pink-200 dark:hover:bg-pink-900/70'
+                      : 'bg-transparent text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600',
                     isRTL && 'flex-row-reverse',
                   )}
                   title="Reply"
@@ -198,6 +210,7 @@ function CommentThread({
                       alt="Attachment"
                       width={200}
                       height={200}
+                      unoptimized={!att.url.startsWith('/') && !att.url.includes('supabase.co') && !att.url.includes('getlate.dev')}
                       className="h-auto max-w-full rounded-lg"
                     />
                   )}
@@ -233,12 +246,12 @@ function CommentThread({
                         width={isReply ? 24 : 32}
                         height={isReply ? 24 : 32}
                         className={cn('rounded-full object-cover', isReply ? 'h-6 w-6' : 'h-8 w-8')}
-                        unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                        unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
                       />
                     )
                   : (
                       <div className={cn('flex items-center justify-center rounded-full bg-pink-500', isReply ? 'h-6 w-6' : 'h-8 w-8')}>
-                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>You</span>
+                        <span className={cn('font-semibold text-white', isReply ? 'text-xs' : 'text-xs')}>{t('you')}</span>
                       </div>
                     )}
               </div>
@@ -314,7 +327,9 @@ export function ChatWindow({
   const [showPlusMenu, setShowPlusMenu] = useState(false);
   const [attachments, setAttachments] = useState<Array<{ type: 'image' | 'file'; url: string; file: File }>>([]);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
-  const [messageLikes, setMessageLikes] = useState<Record<string, { liked: boolean; count: number }>>({});
+  const [messageLikes, setMessageLikes] = useState<
+    Record<string, { liked: boolean; count: number; likeUri?: string }>
+  >({});
   const [likingMessageId, setLikingMessageId] = useState<string | null>(null);
   const [replyingToMessage, setReplyingToMessage] = useState<Message | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -343,7 +358,23 @@ export function ChatWindow({
         return;
       }
 
-      const likesPromises = messages
+      // Zernio-loaded comment threads: like state comes from message payload (Meta token is often invalid here)
+      if (conversation.zernioSocialAccountId) {
+        const likesMap: Record<string, { liked: boolean; count: number; likeUri?: string }> = {};
+        for (const msg of flattenMessagesDeep(messages)) {
+          if (!msg.isOutgoing) {
+            likesMap[msg.id] = {
+              liked: msg.isLiked ?? false,
+              count: msg.likeCount ?? 0,
+              likeUri: msg.likeUri,
+            };
+          }
+        }
+        setMessageLikes(likesMap);
+        return;
+      }
+
+      const likesPromises = flattenMessagesDeep(messages)
         .filter(msg => !msg.isOutgoing) // Only fetch likes for incoming messages
         .map(async (msg) => {
           try {
@@ -364,7 +395,7 @@ export function ChatWindow({
         });
 
       const likesResults = await Promise.all(likesPromises);
-      const likesMap: Record<string, { liked: boolean; count: number }> = {};
+      const likesMap: Record<string, { liked: boolean; count: number; likeUri?: string }> = {};
       likesResults.forEach((result) => {
         likesMap[result.messageId] = { liked: result.liked, count: result.count };
       });
@@ -422,13 +453,7 @@ export function ChatWindow({
         throw new Error('Not authenticated');
       }
 
-      const { data: userRecord } = await supabase
-        .from('users')
-        .select('id')
-        .eq('email', session.user.email)
-        .maybeSingle();
-
-      const userId = userRecord?.id || session.user.id;
+      const userId = session.user.id;
 
       for (const file of files) {
         const maxSize = 10 * 1024 * 1024; // 10MB
@@ -590,31 +615,62 @@ export function ChatWindow({
   };
 
   // Handle like/unlike a comment
-  const handleLike = async (messageId: string) => {
+  const handleLike = async (message: Message) => {
+    const messageId = message.id;
     if (!conversation || !accountId || likingMessageId) {
       return;
     }
+    if (conversation.zernioSocialAccountId && !conversation.postId) {
+      return;
+    }
+
+    const current = messageLikes[messageId];
+    const currentlyLiked = current?.liked ?? message.isLiked ?? false;
+    const currentCount = current?.count ?? message.likeCount ?? 0;
+    const likeUri = current?.likeUri ?? message.likeUri;
 
     setLikingMessageId(messageId);
     try {
+      const isZernio = !!conversation.zernioSocialAccountId && !!conversation.postId;
       const response = await fetch('/api/inbox/comments/like', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          commentId: messageId,
-          accountId,
-          platform: conversation.platform,
-          conversationId: conversation.id,
-        }),
+        body: JSON.stringify(
+          isZernio
+            ? {
+                commentId: messageId,
+                accountId,
+                platform: conversation.platform,
+                conversationId: conversation.id,
+                postId: conversation.postId,
+                zernioSocialAccountId: conversation.zernioSocialAccountId,
+                currentlyLiked,
+                currentCount,
+                ...(currentlyLiked && likeUri ? { likeUri } : {}),
+              }
+            : {
+                commentId: messageId,
+                accountId,
+                platform: conversation.platform,
+                conversationId: conversation.id,
+              },
+        ),
       });
 
       if (response.ok) {
-        const data = await response.json();
+        const data = await response.json() as {
+          liked: boolean;
+          count?: number;
+          likeUri?: string;
+        };
         setMessageLikes(prev => ({
           ...prev,
           [messageId]: {
             liked: data.liked,
-            count: data.count || 0,
+            count: data.count ?? 0,
+            likeUri: data.liked
+              ? (typeof data.likeUri === 'string' ? data.likeUri : prev[messageId]?.likeUri)
+              : undefined,
           },
         }));
       }
@@ -642,12 +698,12 @@ export function ChatWindow({
 
   if (!conversation) {
     return (
-      <div className="flex h-full flex-1 items-center justify-center bg-gray-50">
+      <div className="flex h-full flex-1 items-center justify-center bg-gray-50 dark:bg-gray-900">
         <div className="text-center">
-          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200">
+          <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-gray-200 dark:bg-gray-700">
             <svg
               xmlns="http://www.w3.org/2000/svg"
-              className="h-8 w-8 text-gray-400"
+              className="h-8 w-8 text-gray-400 dark:text-gray-500"
               fill="none"
               viewBox="0 0 24 24"
               stroke="currentColor"
@@ -660,16 +716,16 @@ export function ChatWindow({
               />
             </svg>
           </div>
-          <p className={cn('text-gray-500', isRTL && 'text-right')}>{t('select_comment')}</p>
+          <p className={cn('text-gray-500 dark:text-gray-400', isRTL && 'text-right')}>{t('select_comment')}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="flex h-full flex-1 flex-col bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Comment Header */}
-      <div className={cn('flex items-center justify-between border-b border-gray-200 px-6 py-4', isRTL && 'flex-row-reverse')}>
+      <div className={cn('flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4', isRTL && 'flex-row-reverse')}>
         <div className={cn('flex items-center gap-3', isRTL && 'flex-row-reverse')}>
           {conversation.contactAvatar
             ? (
@@ -680,7 +736,7 @@ export function ChatWindow({
                     width={40}
                     height={40}
                     className="h-10 w-10 rounded-full object-cover"
-                    unoptimized={conversation.contactAvatar.includes('cdninstagram.com') || conversation.contactAvatar.includes('fbsbx.com') || conversation.contactAvatar.includes('fbcdn.net')}
+                    unoptimized={!conversation.contactAvatar.startsWith('/') && !conversation.contactAvatar.includes('supabase.co') && !conversation.contactAvatar.includes('getlate.dev')}
                     onError={(e) => {
                       // Fallback to initials if image fails to load
                       const target = e.target as HTMLImageElement;
@@ -706,8 +762,8 @@ export function ChatWindow({
                 </div>
               )}
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">{conversation.contactName}</h2>
-            <p className={cn('text-sm text-gray-500 capitalize', isRTL && 'text-right')}>
+            <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-100">{conversation.contactName}</h2>
+            <p className={cn('text-sm text-gray-500 dark:text-gray-400 capitalize', isRTL && 'text-right')}>
               {conversation.type === 'chat' ? t('private_message') : t('comment')}
               {' '}
               •
@@ -717,22 +773,32 @@ export function ChatWindow({
         </div>
       </div>
 
-      {/* Post Context (for comments) */}
-      {conversation.type === 'comment' && conversation.postContent && (
-        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4">
+      {/* Post Context (for comments): show whenever this thread is tied to a post */}
+      {conversation.type === 'comment' && (conversation.postContent || conversation.postImageUrl || conversation.postId) && (
+        <div className="border-b border-gray-200 bg-gray-50 px-6 py-4 dark:border-gray-700 dark:bg-gray-800">
           <div className="flex gap-3">
-            {conversation.postImageUrl && (
-              <Image
-                src={conversation.postImageUrl}
-                alt="Post"
-                width={60}
-                height={60}
-                className="h-15 w-15 rounded object-cover"
-              />
-            )}
-            <div className="flex-1">
-              <p className="line-clamp-2 text-sm text-gray-900">{conversation.postContent}</p>
-              <p className="mt-1 text-xs text-gray-500">
+            {conversation.postImageUrl
+              ? (
+                  <Image
+                    src={conversation.postImageUrl}
+                    alt="Post"
+                    width={60}
+                    height={60}
+                    unoptimized={!conversation.postImageUrl.startsWith('/') && !conversation.postImageUrl.includes('supabase.co') && !conversation.postImageUrl.includes('getlate.dev')}
+                    className="h-[60px] w-[60px] rounded object-cover"
+                  />
+                )
+              : (
+                  <div className="flex h-[60px] w-[60px] shrink-0 items-center justify-center rounded bg-gray-200 dark:bg-gray-700">
+                    <MessageCircle className="h-7 w-7 text-gray-400" />
+                  </div>
+                )}
+            <div className="min-w-0 flex-1">
+              <p className="text-xs font-semibold tracking-wide text-gray-500 uppercase dark:text-gray-400">{t('post_label')}</p>
+              <p className="line-clamp-3 text-sm text-gray-900 dark:text-gray-100">
+                {conversation.postContent?.trim() ? conversation.postContent : t('post_no_caption')}
+              </p>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">
                 {formatDateForDisplay(conversation.lastMessageTime, { locale, format: 'short' })}
               </p>
             </div>
@@ -786,14 +852,14 @@ export function ChatWindow({
       </div>
 
       {/* Message Input */}
-      <div className="border-t border-gray-200 bg-white px-6 py-4">
+      <div className="border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
         {/* Reply indicator */}
         {replyingToMessage && conversation?.type === 'comment' && (
           <div className={cn('mb-2 flex items-center justify-between rounded-lg bg-pink-50 border border-pink-200 px-3 py-2', isRTL && 'flex-row-reverse')}>
             <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
               <MessageCircle className="h-4 w-4 text-pink-600" />
               <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
-                Replying to
+                {t('replying_to')}
                 {' '}
                 <span className="font-semibold">{replyingToMessage.senderName}</span>
               </span>
@@ -804,7 +870,7 @@ export function ChatWindow({
               size="icon"
               className="h-6 w-6 text-pink-600 hover:bg-pink-100"
               onClick={() => setReplyingToMessage(null)}
-              title="Cancel reply"
+              title={t('cancel_reply')}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -873,7 +939,7 @@ export function ChatWindow({
                 value={newMessage}
                 onChange={e => setNewMessage(e.target.value)}
                 onKeyPress={handleKeyPress}
-                className={cn('min-h-[60px] resize-none bg-gray-50 border-gray-200 text-gray-900 placeholder:text-gray-400 focus-visible:bg-white focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
+                className={cn('min-h-[60px] resize-none bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
                 disabled={isSending}
                 dir={isRTL ? 'rtl' : 'ltr'}
               />

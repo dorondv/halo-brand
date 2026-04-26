@@ -4,7 +4,6 @@ import { X } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '@/libs/cn';
 
-// Lazy load createPortal to avoid SSR issues in Next.js 16
 let createPortalFn: typeof import('react-dom').createPortal | null = null;
 const loadCreatePortal = async () => {
   if (typeof window !== 'undefined' && !createPortalFn) {
@@ -22,21 +21,16 @@ type DialogContextValue = {
 const DialogContext = React.createContext<DialogContextValue | null>(null);
 
 export function Dialog({ children, open, onOpenChange }: { children: React.ReactNode; open: boolean; onOpenChange: (open: boolean) => void }) {
-  const [mounted, setMounted] = React.useState(false);
   const [portalReady, setPortalReady] = React.useState(false);
 
-  React.useLayoutEffect(() => {
-    if (!mounted) {
-      // eslint-disable-next-line react-hooks-extra/no-direct-set-state-in-use-effect
-      setMounted(true);
-      // Load createPortal on client side only
-      if (typeof window !== 'undefined') {
-        loadCreatePortal().then(() => {
-          setPortalReady(true);
-        });
-      }
+  React.useEffect(() => {
+    if (typeof window === 'undefined') {
+      return;
     }
-  }, [mounted]);
+    loadCreatePortal().then(() => {
+      setPortalReady(true);
+    });
+  }, []);
 
   React.useEffect(() => {
     if (open) {
@@ -49,29 +43,28 @@ export function Dialog({ children, open, onOpenChange }: { children: React.React
     };
   }, [open]);
 
-  if (!open || !mounted || !portalReady || !createPortalFn) {
+  if (!open || !portalReady || !createPortalFn) {
     return null;
   }
+
+  const closeDialog = () => onOpenChange(false);
 
   return createPortalFn(
     <DialogContext value={{ open, onOpenChange }}>
       <div className="fixed inset-0 z-9999 flex items-center justify-center p-4">
-        {/* Backdrop/Overlay */}
         <div
           className="fixed inset-0 bg-black/50 backdrop-blur-sm"
           role="button"
           aria-label="Close dialog"
           tabIndex={0}
-          onClick={() => onOpenChange(false)}
+          onClick={closeDialog}
           onKeyDown={(e) => {
-            // Support Enter and Space to activate the backdrop as a button
             if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
               e.preventDefault();
-              onOpenChange(false);
+              closeDialog();
             }
           }}
         />
-        {/* Dialog content - centered */}
         <div className="relative z-9999 flex w-full max-w-full items-center justify-center">
           {children}
         </div>
@@ -90,10 +83,9 @@ export function DialogContent({ children, className, ...props }: React.HTMLAttri
   return (
     <div
       className={cn(
-        'relative w-full rounded-lg bg-white p-6 shadow-xl mx-auto',
+        'relative w-full rounded-lg bg-white p-6 text-gray-900 shadow-xl mx-auto dark:border dark:border-slate-600 dark:bg-slate-900 dark:text-slate-100',
         className,
       )}
-      // Use pointer down to avoid triggering eslint jsx-a11y/click-events-have-key-events
       onPointerDown={e => e.stopPropagation()}
       {...props}
     >
@@ -112,7 +104,7 @@ export function DialogHeader({ children, className, ...props }: React.HTMLAttrib
 
 export function DialogTitle({ children, className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
-    <h2 className={cn('text-lg font-semibold text-gray-900', className)} {...props}>
+    <h2 className={cn('text-lg font-semibold text-gray-900 dark:text-gray-100', className)} {...props}>
       {children}
     </h2>
   );
@@ -120,7 +112,7 @@ export function DialogTitle({ children, className, ...props }: React.HTMLAttribu
 
 export function DialogDescription({ children, className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
-    <p className={cn('text-sm text-gray-500 mt-1', className)} {...props}>
+    <p className={cn('mt-1 text-sm text-gray-500 dark:text-slate-300', className)} {...props}>
       {children}
     </p>
   );
@@ -137,7 +129,7 @@ export function DialogClose({ className, ...props }: React.ButtonHTMLAttributes<
       type="button"
       onClick={() => ctx.onOpenChange(false)}
       className={cn(
-        'absolute top-4 right-4 rounded-sm opacity-70 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500',
+        'absolute top-4 right-4 rounded-sm text-gray-600 opacity-80 hover:bg-slate-100 hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-pink-500 dark:text-slate-200 dark:hover:bg-slate-800 dark:hover:text-white',
         className,
       )}
       {...props}

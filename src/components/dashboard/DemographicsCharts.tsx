@@ -2,7 +2,9 @@
 
 import { Globe, Users } from 'lucide-react';
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
+import { useTheme } from '@/components/theme/theme-context';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { RECHARTS_INITIAL_H64 } from '@/libs/rechartsResponsive';
 
 type CountryData = { name: string; value: number };
 type GenderData = { name: string; value: number };
@@ -59,19 +61,20 @@ function DemographicsCharts({
   ageTitle = 'Age Mix',
   isRTL = false,
 }: DemographicsChartsProps) {
+  const { isDark } = useTheme();
   // Order for LTR: Countries, Gender, Age
   // Order for RTL: Age, Gender, Countries (reversed)
   const charts = [
     <Card key="countries" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Globe className="h-5 w-5 text-pink-600" />
           {countriesTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={countries}
@@ -93,10 +96,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -119,14 +124,14 @@ function DemographicsCharts({
     </Card>,
     <Card key="gender" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Users className="h-5 w-5 text-pink-600" />
           {genderTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={genders}
@@ -149,10 +154,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>
@@ -174,14 +181,14 @@ function DemographicsCharts({
     </Card>,
     <Card key="age" className="rounded-lg border border-gray-200 bg-white shadow-md">
       <CardHeader>
-        <CardTitle className="flex items-center gap-2 text-base text-gray-800">
+        <CardTitle className="flex items-center gap-2 text-base text-gray-800 dark:text-gray-100">
           <Users className="h-5 w-5 text-pink-600" />
           {ageTitle}
         </CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
+          <ResponsiveContainer width="100%" height="100%" minWidth={0} initialDimension={RECHARTS_INITIAL_H64}>
             <PieChart>
               <Pie
                 data={ages}
@@ -204,10 +211,12 @@ function DemographicsCharts({
               <Tooltip
                 formatter={value => [`${Number(value).toFixed(0)}%`, '']}
                 contentStyle={{
-                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
-                  border: '1px solid #fce7f3',
+                  backgroundColor: isDark ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.9)',
+                  border: isDark ? '1px solid #4b5563' : '1px solid #fce7f3',
                   borderRadius: '12px',
                 }}
+                labelStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
+                itemStyle={{ color: isDark ? '#e5e7eb' : '#374151' }}
               />
             </PieChart>
           </ResponsiveContainer>

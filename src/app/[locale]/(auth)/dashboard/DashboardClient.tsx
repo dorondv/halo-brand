@@ -4,6 +4,7 @@ import { useTranslations } from 'next-intl';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Suspense, useMemo } from 'react';
 import { PlatformCard } from '@/components/dashboard/PlatformCard';
+import { cn } from '@/libs/cn';
 
 type Platform = {
   platform: string;
@@ -73,10 +74,20 @@ function PlatformCardsContent({
     const queryString = params.toString();
     const url = queryString ? `${pathname}?${queryString}` : pathname;
     router.replace(url, { scroll: false });
+    // Ensure server-rendered charts and metrics refetch for the new `platform` query param
+    router.refresh();
   };
 
   return (
-    <div className="grid w-full auto-rows-fr grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-4 xl:grid-cols-6 2xl:grid-cols-7">
+    <div
+      className={cn(
+        'w-full gap-4',
+        // Phone: multi-column grid (unchanged feel for small screens)
+        'grid auto-rows-fr grid-cols-2 sm:grid-cols-3',
+        // Tablet/desktop: single row — cards keep ~7-column grid width; overflow scrolls (no wrap)
+        'md:flex md:flex-nowrap md:overflow-x-auto md:overflow-y-visible md:pb-1 md:[-webkit-overflow-scrolling:touch]',
+      )}
+    >
       {currentPlatformData.map((platform) => {
         const isSelected = selectedPlatform
           ? platform.platform === selectedPlatform
@@ -87,7 +98,12 @@ function PlatformCardsContent({
             key={platform.platform}
             type="button"
             onClick={() => handlePlatformClick(platform.platform)}
-            className="w-full min-w-0 cursor-pointer text-left transition-transform hover:scale-105"
+            className={cn(
+              'min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left',
+              'w-full',
+              // Match previous ~2xl 7-column cell width so card content size stays consistent
+              'md:shrink-0 md:w-auto md:min-w-[calc((100%-6rem)/7)]',
+            )}
           >
             <PlatformCard
               platform={platform.platform}

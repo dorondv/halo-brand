@@ -1,11 +1,100 @@
 import type { NextRequest } from 'next/server';
 import { NextResponse } from 'next/server';
+import { ensureUserRecord } from '@/libs/ensureUserRecord';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+type SocialAccountRow = {
+  id: string;
+  user_id: string;
+  brand_id: string;
+  platform: string;
+  account_id: string;
+  getlate_account_id: string | null;
+  is_active: boolean;
+  platform_specific_data: Record<string, unknown> | null;
+  updated_at: string | null;
+  created_at: string | null;
+};
+
+type ExistingAccountRow = {
+  id: string;
+  platform_specific_data: Record<string, unknown> | null;
+  brand_id: string;
+  is_active: boolean;
+  getlate_account_id: string | null;
+};
+
+function buildAccountKey(account: Pick<SocialAccountRow, 'platform' | 'account_id' | 'getlate_account_id'>): string {
+  if (account.getlate_account_id) {
+    return `getlate:${account.getlate_account_id}`;
+  }
+  return `native:${String(account.platform || '').toLowerCase()}:${account.account_id || ''}`;
+}
+
+async function deduplicateBrandAccounts(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  userId: string,
+  brandId: string,
+) {
+  const { data: brandAccounts, error: loadError } = await supabase
+    .from('social_accounts')
+    .select('id,user_id,brand_id,platform,account_id,getlate_account_id,is_active,platform_specific_data,updated_at,created_at')
+    .eq('user_id', userId)
+    .eq('brand_id', brandId)
+    .order('updated_at', { ascending: false })
+    .order('created_at', { ascending: false });
+
+  if (loadError || !brandAccounts) {
+    if (loadError) {
+      console.error('[Getlate Accounts Sync] Failed loading brand accounts for dedupe:', loadError);
+    }
+    return;
+  }
+
+  const grouped = new Map<string, SocialAccountRow[]>();
+  for (const account of brandAccounts as SocialAccountRow[]) {
+    const key = buildAccountKey(account);
+    const current = grouped.get(key) || [];
+    current.push(account);
+    grouped.set(key, current);
+  }
+
+  for (const rows of grouped.values()) {
+    if (rows.length <= 1) {
+      continue;
+    }
+
+    const canonical = rows[0];
+    if (!canonical) {
+      continue;
+    }
+    const duplicates = rows.slice(1);
+    for (const duplicate of duplicates) {
+      const duplicateMeta = (duplicate.platform_specific_data || {}) as Record<string, unknown>;
+      const { error: deactivateError } = await supabase
+        .from('social_accounts')
+        .update({
+          is_active: false,
+          platform_specific_data: {
+            ...duplicateMeta,
+            duplicate_of_account_id: canonical.id,
+            deduplicated_at: new Date().toISOString(),
+          },
+        })
+        .eq('id', duplicate.id)
+        .eq('user_id', userId);
+
+      if (deactivateError) {
+        console.error(`[Getlate Accounts Sync] Failed deactivating duplicate account ${duplicate.id}:`, deactivateError);
+      }
+    }
+  }
+}
+
 /**
- * GET /api/getlate/accounts
- * Get all connected accounts from Getlate and sync with database
+ * GET /api/publishing/accounts
+ * Get all connected accounts from Publishing integration and sync with database
  */
 export async function GET(request: NextRequest) {
   try {
@@ -24,14 +113,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Brand ID is required' }, { status: 422 });
     }
 
-    // Get user record to fetch Getlate API key
-    const { data: userRecord, error: userError } = await supabase
-      .from('users')
-      .select('id, getlate_api_key')
-      .eq('id', user.id)
-      .single();
-
-    if (userError || !userRecord) {
+    const userRecord = await ensureUserRecord(supabase, user);
+    if (!userRecord) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
@@ -60,7 +143,9 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Fetch accounts from Getlate
+    await deduplicateBrandAccounts(supabase, user.id, brandId);
+
+    // Fetch accounts from Publishing integration
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     const getlateAccountsResponse = await getlateClient.getAccounts(brandRecord.getlate_profile_id);
 
@@ -77,7 +162,7 @@ export async function GET(request: NextRequest) {
     // Sync accounts with database
     const syncedAccounts = [];
     for (const getlateAccount of getlateAccounts) {
-      // Handle Getlate API response format:
+      // Handle Publishing integration API response format:
       // _id, username, profilePicture, isActive, displayName, tokenExpiresAt, permissions
       // getAccounts() already maps these fields, so we can use the mapped values
       const accountId = getlateAccount._id || getlateAccount.id;
@@ -92,7 +177,7 @@ export async function GET(request: NextRequest) {
       }
 
       // Use mapped values from getAccounts()
-      // Getlate API uses 'username', getAccounts() maps it to 'accountName'
+      // Publishing integration API uses 'username', getAccounts() maps it to 'accountName'
       const accountName = getlateAccount.accountName || getlateAccount.username || '';
       if (!accountName) {
         continue;
@@ -101,10 +186,10 @@ export async function GET(request: NextRequest) {
       const accountIdValue = getlateAccount.accountId || accountId;
       const displayName = getlateAccount.displayName || accountName; // Fallback to accountName if displayName not provided
       const avatarUrl = getlateAccount.avatarUrl || getlateAccount.profilePicture;
-      // Extract followersCount (correct API field name) from GetlateAccount
+      // Extract followersCount (correct API field name) from the account payload
       const followerCount = getlateAccount.followersCount ?? 0;
       const lastSync = getlateAccount.lastSync || new Date().toISOString();
-      // Getlate API uses 'isActive', getAccounts() maps it to 'isConnected'
+      // Publishing integration API uses 'isActive', getAccounts() maps it to 'isConnected'
       const isConnected = getlateAccount.isConnected !== undefined
         ? getlateAccount.isConnected
         : (getlateAccount.isActive !== undefined ? getlateAccount.isActive : true);
@@ -120,25 +205,31 @@ export async function GET(request: NextRequest) {
       const normalizedPlatform = platform === 'x' || platform === 'twitter' ? 'twitter' : platform.toLowerCase();
 
       // Check if account already exists
-      // First try to find by getlate_account_id and brand_id
-      let { data: existingAccount } = await supabase
+      // First try to find by provider account id and brand_id
+      const { data: existingAccountsForBrand } = await supabase
         .from('social_accounts')
         .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
         .eq('getlate_account_id', accountId)
+        .eq('user_id', user.id)
         .eq('brand_id', brandId)
-        .maybeSingle();
+        .order('updated_at', { ascending: false })
+        .limit(5);
 
-      // If not found, try to find by getlate_account_id only (in case brand_id changed)
+      let existingAccount: ExistingAccountRow | null = (existingAccountsForBrand?.[0] as ExistingAccountRow | undefined) ?? null;
+
+      // If not found, try by provider account id only (in case brand_id changed)
       if (!existingAccount) {
-        const { data: accountByGetlateId } = await supabase
+        const { data: accountsByGetlateId } = await supabase
           .from('social_accounts')
           .select('id, platform_specific_data, brand_id, is_active, getlate_account_id')
           .eq('getlate_account_id', accountId)
-          .maybeSingle();
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(5);
 
-        if (accountByGetlateId) {
+        if (accountsByGetlateId?.length) {
           // Account exists but with different brand_id - update it to current brand
-          existingAccount = accountByGetlateId;
+          existingAccount = (accountsByGetlateId[0] as ExistingAccountRow | undefined) ?? null;
         }
       }
 
@@ -147,10 +238,25 @@ export async function GET(request: NextRequest) {
         const platformData = existingAccount.platform_specific_data as Record<string, unknown> | null;
         const manuallyDisconnected = platformData?.manually_disconnected === true;
 
-        // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection
-        // OAuth reconnection (oauthReconnect=true) means user explicitly reconnected via OAuth button
-        // Regular syncs should not reactivate manually disconnected accounts
-        const shouldBeActive = manuallyDisconnected && !oauthReconnect ? false : isConnected;
+        // If account was manually disconnected, keep it inactive UNLESS this is an OAuth reconnection.
+        // OAuth reconnection is a user-explicit action, so we optimistically mark it active even if provider
+        // isConnected has eventual-consistency lag right after callback.
+        // Routine sync: do NOT set is_active=false only because Publishing integration sent isConnected=false — that
+        // often flickers during API issues. Only deactivate when the token is actually past expiry.
+        let shouldBeActive: boolean;
+        if (manuallyDisconnected && !oauthReconnect) {
+          shouldBeActive = false;
+        } else if (oauthReconnect) {
+          shouldBeActive = true;
+        } else if (isConnected) {
+          shouldBeActive = true;
+        } else {
+          const tokenExpired
+            = typeof tokenExpiresAt === 'string'
+              && !Number.isNaN(Date.parse(tokenExpiresAt))
+              && new Date(tokenExpiresAt) < new Date();
+          shouldBeActive = tokenExpired ? false : existingAccount.is_active;
+        }
 
         // Update existing account
         // Include brand_id in update to ensure it's correct (in case brand changed)
@@ -194,20 +300,18 @@ export async function GET(request: NextRequest) {
           syncedAccounts.push(updatedAccount);
         }
       } else {
-        const { getUserSubscription, getSubscriptionPlan } = await import('@/libs/subscriptionService');
-        const { socialAccounts: socialAccountsTable } = await import('@/models/Schema');
-        const { eq } = await import('drizzle-orm');
-        const { db } = await import('@/libs/DB');
+        const {
+          getUserSubscription,
+          getSubscriptionPlan,
+          isPaidPlanType,
+          subscriptionShouldApplyPaidPlanLimits,
+        } = await import('@/libs/subscriptionService');
 
         const subscription = await getUserSubscription(user.id);
         let maxSocialAccounts = 3;
 
         if (subscription && subscription.planType !== 'free') {
-          const now = new Date();
-          const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-          const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-
-          if (isSubscriptionActive && isNotExpired) {
+          if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
             const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
             if (plan) {
               maxSocialAccounts = plan.maxSocialAccounts || 999999;
@@ -217,20 +321,28 @@ export async function GET(request: NextRequest) {
           }
         }
 
-        // Count existing accounts for this specific brand (limit is per brand)
-        const { and, sql } = await import('drizzle-orm');
-        const existingAccountsCountResult = await db
-          .select({ count: sql<number>`count(*)::int` })
-          .from(socialAccountsTable)
-          .where(and(
-            eq(socialAccountsTable.userId, user.id),
-            eq(socialAccountsTable.brandId, brandId),
-          ));
+        // Count UNIQUE accounts for this brand (dedupe by provider account id to avoid overcounting duplicates)
+        const { data: existingAccounts } = await supabase
+          .from('social_accounts')
+          .select('id, getlate_account_id, account_name')
+          .eq('user_id', user.id)
+          .eq('brand_id', brandId);
 
-        const currentAccountCount = existingAccountsCountResult[0]?.count || 0;
+        const uniqueKeys = new Set<string>();
+        for (const acc of existingAccounts || []) {
+          uniqueKeys.add(acc.getlate_account_id ?? acc.id);
+        }
+        const currentAccountCount = uniqueKeys.size;
 
         if (currentAccountCount >= maxSocialAccounts && !oauthReconnect) {
-          console.warn(`[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. Skipping account creation for ${accountName}.`);
+          const rawRowCount = existingAccounts?.length ?? 0;
+          const duplicateInfo = rawRowCount > currentAccountCount
+            ? ` (${rawRowCount} rows in DB, ${rawRowCount - currentAccountCount} duplicates)`
+            : '';
+          console.warn(
+            `[Getlate Accounts Sync] User ${user.id} has reached social account limit (${maxSocialAccounts}) for brand ${brandId}. `
+            + `Unique accounts: ${currentAccountCount}${duplicateInfo}. Skipping account creation for ${accountName}.`,
+          );
           continue;
         }
 
@@ -266,7 +378,8 @@ export async function GET(request: NextRequest) {
             getlate_account_id: accountId,
             access_token: 'getlate-managed',
             platform_specific_data: platformSpecificDataForInsert,
-            is_active: isConnected,
+            // OAuth reconnect should surface immediately in UI; provider may report isConnected=false briefly.
+            is_active: oauthReconnect ? true : isConnected,
           })
           .select()
           .single();
@@ -279,7 +392,38 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ accounts: syncedAccounts });
+    await deduplicateBrandAccounts(supabase, user.id, brandId);
+
+    // Return current canonical state for this brand (not only rows touched in this sync).
+    const { data: currentAccounts, error: currentAccountsError } = await supabase
+      .from('social_accounts')
+      .select('id,brand_id,platform,account_name,account_id,platform_specific_data,getlate_account_id,is_active,updated_at')
+      .eq('user_id', user.id)
+      .eq('brand_id', brandId)
+      .eq('is_active', true)
+      .order('updated_at', { ascending: false });
+
+    if (currentAccountsError) {
+      console.error('[Getlate Accounts Sync] Failed loading current canonical accounts:', currentAccountsError);
+      return NextResponse.json({ accounts: syncedAccounts });
+    }
+
+    const seen = new Set<string>();
+    const canonicalAccounts = [];
+    for (const account of currentAccounts || []) {
+      const key = buildAccountKey({
+        getlate_account_id: account.getlate_account_id,
+        platform: account.platform,
+        account_id: account.account_id,
+      });
+      if (seen.has(key)) {
+        continue;
+      }
+      seen.add(key);
+      canonicalAccounts.push(account);
+    }
+
+    return NextResponse.json({ accounts: canonicalAccounts });
   } catch (error) {
     console.error('[Getlate Accounts Sync] Error:', error);
     return NextResponse.json(

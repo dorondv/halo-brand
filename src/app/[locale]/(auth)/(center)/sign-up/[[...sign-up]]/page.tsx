@@ -3,8 +3,10 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { SignUpForm } from '@/components/auth/SignUpForm';
 import { LocaleSwitcher } from '@/components/LocaleSwitcher';
+import { ThemeToggle } from '@/components/theme/ThemeToggle';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
+import { cn } from '@/libs/cn';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export default async function SignUpPage() {
@@ -18,9 +20,10 @@ export default async function SignUpPage() {
   const isRTL = locale === 'he';
 
   return (
-    <div className="absolute inset-0 min-h-screen w-screen bg-gradient-to-br from-pink-50 via-white to-pink-50" dir={isRTL ? 'rtl' : 'ltr'}>
-      {/* Locale Switcher - Top Right */}
-      <div className={`absolute top-6 z-10 ${isRTL ? 'left-6' : 'right-6'}`}>
+    <div className="absolute inset-0 min-h-screen w-screen bg-gradient-to-br from-pink-50 via-white to-pink-50 dark:from-gray-900 dark:via-gray-900 dark:to-gray-800" dir={isRTL ? 'rtl' : 'ltr'}>
+      {/* Theme Toggle & Locale Switcher - Top Right */}
+      <div className={cn('absolute top-6 z-10 flex items-center gap-2', isRTL ? 'left-6' : 'right-6')}>
+        <ThemeToggle />
         <LocaleSwitcher />
       </div>
 
@@ -36,12 +39,12 @@ export default async function SignUpPage() {
       {/* Main Content */}
       <div className="container mx-auto px-6 pt-4 pb-12">
         <div className="mx-auto max-w-md">
-          <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl">
+          <Card className="rounded-lg border-0 bg-white/80 shadow-2xl backdrop-blur-xl dark:border dark:border-gray-700 dark:bg-gray-800/90">
             <CardHeader className="pb-4 text-center">
-              <CardTitle className="mb-2 text-3xl font-bold text-gray-900">
+              <CardTitle className="mb-2 text-3xl font-bold text-gray-900 dark:text-white">
                 {t('signup_title')}
               </CardTitle>
-              <p className="text-base text-gray-700">
+              <p className="text-base text-gray-700 dark:text-gray-300">
                 {t('signup_subtitle')}
               </p>
             </CardHeader>
@@ -49,10 +52,10 @@ export default async function SignUpPage() {
               <SignUpForm />
             </CardContent>
           </Card>
-          <p className="mt-8 text-center text-sm text-gray-600">
+          <p className="mt-8 text-center text-sm text-gray-600 dark:text-gray-400">
             {t('signup_prompt_signin')}
             {' '}
-            <Link href="/sign-in" className="font-medium text-pink-600 hover:underline">
+            <Link href="/sign-in" className="font-medium text-pink-600 hover:underline dark:text-pink-400">
               {t('link_signin')}
             </Link>
           </p>

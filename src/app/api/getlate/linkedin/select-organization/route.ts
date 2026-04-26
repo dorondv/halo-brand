@@ -5,7 +5,7 @@ import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
- * POST /api/getlate/linkedin/select-organization
+ * POST /api/publishing/linkedin/select-organization
  * Save selected LinkedIn organization or personal account during headless OAuth flow
  */
 export async function POST(request: NextRequest) {
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     const Schema = z.object({
       profileId: z.string(),
       tempToken: z.string(),
-      userProfile: z.any(),
+      userProfile: z.any().optional().default({}),
       accountType: z.enum(['personal', 'organization']),
       selectedOrganization: z.object({
         id: z.string(),
@@ -37,14 +37,7 @@ export async function POST(request: NextRequest) {
     }
 
     const { profileId, tempToken, userProfile, accountType, selectedOrganization, redirectUrl } = parse.data;
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
-
-    if (!connectToken) {
-      return NextResponse.json(
-        { error: 'Missing X-Connect-Token header' },
-        { status: 400 },
-      );
-    }
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
     // Get user record to fetch API key
     const { data: userRecord, error: userError } = await supabase
@@ -57,7 +50,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and save organization selection
+    // Create Publishing integration client and save organization selection
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
     await getlateClient.selectLinkedInOrganizationForConnection(
       {
@@ -68,7 +61,7 @@ export async function POST(request: NextRequest) {
         selectedOrganization,
         redirectUrl,
       },
-      connectToken,
+      connectToken || undefined,
     );
 
     // After successful organization selection, sync accounts

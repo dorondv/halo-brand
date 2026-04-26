@@ -248,14 +248,14 @@ async function seed() {
   }
 
   // Update user plan to 'trial' for demo purposes
-  // For demo@hello.brand, also set Getlate API key if available
+  // For demo@hello.brand, also set publishing provider API key if available
   const updateData = { plan: 'trial', name: demoName };
 
-  // Set Getlate API key for demo user if service key is available
+  // Set publishing provider API key for demo user if service key is available
   const getlateServiceKey = process.env.GETLATE_SERVICE_API_KEY;
   if (getlateServiceKey) {
     updateData.getlate_api_key = getlateServiceKey;
-    console.log('✅ Setting Getlate API key for demo user');
+    console.log('✅ Setting publishing provider API key for demo user');
   }
 
   const { error: updateError } = await supabase
@@ -270,7 +270,7 @@ async function seed() {
   }
 
   // Insert brands (companies)
-  // For demo@hello.brand, use the default Getlate profile ID
+  // For demo@hello.brand, use the default publishing provider profile ID
   const DEFAULT_GETLATE_PROFILE_ID = '690c738f2e6c6b55e66c14e6';
 
   const brandsData = [

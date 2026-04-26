@@ -11,6 +11,7 @@ const locales = [
   { code: 'es', name: 'Español', flag: '🇪🇸' },
   { code: 'fr', name: 'Français', flag: '🇫🇷' },
   { code: 'de', name: 'Deutsch', flag: '🇩🇪' },
+  { code: 'pt', name: 'Português', flag: '🇧🇷' },
 ];
 
 export function LocaleSwitcher() {
@@ -30,7 +31,7 @@ export function LocaleSwitcher() {
     <Select value={locale} onValueChange={handleLocaleChange}>
       <SelectTrigger className="h-9 w-auto min-w-[120px] px-3 text-sm">
         <div className="flex items-center gap-2">
-          <Globe className="h-4 w-4 text-gray-600" />
+          <Globe className="h-4 w-4 text-gray-600 dark:text-gray-400" />
           <SelectValue selectedLabel={displayLabel} />
         </div>
       </SelectTrigger>

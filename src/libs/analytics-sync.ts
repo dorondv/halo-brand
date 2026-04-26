@@ -2,7 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createGetlateClient } from './Getlate';
 
 /**
- * Sync analytics from Getlate API to database
+ * Sync analytics from Publishing integration API to database
  * This function can be called from both API routes and server components
  */
 export async function syncAnalyticsFromGetlate(
@@ -10,15 +10,15 @@ export async function syncAnalyticsFromGetlate(
   userId: string,
   brandId: string,
   options?: {
-    postId?: string; // Local post ID (UUID) - will be used to find Getlate post ID
-    getlatePostId?: string; // Getlate post ID - use this if you have it directly
+    postId?: string; // Local post ID (UUID) - will be used to find Publishing integration post ID
+    getlatePostId?: string; // Provider post ID when you already have it (skips local lookup)
     platform?: string;
     fromDate?: string;
     toDate?: string;
   },
 ): Promise<void> {
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -26,10 +26,10 @@ export async function syncAnalyticsFromGetlate(
       .single();
 
     if (!userRecord?.getlate_api_key) {
-      return; // No Getlate API key, skip sync
+      return; // No Publishing integration API key, skip sync
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     const { data: brandRecord } = await supabase
       .from('brands')
       .select('getlate_profile_id')
@@ -38,15 +38,15 @@ export async function syncAnalyticsFromGetlate(
       .single();
 
     if (!brandRecord?.getlate_profile_id) {
-      return; // Brand not linked to Getlate profile, skip sync
+      return; // Brand not linked to Publishing integration profile, skip sync
     }
 
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-    // Determine Getlate post ID if local post ID was provided
+    // Determine Publishing integration post ID if local post ID was provided
     let getlatePostIdForQuery: string | undefined = options?.getlatePostId;
     if (!getlatePostIdForQuery && options?.postId) {
-      // Find the Getlate post ID from the local post
+      // Find the Publishing integration post ID from the local post
       const { data: postRecord } = await supabase
         .from('posts')
         .select('getlate_post_id')
@@ -56,21 +56,21 @@ export async function syncAnalyticsFromGetlate(
       getlatePostIdForQuery = postRecord?.getlate_post_id || undefined;
     }
 
-    // Fetch analytics from Getlate with pagination support
-    // Getlate API supports pagination: limit (default: 50, max: 100), page (default: 1)
+    // Fetch analytics from Publishing integration with pagination support
+    // Publishing integration API supports pagination: limit (default: 50, max: 100), page (default: 1)
     // Rate limit: 150 requests per hour per user (for refresh operations)
     // Reading cached analytics data does not count against rate limit
     // We'll fetch all pages to get comprehensive data
     let allGetlateAnalytics: any[] = [];
     let currentPage = 1;
-    const pageSize = 50; // Max allowed by Getlate API
+    const pageSize = 50; // Max allowed by Publishing integration API
     let hasMorePages = true;
 
     while (hasMorePages) {
       try {
         const analyticsResponse = await getlateClient.getAnalytics({
           profileId: brandRecord.getlate_profile_id,
-          postId: getlatePostIdForQuery, // Use Getlate post ID for query
+          postId: getlatePostIdForQuery, // Use Publishing integration post ID for query
           platform: options?.platform as any,
           fromDate: options?.fromDate,
           toDate: options?.toDate,
@@ -125,7 +125,7 @@ export async function syncAnalyticsFromGetlate(
           hasMorePages = false;
         } else if (isTimeout) {
           // For timeout errors, log once and stop pagination gracefully
-          // The retry logic in GetlateClient should have already attempted retries
+          // The retry logic in the publishing HTTP client should have already attempted retries
           if (currentPage === 1) {
             // Only log on first page to avoid spam
             console.warn('[syncAnalyticsFromGetlate] Gateway timeout after retries, stopping pagination. This may be due to Getlate API being temporarily unavailable.');
@@ -146,7 +146,7 @@ export async function syncAnalyticsFromGetlate(
 
     // Sync analytics to database
     for (const post of getlateAnalytics) {
-      // GetlateAnalyticsPost uses _id field (External Post ID from synced analytics)
+      // Analytics post payload uses _id field (External Post ID from synced analytics)
       // Also supports postId field (Late Post ID for posts scheduled via API)
       // Both IDs can be used to correlate posts - platformPostUrl is the unique identifier
       const getlatePostId = post._id || post.id; // External Post ID
@@ -158,7 +158,7 @@ export async function syncAnalyticsFromGetlate(
         continue;
       }
 
-      // Verify that the Getlate post belongs to the user's profile
+      // Verify that the Publishing integration post belongs to the user's profile
       // This ensures we only sync analytics for posts that belong to the current user
       if (post.profileId && post.profileId !== brandRecord.getlate_profile_id) {
         if (process.env.NODE_ENV === 'development') {
@@ -167,7 +167,7 @@ export async function syncAnalyticsFromGetlate(
         continue; // Skip posts that don't belong to the user's profile
       }
 
-      // Find post by Getlate post ID - MUST filter by user_id and brand_id for security
+      // Find post by Publishing integration post ID - MUST filter by user_id and brand_id for security
       const { data: postRecord } = await supabase
         .from('posts')
         .select('id')
@@ -193,7 +193,7 @@ export async function syncAnalyticsFromGetlate(
         foundPost = matchedPost ? { id: matchedPost.id } : null;
       }
 
-      // Update existing post with latest data from Getlate analytics if needed
+      // Update existing post with latest data from Publishing integration analytics if needed
       if (foundPost) {
         try {
           // Extract updated data from analytics
@@ -260,11 +260,11 @@ export async function syncAnalyticsFromGetlate(
         }
       }
 
-      // If post not found in local database, create a minimal post record from Getlate analytics
-      // This allows us to track analytics for posts created directly in Getlate or external posts
+      // If post not found in local database, create a minimal post record from Publishing integration analytics
+      // This allows us to track analytics for posts created directly in Publishing integration or external posts
       if (!foundPost) {
         try {
-          // Extract post data from Getlate analytics response
+          // Extract post data from Publishing integration analytics response
           const postContent = post.content || 'Post from Getlate';
           const publishedDate = post.publishedAt
             ? new Date(post.publishedAt)
@@ -379,7 +379,7 @@ export async function syncAnalyticsFromGetlate(
         publishedDateRaw.getDate(),
       ));
 
-      // Handle multiple platforms: GetlateAnalyticsPost can have analytics per platform
+      // Handle multiple platforms: analytics payloads can have analytics per platform
       // Late API returns either 'platforms' array (list endpoint) or 'platformAnalytics' array (single post endpoint)
       const platformsToProcess: Array<{
         platform: string;
@@ -443,7 +443,7 @@ export async function syncAnalyticsFromGetlate(
 
       // Process each platform's analytics separately
       for (const { platform, analytics: platformAnalytics, accountId, accountUsername } of platformsToProcess) {
-        // Extract ALL metrics directly from Getlate API analytics object
+        // Extract ALL metrics directly from Publishing integration API analytics object
         // These values come directly from the API response and represent current/latest values
         const likes = platformAnalytics.likes ?? null;
         const comments = platformAnalytics.comments ?? null;
@@ -487,7 +487,7 @@ export async function syncAnalyticsFromGetlate(
               : null;
 
         // Check if analytics record already exists
-        // Use post_id + platform + date + getlate_post_id as unique identifier
+        // Use post_id + platform + date + provider post id column as unique identifier
         // Since we normalize dates to midnight UTC, we can compare directly
         const normalizedDate = publishedDate.toISOString();
 
@@ -518,7 +518,7 @@ export async function syncAnalyticsFromGetlate(
         const metadata = {
           // Start with existing metadata (preserves all existing fields)
           ...existingMetadata,
-          // Merge in new metadata from Getlate (overwrites existing with new values)
+          // Merge in new metadata from Publishing integration (overwrites existing with new values)
           ...(post.metadata || {}),
           // Core analytics metrics (always update with latest)
           reach,

@@ -5,10 +5,27 @@ import { z } from 'zod';
 import { createGetlateClient } from '@/libs/Getlate';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
+function maxValidDate(values: Array<string | Date | null | undefined>): Date | null {
+  let best: Date | null = null;
+  for (const v of values) {
+    if (!v) {
+      continue;
+    }
+    const d = new Date(v);
+    if (Number.isNaN(d.getTime())) {
+      continue;
+    }
+    if (!best || d > best) {
+      best = d;
+    }
+  }
+  return best;
+}
+
 /**
  * GET /api/scheduled-posts
  * Get scheduled posts within a date range
- * Includes posts from both database and Getlate API
+ * Includes posts from both database and Publishing integration API
  */
 export async function GET(request: NextRequest) {
   const supabase = await createSupabaseServerClient();
@@ -97,11 +114,13 @@ export async function GET(request: NextRequest) {
       console.error('Error fetching scheduled posts:', scheduledError);
     }
 
-    // Create a map of post_id -> scheduled_post data
-    const scheduledPostsMap = new Map<string, any>();
-    (scheduledPostsData || []).forEach((sp: any) => {
-      scheduledPostsMap.set(sp.post_id, sp);
-    });
+    // Group all scheduled_post rows per post (multi-platform). Dashboard-style: use latest publish time.
+    const scheduledPostsByPostId = new Map<string, any[]>();
+    for (const sp of scheduledPostsData || []) {
+      const list = scheduledPostsByPostId.get(sp.post_id) || [];
+      list.push(sp);
+      scheduledPostsByPostId.set(sp.post_id, list);
+    }
 
     // Create a map of post_id -> post details
     const postsMap = new Map<string, any>();
@@ -115,16 +134,37 @@ export async function GET(request: NextRequest) {
 
     for (const postId of postIds) {
       const postDetails = postsMap.get(postId);
-      const scheduledPost = scheduledPostsMap.get(postId);
+      const scheduledRows = scheduledPostsByPostId.get(postId) || [];
+      const scheduledPost = scheduledRows.length > 0
+        ? scheduledRows.reduce((best, sp) => {
+            const bestT = maxValidDate([best.published_at, best.scheduled_for])?.getTime() ?? 0;
+            const spT = maxValidDate([sp.published_at, sp.scheduled_for])?.getTime() ?? 0;
+            return spT >= bestT ? sp : best;
+          })
+        : null;
 
       if (!postDetails) {
         continue;
       }
 
-      // Use scheduled_post data if available, otherwise use post created_at
-      const displayDate = scheduledPost?.published_at
-        || scheduledPost?.scheduled_for
-        || postDetails.created_at;
+      const maxPublishedAt = maxValidDate(scheduledRows.map((s: any) => s.published_at));
+      const maxScheduledFor = maxValidDate(scheduledRows.map((s: any) => s.scheduled_for));
+      const anyRowPublished = scheduledRows.some(
+        (s: any) =>
+          !!s.published_at
+          || s.status === 'published'
+          || s.status === 'completed',
+      );
+      const postIsPublished
+        = postDetails.status === 'published' || anyRowPublished;
+
+      // Last published instant across platforms; if not published yet, latest planned schedule (matches dashboard intent)
+      const displayDate
+        = postIsPublished && maxPublishedAt
+          ? maxPublishedAt
+          : (maxScheduledFor
+            || maxValidDate(scheduledRows.flatMap((s: any) => [s.published_at, s.scheduled_for]))
+            || postDetails.created_at);
 
       if (!displayDate) {
         continue;
@@ -181,7 +221,7 @@ export async function GET(request: NextRequest) {
         post_id: postId,
         scheduled_for: displayDate,
         scheduled_time: displayDate,
-        published_at: scheduledPost?.published_at || null,
+        published_at: maxPublishedAt ? maxPublishedAt.toISOString() : (scheduledPost?.published_at || null),
         timezone: scheduledPost?.timezone || null,
         status: scheduledPost?.status || postDetails.status || 'draft',
         post: {
@@ -223,10 +263,10 @@ export async function GET(request: NextRequest) {
     });
   }
 
-  // Fetch posts from Getlate API
+  // Fetch posts from Publishing integration API
   const getlatePosts: any[] = [];
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -236,7 +276,7 @@ export async function GET(request: NextRequest) {
     if (userRecord?.getlate_api_key) {
       const getlateClient = createGetlateClient(userRecord.getlate_api_key);
 
-      // Get user's brands with Getlate profile IDs
+      // Get user's brands with Publishing integration profile IDs
       let brandsQuery = supabase
         .from('brands')
         .select('id, getlate_profile_id')
@@ -249,7 +289,7 @@ export async function GET(request: NextRequest) {
       const { data: brands } = await brandsQuery;
 
       if (brands && brands.length > 0) {
-        // Fetch posts from Getlate for each profile
+        // Fetch posts from Publishing integration for each profile
         for (const brand of brands) {
           if (brand.getlate_profile_id) {
             try {
@@ -268,38 +308,38 @@ export async function GET(request: NextRequest) {
                 // Handle different ID formats (id, _id, or generate one using index)
                 const postId = (post as any).id || (post as any)._id || `temp-${brand.getlate_profile_id}-${index}`;
 
-                // Check if post has a scheduled date (scheduled or published posts)
-                // Include all statuses: scheduled, published, draft (if they have dates)
-                const scheduledDate = post.scheduledFor
-                  ? new Date(post.scheduledFor)
-                  : (post.createdAt ? new Date(post.createdAt) : null);
+                const postWithPublished = post as GetlatePost & { publishedAt?: string };
+                // Match dashboard Posts table: publishedAt || scheduledFor (actual publish beats original schedule)
+                const publishedAtStr
+                  = post.status === 'published'
+                    ? (postWithPublished.publishedAt || post.scheduledFor || post.createdAt)
+                    : null;
+                const displayDateStr = publishedAtStr || post.scheduledFor || post.createdAt;
+                const displayInstant = displayDateStr ? new Date(displayDateStr) : null;
 
-                if (scheduledDate) {
+                if (displayInstant && !Number.isNaN(displayInstant.getTime())) {
                   const startDate = parsed.start ? new Date(parsed.start) : null;
                   const endDate = parsed.end ? new Date(parsed.end) : null;
 
-                  // Check if post is within date range
+                  // Check if post is within date range (by canonical display date, not original schedule only)
                   if (
-                    (!startDate || scheduledDate >= startDate)
-                    && (!endDate || scheduledDate <= endDate)
+                    (!startDate || displayInstant >= startDate)
+                    && (!endDate || displayInstant <= endDate)
                   ) {
-                    // Get brand info for Getlate posts
+                    // Get brand info for Publishing integration posts
                     const { data: brandInfo } = await supabase
                       .from('brands')
                       .select('id, name, logo_url')
                       .eq('id', brand.id)
                       .single();
 
-                    // Transform Getlate post to calendar format
-                    // Determine published_at: if published, use scheduledFor or createdAt
-                    const publishedAt = post.status === 'published' ? (post.scheduledFor || post.createdAt) : null;
-                    // Use published_at if available, otherwise scheduled_for for display
-                    const displayDate = publishedAt || post.scheduledFor || post.createdAt;
+                    const publishedAt = publishedAtStr;
+                    const displayDate = displayDateStr;
 
                     const uniqueId = `getlate-${brand.id}-${postId}-${index}`;
 
                     // Extract platformPostUrl from post or platforms array
-                    // Note: API response may include additional properties not in GetlatePost type
+                    // Note: API response may include extra fields beyond the typed post shape
                     const postWithExtras = post as GetlatePost & {
                       platformPostUrl?: string;
                       metadata?: Record<string, unknown>;
@@ -326,10 +366,10 @@ export async function GET(request: NextRequest) {
                       ...(postWithExtras.metadata || {}),
                       platformPostUrl: platformPostUrl || (postWithExtras.metadata as any)?.platformPostUrl || null,
                       isExternal: postWithExtras.isExternal || false,
-                      publishedAt,
+                      publishedAt: publishedAt || undefined,
                     };
 
-                    // Preserve platform objects with URLs for Getlate posts
+                    // Preserve platform objects with URLs for Publishing integration posts
                     const preservedGetlatePlatforms = post.platforms?.map((p: any) => {
                       if (typeof p === 'string') {
                         return p;
@@ -344,8 +384,8 @@ export async function GET(request: NextRequest) {
                     getlatePosts.push({
                       id: uniqueId,
                       post_id: uniqueId,
-                      scheduled_for: post.scheduledFor || post.createdAt,
-                      scheduled_time: displayDate, // Prioritize published_at for display
+                      scheduled_for: displayDate,
+                      scheduled_time: displayDate,
                       published_at: publishedAt,
                       timezone: post.timezone,
                       status: post.status === 'published' ? 'completed' : 'pending',
@@ -378,45 +418,81 @@ export async function GET(request: NextRequest) {
       }
     }
   } catch {
-    // Silently fail if Getlate fetch fails
+    // Silently fail if Publishing integration fetch fails
   }
 
-  // Merge database posts and Getlate posts
-  // Deduplicate: if a post has getlate_post_id, prefer Getlate version (source of truth)
-  // Create a map of getlate_post_id -> post to track Getlate posts
+  // Merge database posts and Publishing integration posts
+  // Deduplicate: when a post has a provider post id, prefer the API copy (source of truth)
+  // Map provider post id -> post for posts that originated from the publishing API
   const getlatePostIdMap = new Map<string, any>();
-  getlatePosts.forEach((post: any) => {
+  const processedGetlateIds = new Set<string>(); // Global set to handle profile sharing across brands
+
+  const uniqueGetlatePosts = getlatePosts.filter((post: any) => {
     const getlateId = post.post?.getlate_post_id;
     if (getlateId) {
+      if (processedGetlateIds.has(getlateId)) {
+        return false; // Already processed this Publishing integration post via another brand
+      }
+      processedGetlateIds.add(getlateId);
       getlatePostIdMap.set(getlateId, post);
     }
+    return true;
   });
 
-  // Filter out database posts that have a corresponding Getlate post
+  // Filter out database posts that have a corresponding Publishing integration post
   const filteredDbPosts = dbPosts.filter((dbPost: any) => {
     const dbGetlateId = dbPost.post?.getlate_post_id;
-    // If this database post has a getlate_post_id and we have it from Getlate API, exclude it
+    // If this DB row links to a provider post we already merged from the API, exclude the duplicate
     if (dbGetlateId && getlatePostIdMap.has(dbGetlateId)) {
       return false;
     }
     return true;
   });
 
-  // Merge filtered database posts with Getlate posts
-  let allPosts = [...filteredDbPosts, ...getlatePosts];
+  // Merge filtered database posts with unique Publishing integration posts
+  let allPosts = [...filteredDbPosts, ...uniqueGetlatePosts];
 
-  // Additional deduplication: remove duplicates based on post_id + scheduled_time combination
-  // This handles cases where the same post might appear multiple times with the same scheduled time
-  const seenPosts = new Map<string, boolean>();
+  // Prefer newer display time when deduplicating so DB + API copies collapse to the latest publish date
+  allPosts.sort((a: any, b: any) => {
+    const tb = new Date(b.scheduled_for || b.scheduled_time || 0).getTime();
+    const ta = new Date(a.scheduled_for || a.scheduled_time || 0).getTime();
+    return tb - ta;
+  });
+
+  // Additional robust deduplication:
+  // 1. By internal ID (legacy/fallback)
+  // 2. By content snippet + scheduled time (catches cross-source duplicates with different IDs)
+  const seenIds = new Set<string>();
+  const seenContentTime = new Set<string>();
+
   allPosts = allPosts.filter((post: any) => {
     const postId = post.post_id || post.post?.id;
     const scheduledTime = post.scheduled_for || post.scheduled_time;
-    const dedupeKey = `${postId}-${scheduledTime}`;
+    const contentHash = (post.post?.content || '').substring(0, 50).trim();
 
-    if (seenPosts.has(dedupeKey)) {
-      return false; // Duplicate, exclude it
+    // Normalize time to minutes to avoid slight millisecond differences
+    const timeDate = new Date(scheduledTime);
+    const normalizedTime = timeDate instanceof Date && !Number.isNaN(timeDate.getTime())
+      ? timeDate.toISOString().substring(0, 16) // "2026-03-21T14:00"
+      : scheduledTime;
+
+    const idKey = `${postId}`;
+    const contentTimeKey = `${contentHash}-${normalizedTime}`;
+
+    if (seenIds.has(idKey)) {
+      return false;
     }
-    seenPosts.set(dedupeKey, true);
+
+    // If we've seen this exact content at the exact same time, it's a duplicate
+    // even if the IDs are different (e.g. from different sources)
+    if (contentHash && normalizedTime && seenContentTime.has(contentTimeKey)) {
+      return false;
+    }
+
+    seenIds.add(idKey);
+    if (contentHash && normalizedTime) {
+      seenContentTime.add(contentTimeKey);
+    }
     return true;
   });
 

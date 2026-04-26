@@ -2,16 +2,16 @@
 -- Prevent Duplicate Analytics Records
 -- ============================================================================
 -- This migration adds a unique constraint to prevent duplicate analytics records
--- for the same post, platform, date, and Getlate post ID combination.
+-- for the same post, platform, date, and provider post id combination.
 -- ============================================================================
 
 -- Step 1: Clean up existing duplicates before creating unique indexes
--- For records with NULL getlate_post_id: keep the most recent one per (post_id, platform, date)
+-- For rows with NULL provider post id: keep the most recent one per (post_id, platform, date)
 DO $$
 DECLARE
   deleted_count INTEGER;
 BEGIN
-  -- Delete duplicates where getlate_post_id IS NULL
+  -- Delete duplicates where provider post id column IS NULL
   -- Keep the record with the latest updated_at or created_at
   WITH duplicates AS (
     SELECT id,
@@ -28,10 +28,10 @@ BEGIN
   );
   
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RAISE NOTICE 'Deleted % duplicate records with NULL getlate_post_id', deleted_count;
+  RAISE NOTICE 'Deleted % duplicate records with NULL provider post id', deleted_count;
 END $$;
 
--- Step 2: Clean up duplicates where getlate_post_id IS NOT NULL
+-- Step 2: Clean up duplicates where provider post id column IS NOT NULL
 -- Keep the record with the latest updated_at or created_at
 DO $$
 DECLARE
@@ -52,11 +52,11 @@ BEGIN
   );
   
   GET DIAGNOSTICS deleted_count = ROW_COUNT;
-  RAISE NOTICE 'Deleted % duplicate records with non-NULL getlate_post_id', deleted_count;
+  RAISE NOTICE 'Deleted % duplicate records with non-NULL provider post id', deleted_count;
 END $$;
 
 -- Step 3: Create unique indexes to prevent future duplicates
--- Note: getlate_post_id can be NULL, so we use partial unique indexes to handle NULL values properly
+-- Note: provider post id can be NULL, so we use partial unique indexes to handle NULL values properly
 DO $$
 BEGIN
   -- Check if indexes already exist
@@ -64,33 +64,33 @@ BEGIN
     SELECT 1 FROM pg_indexes 
     WHERE indexname = 'post_analytics_unique_post_platform_date_null_getlate_idx'
   ) THEN
-    -- Create partial unique index for NULL getlate_post_id cases
-    -- This ensures one record per post+platform+date when getlate_post_id is NULL
+    -- Partial unique index when provider post id is NULL
+    -- Ensures one record per post+platform+date in that case
     CREATE UNIQUE INDEX post_analytics_unique_post_platform_date_null_getlate_idx
     ON public.post_analytics (post_id, platform, date)
     WHERE getlate_post_id IS NULL;
     
-    RAISE NOTICE 'Unique index for NULL getlate_post_id added to post_analytics';
+    RAISE NOTICE 'Unique index for NULL provider post id added to post_analytics';
   ELSE
-    RAISE NOTICE 'Unique index for NULL getlate_post_id already exists';
+    RAISE NOTICE 'Unique index for NULL provider post id already exists';
   END IF;
   
   IF NOT EXISTS (
     SELECT 1 FROM pg_indexes 
     WHERE indexname = 'post_analytics_unique_post_platform_date_getlate_not_null_idx'
   ) THEN
-    -- Create unique index for non-NULL getlate_post_id cases
-    -- This ensures one record per post+platform+date+getlate_post_id when getlate_post_id is NOT NULL
+    -- Unique index when provider post id is NOT NULL
+    -- Ensures one row per post+platform+date+provider post id
     CREATE UNIQUE INDEX post_analytics_unique_post_platform_date_getlate_not_null_idx
     ON public.post_analytics (post_id, platform, date, getlate_post_id)
     WHERE getlate_post_id IS NOT NULL;
     
-    RAISE NOTICE 'Unique index for non-NULL getlate_post_id added to post_analytics';
+    RAISE NOTICE 'Unique index for non-NULL provider post id added to post_analytics';
   ELSE
-    RAISE NOTICE 'Unique index for non-NULL getlate_post_id already exists';
+    RAISE NOTICE 'Unique index for non-NULL provider post id already exists';
   END IF;
 END $$;
 
 -- Add comments
-COMMENT ON INDEX post_analytics_unique_post_platform_date_null_getlate_idx IS 'Prevents duplicate analytics records when getlate_post_id is NULL';
-COMMENT ON INDEX post_analytics_unique_post_platform_date_getlate_not_null_idx IS 'Prevents duplicate analytics records when getlate_post_id is NOT NULL';
+COMMENT ON INDEX post_analytics_unique_post_platform_date_null_getlate_idx IS 'Prevents duplicate analytics records when provider post id column is NULL';
+COMMENT ON INDEX post_analytics_unique_post_platform_date_getlate_not_null_idx IS 'Prevents duplicate analytics records when provider post id column is NOT NULL';

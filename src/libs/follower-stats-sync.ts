@@ -1,8 +1,17 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createGetlateClient } from './Getlate';
 
+/** Match dashboard / analytics normalization (twitter → x). */
+function normalizePlatform(platform: string): string {
+  const normalized = platform.toLowerCase();
+  if (normalized === 'twitter') {
+    return 'x';
+  }
+  return normalized;
+}
+
 /**
- * Fetch follower stats from Getlate API
+ * Fetch follower stats from Publishing integration API
  * This function fetches follower statistics and returns them for use in charts
  */
 export async function getFollowerStatsFromGetlate(
@@ -13,6 +22,8 @@ export async function getFollowerStatsFromGetlate(
     fromDate?: Date;
     toDate?: Date;
     granularity?: 'daily' | 'weekly' | 'monthly';
+    /** When set (not `all`), only aggregate time series for accounts on this platform */
+    platform?: string | null;
   },
 ): Promise<{
   followerTrend: Array<{ date: string; followers: number }>;
@@ -28,7 +39,7 @@ export async function getFollowerStatsFromGetlate(
   }>;
 } | null> {
   try {
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -36,10 +47,10 @@ export async function getFollowerStatsFromGetlate(
       .single();
 
     if (!userRecord?.getlate_api_key) {
-      return null; // No Getlate API key, skip
+      return null; // No Publishing integration API key, skip
     }
 
-    // Get brand's Getlate profile ID
+    // Get brand's Publishing integration profile ID
     let profileId: string | undefined;
     if (brandId && brandId !== 'all') {
       const { data: brandRecord } = await supabase
@@ -50,11 +61,11 @@ export async function getFollowerStatsFromGetlate(
         .single();
 
       if (!brandRecord?.getlate_profile_id) {
-        return null; // Brand not linked to Getlate profile, skip
+        return null; // Brand not linked to Publishing integration profile, skip
       }
       profileId = brandRecord.getlate_profile_id;
     } else {
-      // For "all brands", get the first brand with a Getlate profile
+      // For "all brands", get the first brand with a Publishing integration profile
       const { data: brands } = await supabase
         .from('brands')
         .select('getlate_profile_id')
@@ -63,7 +74,7 @@ export async function getFollowerStatsFromGetlate(
         .limit(1);
 
       if (!brands || brands.length === 0 || !brands[0]?.getlate_profile_id) {
-        return null; // No brands with Getlate profiles
+        return null; // No brands with Publishing integration profiles
       }
       profileId = brands[0].getlate_profile_id;
     }
@@ -78,7 +89,7 @@ export async function getFollowerStatsFromGetlate(
       return date;
     })();
 
-    // Fetch follower stats from Getlate API
+    // Fetch follower stats from Publishing integration API
     const followerStats = await getlateClient.getFollowerStats({
       profileId,
       fromDate: fromDate.toISOString().split('T')[0],
@@ -90,12 +101,28 @@ export async function getFollowerStatsFromGetlate(
       return null;
     }
 
-    // Aggregate follower stats across all accounts
+    const platformFilter
+      = options?.platform && options.platform !== 'all'
+        ? normalizePlatform(options.platform)
+        : null;
+
+    let allowedAccountIds: Set<string> | null = null;
+    if (platformFilter && followerStats.accounts?.length) {
+      allowedAccountIds = new Set(
+        followerStats.accounts
+          .filter(a => normalizePlatform(a.platform) === platformFilter)
+          .map(a => a._id),
+      );
+    }
+
+    // Aggregate follower stats across accounts (all, or only those matching `platform`)
     // The stats object has account IDs as keys, each with an array of { date, followers }
     const followerMap = new Map<string, number>(); // date -> total followers
 
-    // Process all account stats
-    for (const accountStats of Object.values(followerStats.stats)) {
+    for (const [accountId, accountStats] of Object.entries(followerStats.stats)) {
+      if (allowedAccountIds && !allowedAccountIds.has(accountId)) {
+        continue;
+      }
       if (!Array.isArray(accountStats)) {
         continue;
       }
@@ -104,7 +131,7 @@ export async function getFollowerStatsFromGetlate(
         const date = stat.date;
         const followers = stat.followers || 0;
 
-        // Sum followers across all accounts for each date
+        // Sum followers across included accounts for each date
         const currentTotal = followerMap.get(date) || 0;
         followerMap.set(date, currentTotal + followers);
       }

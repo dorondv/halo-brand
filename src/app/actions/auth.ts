@@ -2,8 +2,20 @@
 
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
+import * as z from 'zod';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { getAuthCallbackUrl } from '@/utils/Helpers';
+
+const signInSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(1, 'Password is required'),
+});
+
+const signUpSchema = z.object({
+  email: z.string().email('Invalid email address'),
+  password: z.string().min(6, 'Password must be at least 6 characters'),
+  fullName: z.string().min(1, 'Full name is required').max(200, 'Full name is too long'),
+});
 
 // Lazy load Arcjet only when needed (avoids bundling in middleware)
 async function protectWithArcjet(isSignup: boolean) {
@@ -72,17 +84,25 @@ async function protectWithArcjet(isSignup: boolean) {
   }
 }
 
-export async function signIn(_prevState: any, formData: FormData) {
+export async function signIn(_prevState: unknown, formData: FormData) {
   // Apply Arcjet protection
   const arcjetError = await protectWithArcjet(false);
   if (arcjetError) {
     return { error: arcjetError };
   }
 
-  const supabase = await createSupabaseServerClient();
+  // Validate input
+  const parsed = signInSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+  });
 
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || 'Invalid input' };
+  }
+
+  const { email, password } = parsed.data;
+  const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.auth.signInWithPassword({
     email,
@@ -98,16 +118,25 @@ export async function signIn(_prevState: any, formData: FormData) {
   redirect('/dashboard');
 }
 
-export async function signUp(_prevState: any, formData: FormData) {
+export async function signUp(_prevState: unknown, formData: FormData) {
   // Apply stricter Arcjet protection for signup
   const arcjetError = await protectWithArcjet(true);
   if (arcjetError) {
     return { error: arcjetError };
   }
 
-  const email = formData.get('email') as string;
-  const password = formData.get('password') as string;
-  const fullName = formData.get('fullName') as string;
+  // Validate input
+  const parsed = signUpSchema.safeParse({
+    email: formData.get('email'),
+    password: formData.get('password'),
+    fullName: formData.get('fullName'),
+  });
+
+  if (!parsed.success) {
+    return { error: parsed.error.issues[0]?.message || 'Invalid input' };
+  }
+
+  const { email, password, fullName } = parsed.data;
   const supabase = await createSupabaseServerClient();
 
   const { error } = await supabase.auth.signUp({

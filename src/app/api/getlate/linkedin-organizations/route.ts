@@ -37,7 +37,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -126,12 +126,12 @@ export async function GET(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
 
-    // Step 1: Fetch accounts from Getlate API using profileId
+    // Step 1: Fetch accounts from Publishing integration API using profileId
     // GET /v1/accounts?profileId=PROFILE_ID
     const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
 
-    // Step 2: Find the LinkedIn account from the Getlate API response
-    // Match by the stored getlate_account_id or by username/accountName
+    // Step 2: Find the LinkedIn account from the Publishing integration API response
+    // Match by stored provider account id or by username/accountName
     const linkedInAccount = rawAccounts.find(
       (acc: any) => {
         const accountIdFromApi = acc._id || acc.id;
@@ -158,7 +158,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Step 3: Use the account ID from Getlate API response (id or _id)
+    // Step 3: Use the account ID from Publishing integration API response (id or _id)
     const getlateAccountId = linkedInAccount._id || linkedInAccount.id;
     if (!getlateAccountId) {
       return NextResponse.json(
@@ -167,7 +167,7 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Try to get accessToken to use as tempToken directly from Getlate
+    // Try to get accessToken to use as tempToken directly from Publishing integration
     const tempToken = linkedInAccount.accessToken
       || linkedInAccount.tempToken
       || linkedInAccount.access_token
@@ -177,7 +177,7 @@ export async function GET(request: NextRequest) {
       || (linkedInAccount.metadata as Record<string, unknown> | undefined)?.access_token as string | undefined
       || undefined;
 
-    // Step 4: Use the account ID from Getlate API to fetch organizations
+    // Step 4: Use the account ID from Publishing integration API to fetch organizations
     // GET /v1/accounts/[accountId]/linkedin-organizations
     let organizations: Awaited<ReturnType<typeof getlateClient.getLinkedInOrganizations>> = [];
     try {
@@ -254,7 +254,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Get user's Getlate API key
+    // Get user's Publishing integration API key
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('getlate_api_key')
@@ -343,10 +343,10 @@ export async function PUT(request: NextRequest) {
 
     const getlateClient = createGetlateClient(getlateApiKey);
 
-    // Fetch accounts from Getlate API to get the correct account ID
+    // Fetch accounts from Publishing integration API to get the correct account ID
     const rawAccounts = await getlateClient.getRawAccounts(brandRecord.getlate_profile_id);
 
-    // Find the LinkedIn account from the Getlate API response
+    // Find the LinkedIn account from the Publishing integration API response
     const linkedInAccount = rawAccounts.find(
       (acc: any) => {
         const accountIdFromApi = acc._id || acc.id;
@@ -372,7 +372,7 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // Use the account ID from Getlate API response
+    // Use the account ID from Publishing integration API response
     const getlateAccountId = linkedInAccount._id || linkedInAccount.id;
     if (!getlateAccountId) {
       return NextResponse.json(
@@ -406,7 +406,7 @@ export async function PUT(request: NextRequest) {
       accountType: finalAccountType,
     });
 
-    // Extract company name from Getlate response if available (only for organization mode)
+    // Extract company name from Publishing integration response if available (only for organization mode)
     let responseOrganizationName: string | undefined;
     if (finalAccountType === 'organization' && organizationId) {
       responseOrganizationName = getlateResponse?.organization?.name
@@ -459,7 +459,7 @@ export async function PUT(request: NextRequest) {
       // Don't fail the request if update fails, just log it
     }
 
-    // Sync accounts from Getlate API to get updated followers count for the new organization
+    // Sync accounts from Publishing integration API to get updated followers count for the new organization
     if (socialAccount.brand_id) {
       // Trigger sync in background (don't await to avoid blocking response)
       fetch(`${request.nextUrl.origin}/api/getlate/accounts?brandId=${socialAccount.brand_id}`, {

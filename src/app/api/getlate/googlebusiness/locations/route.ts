@@ -5,7 +5,8 @@ import { createSupabaseServerClient } from '@/libs/Supabase';
 
 /**
  * GET /api/getlate/googlebusiness/locations
- * Fetch available Google Business locations during headless OAuth flow
+ * Proxies Zernio GET /v1/connect/googlebusiness/locations (headless GBP list).
+ * @see https://docs.getlate.dev/connect/list-google-business-locations
  */
 export async function GET(request: NextRequest) {
   try {
@@ -17,18 +18,18 @@ export async function GET(request: NextRequest) {
     }
 
     const { searchParams } = new URL(request.url);
-    const profileId = searchParams.get('profileId');
-    const tempToken = searchParams.get('tempToken');
-    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token');
+    const profileId = searchParams.get('profileId') || undefined;
+    const tempToken = searchParams.get('tempToken') || undefined;
+    const pendingDataToken = searchParams.get('pendingDataToken') || searchParams.get('pending_data_token') || undefined;
+    const connectToken = request.headers.get('X-Connect-Token') || request.headers.get('x-connect-token') || undefined;
 
-    if (!profileId || !tempToken || !connectToken) {
+    if (!pendingDataToken && !tempToken) {
       return NextResponse.json(
-        { error: 'Missing required parameters: profileId, tempToken, and X-Connect-Token header' },
+        { error: 'Missing required query: pendingDataToken or tempToken' },
         { status: 400 },
       );
     }
 
-    // Get user record to fetch API key
     const { data: userRecord, error: userError } = await supabase
       .from('users')
       .select('id, getlate_api_key')
@@ -39,9 +40,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'User not found or integration not configured' }, { status: 404 });
     }
 
-    // Create Getlate client and fetch locations
     const getlateClient = createGetlateClient(userRecord.getlate_api_key);
-    const locations = await getlateClient.getGoogleBusinessLocations(profileId, tempToken, connectToken);
+    const locations = await getlateClient.getGoogleBusinessLocations({
+      profileId,
+      tempToken,
+      pendingDataToken,
+      connectToken,
+    });
 
     return NextResponse.json({ locations });
   } catch (error) {
