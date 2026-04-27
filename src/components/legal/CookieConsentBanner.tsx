@@ -244,7 +244,7 @@ export function CookieSettingsLink(props: { className?: string }) {
       type="button"
       onClick={openPreferences}
       className={cn(
-        'text-sm font-medium text-pink-600 underline-offset-2 hover:underline dark:text-pink-400',
+        'text-sm font-normal text-gray-500 underline-offset-2 decoration-gray-400/25 hover:underline hover:text-gray-600 dark:text-gray-500 dark:hover:text-gray-400',
         props.className,
       )}
     >
