@@ -183,12 +183,18 @@ export function SignUpForm() {
         <p className="text-center text-xs text-gray-600 dark:text-gray-400">
           {t.rich('signup_disclaimer', {
             terms: chunks => (
-              <Link href="/terms" className="font-medium text-pink-600 underline-offset-2 hover:underline dark:text-pink-400">
+              <Link
+                href="/terms"
+                className="font-normal text-gray-500 decoration-gray-400/25 underline-offset-2 hover:text-gray-600 hover:underline dark:text-gray-500 dark:hover:text-gray-400"
+              >
                 {chunks}
               </Link>
             ),
             privacy: chunks => (
-              <Link href="/privacy" className="font-medium text-pink-600 underline-offset-2 hover:underline dark:text-pink-400">
+              <Link
+                href="/privacy"
+                className="font-normal text-gray-500 decoration-gray-400/25 underline-offset-2 hover:text-gray-600 hover:underline dark:text-gray-500 dark:hover:text-gray-400"
+              >
                 {chunks}
               </Link>
             ),
