@@ -528,9 +528,9 @@ export function PaymentClient() {
   }, [paypalLoading, paypalClientId, paypalPlanId, renderPayPalButtons]);
 
   return (
-    <div className={cn('min-h-screen p-6', isRTL ? 'rtl' : 'ltr')}>
+    <div className="min-h-screen p-6">
       <div className="mx-auto max-w-2xl">
-        <div className={cn('mb-8', isRTL ? 'text-right' : 'text-left')}>
+        <div className="mb-8 text-start">
           <Button
             variant="ghost"
             onClick={() => router.push('/pricing')}
@@ -551,18 +551,18 @@ export function PaymentClient() {
         <Card className="mb-6 p-6">
           <div className={cn('flex items-center mb-6', isRTL ? 'flex-row-reverse space-x-reverse' : 'space-x-3')}>
             <Check size={20} className="text-pink-500" />
-            <h3 className={cn('text-lg font-semibold', isRTL ? 'text-right' : 'text-left')}>
+            <h3 className="text-start text-lg font-semibold">
               {t('plan_summary')}
             </h3>
           </div>
 
           <div className={cn('flex items-center justify-between', isRTL ? 'flex-row-reverse' : '')}>
-            <div className={cn(isRTL ? 'text-right' : 'text-left')}>
+            <div className="text-start">
               <div className="mb-1 font-medium text-gray-900 dark:text-white">
                 {planName}
               </div>
             </div>
-            <div className={cn(isRTL ? 'text-left' : 'text-right')}>
+            <div className="text-end">
               <div className="text-2xl font-bold text-gray-900 dark:text-white">
                 $
                 {displayPrice.toFixed(2)}
@@ -578,27 +578,27 @@ export function PaymentClient() {
         <Card className="p-6">
           <div className={cn('flex items-center mb-6', isRTL ? 'flex-row-reverse space-x-reverse' : 'space-x-3')}>
             <Lock size={20} className="text-pink-500" />
-            <h3 className={cn('text-lg font-semibold', isRTL ? 'text-right' : 'text-left')}>
+            <h3 className="text-start text-lg font-semibold">
               {t('secure_payment')}
             </h3>
           </div>
 
-          <p className={cn('text-gray-600 mb-6', isRTL ? 'text-right' : 'text-left')}>
+          <p className="mb-6 text-start text-gray-600">
             {t('payment_instructions')}
           </p>
 
           {paypalLoading
             ? (
-                <div className={cn('flex items-center justify-center py-8', isRTL ? 'text-right' : 'text-left')}>
+                <div className="flex items-center justify-center py-8 text-start">
                   <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-pink-500"></div>
-                  <span className={cn('ml-3 text-gray-600', isRTL ? 'mr-3 ml-0' : '')}>
+                  <span className="ms-3 text-gray-600">
                     {t('loading_payment_options')}
                   </span>
                 </div>
               )
             : !paypalClientId
                 ? (
-                    <div className={cn('text-center py-8', isRTL ? 'text-right' : 'text-left')}>
+                    <div className="py-8 text-center">
                       <div className="rounded-lg border border-red-200 bg-red-50 p-4 dark:border-red-800 dark:bg-red-900/20">
                         <p className="mb-2 font-medium text-red-600 dark:text-red-400">
                           {t('paypal_not_configured')}
@@ -614,7 +614,7 @@ export function PaymentClient() {
                   )}
 
           {processing && (
-            <div className={cn('text-center py-4', isRTL ? 'text-right' : 'text-left')}>
+            <div className="py-4 text-center">
               <div className="mx-auto mb-2 h-6 w-6 animate-spin rounded-full border-b-2 border-pink-500"></div>
               <p className="text-sm text-gray-600 dark:text-gray-400">
                 {t('processing_payment')}
@@ -622,13 +622,13 @@ export function PaymentClient() {
             </div>
           )}
 
-          <div className={cn('text-center text-xs text-gray-500 mt-4', isRTL ? 'text-right' : 'text-left')}>
+          <div className="mt-4 text-center text-xs text-gray-500">
             {t('powered_by_paypal')}
           </div>
         </Card>
 
         {/* Footer Note */}
-        <div className={cn('text-center text-sm text-gray-500 p-4 bg-gray-50 dark:bg-gray-800/50 rounded-xl mt-6', isRTL ? 'text-right' : 'text-left')}>
+        <div className="mt-6 rounded-xl bg-gray-50 p-4 text-center text-sm text-gray-500 dark:bg-gray-800/50">
           <p className="mb-1">
             🔒
             {t('security_note')}

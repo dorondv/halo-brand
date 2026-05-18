@@ -1,11 +1,22 @@
 'use client';
 
 import * as TabsPrimitive from '@radix-ui/react-tabs';
+import { useLocale } from 'next-intl';
 import * as React from 'react';
 
 import { cn } from '@/libs/cn';
 
-const Tabs = TabsPrimitive.Root;
+/**
+ * Radix Tabs sets an explicit `dir` on the root (defaults to `ltr` via useDirection),
+ * which overrides inherited document RTL and breaks Hebrew layout for all tab content.
+ */
+const Tabs = ({ ref, ...props }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.Root> & { ref?: React.RefObject<React.ElementRef<typeof TabsPrimitive.Root> | null> }) => {
+  const locale = useLocale();
+  const { dir: dirProp, ...rest } = props;
+  const dir = dirProp ?? (locale === 'he' ? 'rtl' : 'ltr');
+  return <TabsPrimitive.Root ref={ref} dir={dir} {...rest} />;
+};
+Tabs.displayName = TabsPrimitive.Root.displayName;
 
 const TabsList = ({ ref, className, ...props }: React.ComponentPropsWithoutRef<typeof TabsPrimitive.List> & { ref?: React.RefObject<React.ElementRef<typeof TabsPrimitive.List> | null> }) => (
   <TabsPrimitive.List

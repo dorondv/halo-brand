@@ -119,7 +119,7 @@ export default async function MarketingPage() {
       <div className="container mx-auto px-6 py-12">
         <div className="grid items-start gap-12 lg:grid-cols-2">
           {/* Marketing Content - Visual left in LTR, visual right in RTL */}
-          <div className={cn('space-y-8', isRTL ? 'text-right' : 'text-left')}>
+          <div className="space-y-8 text-start">
             <div className="space-y-4">
               <h1 className="text-5xl leading-tight font-bold text-gray-900 lg:text-6xl dark:text-white">
                 {t('hero_line1')}
@@ -145,7 +145,7 @@ export default async function MarketingPage() {
                   <div className="rounded-lg bg-pink-100 p-2 dark:bg-pink-900/40">
                     <feature.icon className="h-5 w-5 text-pink-600 dark:text-pink-400" />
                   </div>
-                  <div className={isRTL ? 'text-right' : 'text-left'}>
+                  <div className="text-start">
                     <h3 className="font-semibold text-gray-800 dark:text-gray-200">{feature.title}</h3>
                     <p className="text-sm text-gray-600 dark:text-gray-400">{feature.description}</p>
                   </div>

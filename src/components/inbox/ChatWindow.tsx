@@ -1028,7 +1028,10 @@ export function ChatWindow({
                           <button
                             key={replyKey}
                             type="button"
-                            className={cn('w-full px-4 py-2 text-sm text-gray-700 hover:bg-pink-50 flex items-center gap-3 transition-colors', isRTL ? 'text-right flex-row-reverse' : 'text-left')}
+                            className={cn(
+                              'flex w-full items-center gap-3 px-4 py-2 text-start text-sm text-gray-700 transition-colors hover:bg-pink-50',
+                              isRTL && 'flex-row-reverse',
+                            )}
                             onClick={() => insertQuickReply(t(replyKey))}
                           >
                             <Icon className="h-4 w-4 flex-shrink-0 text-gray-400" />

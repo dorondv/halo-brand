@@ -73,7 +73,7 @@ function MeterCard({
     >
       <CardContent className={cn(compact ? 'p-3 sm:p-4' : 'p-4 sm:p-5')}>
         <div className={cn('flex items-start justify-between gap-2', isRTL && 'flex-row-reverse')}>
-          <div className={cn('min-w-0 flex-1', isRTL ? 'text-right' : 'text-left')}>
+          <div className="min-w-0 flex-1 text-start">
             <p
               className={cn(
                 'font-medium text-gray-700 dark:text-gray-200',
@@ -170,7 +170,7 @@ function TopbarMeterChip({
         >
           <Icon className={cn('h-4 w-4 sm:h-5 sm:w-5', accent.icon)} />
         </div>
-        <div className={cn('min-w-0 flex-1', isRTL ? 'text-right' : 'text-left')}>
+        <div className="min-w-0 flex-1 text-start">
           <p className="truncate text-xs leading-snug font-medium text-gray-700 dark:text-gray-200">
             {def.label}
           </p>

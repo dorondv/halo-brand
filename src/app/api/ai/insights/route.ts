@@ -2,6 +2,7 @@ import { openai } from '@ai-sdk/openai';
 import { generateText } from 'ai';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { normalizeInsightsPayload } from '@/libs/normalizeInsights';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 
 // Note: Using Node.js runtime instead of Edge because createSupabaseServerClient
@@ -226,7 +227,7 @@ ${isHebrew
       }
 
       if (content.timing && content.content && content.keywords && content.strategy) {
-        return NextResponse.json(content);
+        return NextResponse.json(normalizeInsightsPayload(content));
       }
     } catch (error) {
       console.error('OpenAI API error:', error);
@@ -310,5 +311,5 @@ ${isHebrew
         ],
       };
 
-  return NextResponse.json(insights);
+  return NextResponse.json(normalizeInsightsPayload(insights));
 }

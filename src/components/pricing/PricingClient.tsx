@@ -299,7 +299,7 @@ export function PricingClient() {
                     </div>
                   )}
 
-                  <CardHeader className={cn('pb-6 pt-8', isRTL ? 'text-right' : 'text-left')}>
+                  <CardHeader className="pt-8 pb-6 text-start">
                     <CardTitle className="mb-2 text-2xl font-bold text-gray-900 sm:text-3xl dark:text-white">
                       {t(`plan_${planKey}.name` as any)}
                     </CardTitle>
@@ -310,7 +310,7 @@ export function PricingClient() {
 
                   <CardContent className="flex flex-grow flex-col px-6 pb-6">
                     {/* Pricing Section */}
-                    <div className={cn('mb-8 pb-6 border-b border-gray-200 dark:border-gray-700', isRTL ? 'text-right' : 'text-left')}>
+                    <div className="mb-8 border-b border-gray-200 pb-6 text-start dark:border-gray-700">
                       {isAnnual
                         ? (
                             <>
@@ -346,7 +346,7 @@ export function PricingClient() {
                     </div>
 
                     {/* Features List */}
-                    <ul className={cn('space-y-4 mb-8 flex-grow', isRTL ? 'text-right' : 'text-left')}>
+                    <ul className="mb-8 flex-grow space-y-4 text-start">
                       {planConfig.featureKeys.map((featureKey, idx) => {
                         const featureText = t(`plan_${planKey}.features.${featureKey}` as any);
                         return (

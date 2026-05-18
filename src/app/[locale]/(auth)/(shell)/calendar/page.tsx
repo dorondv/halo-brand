@@ -1244,7 +1244,7 @@ export default function CalendarPage() {
           animate={{ opacity: 1, y: 0 }}
           className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
-          <div className={isRTL ? 'text-right' : 'text-left'}>
+          <div className="text-start">
             <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>

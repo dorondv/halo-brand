@@ -48,8 +48,6 @@ export function SelectTrigger({ children, className, id, dir, ...props }: React.
     throw new Error('SelectTrigger must be used within Select');
   }
 
-  const isRTL = dir === 'rtl';
-
   return (
     <button
       id={id}
@@ -65,14 +63,14 @@ export function SelectTrigger({ children, className, id, dir, ...props }: React.
       aria-haspopup="listbox"
       {...props}
     >
-      <span className={cn('flex-1', isRTL ? 'text-right' : 'text-left')} dir={dir}>
+      <span className="flex-1 text-start" dir={dir}>
         {children}
       </span>
       <ChevronDown
         className={cn(
           'h-4 w-4 shrink-0 text-gray-500 dark:text-gray-400 transition-transform duration-200',
           ctx.open && 'rotate-180',
-          'ml-2',
+          'ms-2',
         )}
         aria-hidden="true"
       />
@@ -134,8 +132,6 @@ export function SelectItem({ children, value, dir, disabled, ...props }: { child
   }
 
   const isSelected = ctx.value === value;
-  const isRTL = dir === 'rtl';
-
   return (
     <button
       type="button"
@@ -149,12 +145,10 @@ export function SelectItem({ children, value, dir, disabled, ...props }: { child
       }}
       dir={dir}
       className={cn(
-        'relative flex w-full select-none items-center rounded-sm px-3 py-2 text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700',
+        'relative flex w-full select-none items-center rounded-sm px-3 py-2 text-start text-sm outline-none hover:bg-gray-100 focus:bg-gray-100 dark:hover:bg-gray-700 dark:focus:bg-gray-700',
         isSelected && 'bg-gray-100 dark:bg-gray-700 font-medium',
-        isRTL ? 'text-right' : 'text-left',
         disabled ? 'cursor-not-allowed opacity-50 hover:bg-transparent dark:hover:bg-transparent' : 'cursor-pointer',
       )}
-      style={isRTL ? { textAlign: 'right' } : { textAlign: 'left' }}
       {...props}
     >
       {children}

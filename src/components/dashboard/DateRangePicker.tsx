@@ -373,9 +373,8 @@ export function DateRangePicker() {
                 key={option.value}
                 type="button"
                 className={cn(
-                  'w-full rounded-md px-3 py-2 text-left text-sm transition-colors duration-200 ease-out hover:bg-pink-50 dark:hover:bg-gray-700 dark:text-gray-200',
+                  'w-full rounded-md px-3 py-2 text-start text-sm transition-colors duration-200 ease-out hover:bg-pink-50 dark:hover:bg-gray-700 dark:text-gray-200',
                   currentGranularity === option.value && 'bg-pink-50 text-pink-600 dark:bg-pink-900/30 dark:text-pink-400',
-                  isRTL && 'text-right',
                 )}
                 onClick={() => handleGranularitySelect(option.value as GranularityOption)}
               >

@@ -502,7 +502,7 @@ export function PostSentimentClient() {
               <CardContent className={`space-y-4 ${isRTL ? 'text-right' : ''}`}>
                 {/* Platform Filter */}
                 <Tabs value={selectedPlatform} onValueChange={setSelectedPlatform}>
-                  <TabsList className={`inline-flex h-auto items-center justify-start gap-1 rounded-lg bg-gray-100/50 p-1 dark:bg-slate-800/80 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                  <TabsList className="inline-flex h-auto items-center justify-start gap-1 rounded-lg bg-gray-100/50 p-1 dark:bg-slate-800/80">
                     <TabsTrigger
                       value="all"
                       className={`flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-all ${
