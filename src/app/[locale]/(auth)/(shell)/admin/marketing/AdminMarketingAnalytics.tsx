@@ -27,6 +27,30 @@ type BreakdownItem = {
   conversionRate: number;
 };
 
+function breakdownRowReactKey(
+  groupBy: 'utmSource' | 'utmCampaign' | 'country',
+  groupValue: string,
+  item: BreakdownItem,
+  rowIndex: number,
+): string {
+  const fingerprint = [
+    groupBy,
+    groupValue,
+    rowIndex,
+    item.pageviews,
+    item.signupCompletes,
+    item.leadSubmits,
+    item.purchases,
+    item.totalRevenue,
+    item.conversionRate,
+  ].join('|');
+  let h = 0;
+  for (let i = 0; i < fingerprint.length; i++) {
+    h = (Math.imul(31, h) + fingerprint.charCodeAt(i)) | 0;
+  }
+  return `marketing-bd-${(h >>> 0).toString(36)}`;
+}
+
 export function AdminMarketingAnalytics() {
   const t = useTranslations('Admin');
   const toast = useToast();
@@ -309,10 +333,10 @@ export function AdminMarketingAnalytics() {
                     </tr>
                   )
                 : (
-                    breakdown.map((item) => {
+                    breakdown.map((item, rowIndex) => {
                       const groupValue = String(item[groupBy] || 'Unknown');
                       return (
-                        <tr key={`${groupBy}-${groupValue}`} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
+                        <tr key={breakdownRowReactKey(groupBy, groupValue, item, rowIndex)} className="hover:bg-gray-50 dark:hover:bg-gray-700/50">
                           <td className="px-4 py-3 text-sm font-medium text-gray-900 dark:text-white">
                             {groupValue}
                           </td>
