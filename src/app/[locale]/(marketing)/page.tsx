@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Logo } from '@/components/ui/Logo';
 import { cn } from '@/libs/cn';
 import { getUserSafe } from '@/libs/Supabase';
+import { AppConfig } from '@/utils/AppConfig';
 
 export default async function MarketingPage() {
   const t = await getTranslations('Marketing');
@@ -196,7 +197,7 @@ export default async function MarketingPage() {
         <div className="rounded-3xl bg-gradient-to-br from-pink-500 to-pink-600 p-12 text-white">
           <div className="mx-auto max-w-3xl space-y-6 text-center">
             <h2 className="text-4xl font-bold">
-              {t('benefits_title')}
+              {t('benefits_title', { appName: AppConfig.name })}
             </h2>
             <div className="mt-8 grid gap-6 md:grid-cols-3">
               <div className="space-y-2">
@@ -224,7 +225,7 @@ export default async function MarketingPage() {
         <div className={cn('flex flex-wrap items-center justify-center gap-x-4 gap-y-2 text-sm', isRTL ? 'flex-row-reverse' : '')}>
           <CookieSettingsLink />
         </div>
-        <p>{t('footer_copyright', { year: new Date().getFullYear() })}</p>
+        <p>{t('footer_copyright', { year: new Date().getFullYear(), appName: AppConfig.name })}</p>
       </footer>
     </div>
   );

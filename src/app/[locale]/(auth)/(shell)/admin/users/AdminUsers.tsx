@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { getCsvExportMetadataLines } from '@/utils/csvExportMetadata';
 
 type AdminUser = {
   id: string;
@@ -91,6 +92,8 @@ export function AdminUsers() {
   const handleExport = async () => {
     try {
       const csv = [
+        ...getCsvExportMetadataLines(),
+        '',
         ['Name', 'Email', 'Role', 'Registration Date', 'Status', 'Plan', 'Total Paid', 'Coupon Used'].join(','),
         ...users.map(user => [
           user.name,
@@ -104,7 +107,7 @@ export function AdminUsers() {
         ].join(',')),
       ].join('\n');
 
-      const blob = new Blob([csv], { type: 'text/csv' });
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;

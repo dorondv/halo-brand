@@ -17,6 +17,7 @@ import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlatePosts } from '@/libs/getlate-posts';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { AppConfig } from '@/utils/AppConfig';
+import { getCsvExportMetadataLines } from '@/utils/csvExportMetadata';
 
 const exportRequestSchema = z.object({
   reportType: z.enum(['comprehensive', 'engagement', 'growth', 'posts']),
@@ -757,7 +758,7 @@ function generatePostsReport(posts: any[], analytics: any[], _dateFrom: string, 
 }
 
 function generateCSV(data: ReportData, _reportType: string): string {
-  const lines: string[] = [];
+  const lines: string[] = [...getCsvExportMetadataLines(), ''];
 
   // Add summary if available
   if (data.summary) {

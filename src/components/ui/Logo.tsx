@@ -4,6 +4,7 @@ import Image from 'next/image';
 import { useState } from 'react';
 import { useTheme } from '@/components/theme/theme-context';
 import { useHasMounted } from '@/components/theme/useHasMounted';
+import { AppConfig } from '@/utils/AppConfig';
 
 type LogoProps = {
   className?: string;
@@ -27,7 +28,7 @@ export function Logo({ className = '', width = 32, height = 32 }: LogoProps) {
     >
       <Image
         src={src}
-        alt="Branda Logo"
+        alt={`${AppConfig.name} logo`}
         width={width}
         height={height}
         className="h-full w-full object-contain drop-shadow-sm"

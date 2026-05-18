@@ -179,7 +179,7 @@
     "feature_ai_desc": "KI-gestützte Empfehlungen und Einblicke",
     "signup_title": "Jetzt beginnen",
     "signup_subtitle": "Treten Sie uns bei und beginnen Sie, Ihre Marke intelligent zu verwalten",
-    "benefits_title": "Warum Branda?",
+    "benefits_title": "Warum {appName}?",
     "benefit_free_title": "Kostenlos starten",
     "benefit_free_desc": "Starten Sie kostenlos und skalieren Sie nach Bedarf",
     "benefit_easy_title": "Einfach zu bedienen",
@@ -189,7 +189,7 @@
     "stat_active_users": "Aktive Benutzer",
     "stat_managed_posts": "Verwaltete Beiträge",
     "stat_satisfaction": "Zufriedenheit",
-    "footer_copyright": "© Branda {year}. Alle Rechte vorbehalten.",
+    "footer_copyright": "© {appName} {year}. Alle Rechte vorbehalten.",
     "footer_privacy": "Datenschutzerklärung",
     "footer_terms": "Nutzungsbedingungen"
   },

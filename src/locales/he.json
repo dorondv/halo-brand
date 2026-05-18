@@ -179,7 +179,7 @@
     "feature_ai_desc": "המלצות ותובנות מונעות בינה מלאכותית",
     "signup_title": "התחל עכשיו",
     "signup_subtitle": "הצטרף אלינו והתחל לנהל את המותג שלך בצורה חכמה",
-    "benefits_title": "למה Branda?",
+    "benefits_title": "למה {appName}?",
     "benefit_free_title": "חינם להתחלה",
     "benefit_free_desc": "התחל ללא עלות והרחב לפי הצורך",
     "benefit_easy_title": "קל לשימוש",
@@ -189,7 +189,7 @@
     "stat_active_users": "משתמשים פעילים",
     "stat_managed_posts": "פוסטים מנוהלים",
     "stat_satisfaction": "שביעות רצון",
-    "footer_copyright": "© Branda {year}. כל הזכויות שמורות.",
+    "footer_copyright": "© {appName} {year}. כל הזכויות שמורות.",
     "footer_privacy": "מדיניות פרטיות",
     "footer_terms": "תנאי שימוש"
   },
