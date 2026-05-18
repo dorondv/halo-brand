@@ -5,11 +5,46 @@ import { createSupabaseServerClient } from '@/libs/Supabase';
 
 export const runtime = 'nodejs'; // Changed to nodejs for Buffer support
 
+/** Sizes accepted from clients (includes legacy DALL-E 3 values mapped server-side). */
+const incomingSizeSchema = z.enum([
+  '1024x1024',
+  '1536x1024',
+  '1024x1536',
+  '1792x1024',
+  '1024x1792',
+]);
+
+/** GPT Image 1 supports fixed sizes only (not DALL-E 3's 1792px variants). */
+function toGptImageSize(
+  size: z.infer<typeof incomingSizeSchema>,
+): '1024x1024' | '1536x1024' | '1024x1536' {
+  switch (size) {
+    case '1792x1024':
+      return '1536x1024';
+    case '1024x1792':
+      return '1024x1536';
+    default:
+      return size;
+  }
+}
+
+const qualitySchema = z.enum(['standard', 'hd', 'low', 'medium', 'high']);
+
+/** GPT Image models use low | medium | high; accept legacy DALL-E labels from older clients. */
+function toGptImageQuality(
+  quality: z.infer<typeof qualitySchema>,
+): 'low' | 'medium' | 'high' {
+  if (quality === 'low' || quality === 'medium' || quality === 'high') {
+    return quality;
+  }
+  return 'medium';
+}
+
 const generateMediaSchema = z.object({
-  prompt: z.string().min(1).max(1000),
+  prompt: z.string().min(1).max(32000),
   mediaType: z.enum(['image', 'video']).default('image'),
-  size: z.enum(['1024x1024', '1024x1792', '1792x1024']).optional().default('1024x1024'),
-  quality: z.enum(['standard', 'hd']).optional().default('standard'),
+  size: incomingSizeSchema.optional().default('1024x1024'),
+  quality: qualitySchema.optional().default('medium'),
 });
 
 export async function POST(request: Request) {
@@ -31,9 +66,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { prompt, mediaType, size, quality } = validated.data;
+    const { prompt, mediaType, size: requestedSize, quality } = validated.data;
+    const size = toGptImageSize(requestedSize);
+    const openaiQuality = toGptImageQuality(quality);
 
-    // For now, only support image generation (OpenAI DALL-E)
+    // Image generation via OpenAI GPT Image 1 (gpt-image-1); responses are base64, not URLs.
     // Video generation would require a different service (e.g., RunwayML, Pika Labs API)
     if (mediaType === 'video') {
       return NextResponse.json(
@@ -42,7 +79,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Generate image using OpenAI DALL-E API directly
     const openaiResponse = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: {
@@ -50,10 +86,11 @@ export async function POST(request: Request) {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'dall-e-3',
+        model: 'gpt-image-1',
         prompt,
         size,
-        quality,
+        quality: openaiQuality,
+        output_format: 'png',
         n: 1,
       }),
     });
@@ -67,27 +104,16 @@ export async function POST(request: Request) {
     }
 
     const openaiData = await openaiResponse.json();
-    const imageUrl = openaiData.data?.[0]?.url;
+    const b64 = openaiData.data?.[0]?.b64_json as string | undefined;
 
-    if (!imageUrl) {
+    if (!b64) {
       return NextResponse.json(
-        { error: 'Failed to generate image' },
+        { error: 'Failed to generate image', details: openaiData },
         { status: 500 },
       );
     }
 
-    // Download the generated image and upload to Supabase Storage
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      return NextResponse.json(
-        { error: 'Failed to download generated image' },
-        { status: 500 },
-      );
-    }
-
-    const imageBlob = await imageResponse.blob();
-    const arrayBuffer = await imageBlob.arrayBuffer();
-    const buffer = Buffer.from(arrayBuffer);
+    const buffer = Buffer.from(b64, 'base64');
 
     // Match Storage object key prefix to auth.uid() for typical RLS policies.
     const userId = user.id;

@@ -16,6 +16,8 @@ import { getAccounts, getPosts } from '@/libs/dashboard-cache';
 import { getFollowerStatsFromGetlate } from '@/libs/follower-stats-sync';
 import { getGetlatePosts } from '@/libs/getlate-posts';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { AppConfig } from '@/utils/AppConfig';
+import { getCsvExportMetadataLines } from '@/utils/csvExportMetadata';
 
 const exportRequestSchema = z.object({
   reportType: z.enum(['comprehensive', 'engagement', 'growth', 'posts']),
@@ -756,7 +758,7 @@ function generatePostsReport(posts: any[], analytics: any[], _dateFrom: string, 
 }
 
 function generateCSV(data: ReportData, _reportType: string): string {
-  const lines: string[] = [];
+  const lines: string[] = [...getCsvExportMetadataLines(), ''];
 
   // Add summary if available
   if (data.summary) {
@@ -1016,7 +1018,7 @@ async function generatePDF(
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(255, 255, 255);
-  doc.text('Hello Brand', margin, 17, { align: 'left' });
+  doc.text(AppConfig.name, margin, 17, { align: 'left' });
 
   const currentDate = new Date().toLocaleDateString();
   doc.setFontSize(9);
@@ -1558,7 +1560,7 @@ async function generatePDF(
     doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 12, { align: 'right' });
 
     // Footer text
-    doc.text('Hello Brand - Social Media Analytics', margin, pageHeight - 12, { align: 'left' });
+    doc.text(`${AppConfig.name} - Social Media Analytics`, margin, pageHeight - 12, { align: 'left' });
     doc.setTextColor(colors.text[0]!, colors.text[1]!, colors.text[2]!);
   }
 

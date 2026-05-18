@@ -5,6 +5,7 @@ import { ADMIN_EMAIL } from '@/config/admin';
 import { db } from '@/libs/DB';
 import { createSupabaseServerClient } from '@/libs/Supabase';
 import { billingHistory, subscriptions, users } from '@/models/Schema';
+import { getCsvExportMetadataLines } from '@/utils/csvExportMetadata';
 
 /**
  * GET /api/admin/marketing/export
@@ -140,7 +141,10 @@ export async function GET(_request: NextRequest) {
     }
 
     const headers = Object.keys(firstUser);
+    const metaLines = getCsvExportMetadataLines();
     const csvRows = [
+      ...metaLines,
+      '',
       headers.join(','),
       ...formattedUsers.map(row =>
         headers
@@ -156,7 +160,7 @@ export async function GET(_request: NextRequest) {
       ),
     ];
 
-    const csv = csvRows.join('\n');
+    const csv = `\uFEFF${csvRows.join('\n')}`;
 
     return new NextResponse(csv, {
       headers: {

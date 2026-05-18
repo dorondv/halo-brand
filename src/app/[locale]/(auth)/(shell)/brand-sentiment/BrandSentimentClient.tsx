@@ -718,10 +718,10 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                         <table className="w-full border-collapse">
                           <thead>
                             <tr className="border-b border-gray-300 dark:border-slate-600">
-                              <th className={`p-3 text-left font-semibold text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
+                              <th className="p-3 text-start font-semibold text-slate-700 dark:text-slate-300">
                                 {t('source')}
                               </th>
-                              <th className={`p-3 text-left font-semibold text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
+                              <th className="p-3 text-start font-semibold text-slate-700 dark:text-slate-300">
                                 {t('sentiment_summary')}
                               </th>
                             </tr>
@@ -729,7 +729,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                           <tbody>
                             {analysisResult.report.sentiment_snapshot.map((snapshot, index) => (
                               <tr key={`snapshot-${index}`} className="border-b border-gray-200 dark:border-slate-700">
-                                <td className={`p-3 font-medium text-slate-800 dark:text-slate-200 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                <td className="p-3 text-start font-medium text-slate-800 dark:text-slate-200">
                                   {snapshot.url
                                     ? (
                                         <a
@@ -746,7 +746,7 @@ export function BrandSentimentClient({ initialBrandName }: BrandSentimentClientP
                                         snapshot.source || '-'
                                       )}
                                 </td>
-                                <td className={`p-3 text-sm text-slate-700 dark:text-slate-300 ${isRTL ? 'text-right' : 'text-left'}`}>
+                                <td className="p-3 text-start text-sm text-slate-700 dark:text-slate-300">
                                   {snapshot.sentiment_summary || '-'}
                                 </td>
                               </tr>

@@ -178,7 +178,7 @@
     "feature_ai_desc": "AI-driven recommendations and insights",
     "signup_title": "Get started now",
     "signup_subtitle": "Join us and start managing your brand smartly",
-    "benefits_title": "Why Branda?",
+    "benefits_title": "Why {appName}?",
     "benefit_free_title": "Free to start",
     "benefit_free_desc": "Start for free and scale as needed",
     "benefit_easy_title": "Easy to use",
@@ -188,7 +188,7 @@
     "stat_active_users": "Active users",
     "stat_managed_posts": "Managed posts",
     "stat_satisfaction": "Satisfaction",
-    "footer_copyright": "© Branda {year}. All rights reserved.",
+    "footer_copyright": "© {appName} {year}. All rights reserved.",
     "footer_privacy": "Privacy Policy",
     "footer_terms": "Terms of Use"
   },

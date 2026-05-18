@@ -1,5 +1,6 @@
 'use client';
 
+import type { InsightsData } from '@/libs/normalizeInsights';
 import { endOfMonth, format, startOfMonth, subMonths } from 'date-fns';
 import { motion } from 'framer-motion';
 import {
@@ -27,7 +28,17 @@ import {
 } from '@/components/ui/popover';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { useBrand } from '@/contexts/BrandContext';
+import { normalizeInsightsPayload } from '@/libs/normalizeInsights';
 import { createSupabaseBrowserClient } from '@/libs/SupabaseBrowser';
+
+function insightRowKey(section: string, index: number, text: string): string {
+  let h = 0;
+  const input = `${section}|${index}|${text}`;
+  for (let i = 0; i < input.length; i++) {
+    h = (Math.imul(31, h) + input.charCodeAt(i)) | 0;
+  }
+  return `${section}-${(h >>> 0).toString(36)}`;
+}
 
 type Post = {
   id: string;
@@ -41,13 +52,6 @@ type Post = {
     comments: number;
     shares: number;
   };
-};
-
-type InsightsData = {
-  timing: string[];
-  content: string[];
-  keywords: string[];
-  strategy: string[];
 };
 
 export function InsightsClient() {
@@ -271,7 +275,7 @@ export function InsightsClient() {
 
       if (response.ok) {
         const data = await response.json();
-        setInsights(data);
+        setInsights(normalizeInsightsPayload(data));
       } else {
         console.error('Error generating insights');
       }
@@ -302,7 +306,7 @@ export function InsightsClient() {
   }
 
   return (
-    <div className={`min-h-screen p-6 ${isRTL ? 'rtl' : 'ltr'}`}>
+    <div className="min-h-screen p-6">
       <div className="mx-auto max-w-7xl space-y-8">
         <motion.div
           initial={{ opacity: 0, y: 20 }}
@@ -330,7 +334,7 @@ export function InsightsClient() {
                 )
               : (
                   <>
-                    <Zap className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                    <Zap className="me-2 h-4 w-4" />
                     {t('create_button')}
                   </>
                 )}
@@ -338,7 +342,7 @@ export function InsightsClient() {
         </motion.div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full space-y-6">
-          <TabsList className={`inline-flex h-auto items-center justify-start rounded-lg border-b border-gray-200 bg-transparent p-0 dark:border-slate-700 ${isRTL ? 'flex-row-reverse' : ''}`}>
+          <TabsList className="inline-flex h-auto items-center justify-start rounded-lg border-b border-gray-200 bg-transparent p-0 dark:border-slate-700">
             <TabsTrigger
               value="insights"
               className={`rounded-none px-3 py-1.5 text-sm font-medium transition-all ${
@@ -374,9 +378,9 @@ export function InsightsClient() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {currentInsights.timing?.map(tip => (
+                        {currentInsights.timing?.map((tip, idx) => (
                           <div
-                            key={tip}
+                            key={insightRowKey('timing', idx, tip)}
                             className="flex items-start gap-3 rounded-lg border border-blue-100/80 bg-blue-50 p-3 dark:border-blue-900/50 dark:bg-blue-950/45"
                           >
                             <Lightbulb className="mt-0.5 h-5 w-5 flex-shrink-0 text-blue-600 dark:text-blue-400" />
@@ -395,9 +399,9 @@ export function InsightsClient() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {currentInsights.content?.map(tip => (
+                        {currentInsights.content?.map((tip, idx) => (
                           <div
-                            key={tip}
+                            key={insightRowKey('content', idx, tip)}
                             className="flex items-start gap-3 rounded-lg border border-green-100/80 bg-green-50 p-3 dark:border-green-900/50 dark:bg-green-950/40"
                           >
                             <Target className="mt-0.5 h-5 w-5 flex-shrink-0 text-green-600 dark:text-green-400" />
@@ -416,9 +420,9 @@ export function InsightsClient() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {currentInsights.keywords?.map(tip => (
+                        {currentInsights.keywords?.map((tip, idx) => (
                           <div
-                            key={tip}
+                            key={insightRowKey('keywords', idx, tip)}
                             className="flex items-start gap-3 rounded-lg border border-amber-100/80 bg-yellow-50 p-3 dark:border-amber-900/40 dark:bg-amber-950/35"
                           >
                             <Star className="mt-0.5 h-5 w-5 flex-shrink-0 text-amber-600 dark:text-amber-400" />
@@ -437,9 +441,9 @@ export function InsightsClient() {
                         </CardTitle>
                       </CardHeader>
                       <CardContent className="space-y-3">
-                        {currentInsights.strategy?.map(tip => (
+                        {currentInsights.strategy?.map((tip, idx) => (
                           <div
-                            key={tip}
+                            key={insightRowKey('strategy', idx, tip)}
                             className="flex items-start gap-3 rounded-lg border border-purple-100/80 bg-purple-50 p-3 dark:border-purple-900/50 dark:bg-purple-950/40"
                           >
                             <TrendingUp className="mt-0.5 h-5 w-5 flex-shrink-0 text-purple-600 dark:text-purple-400" />
@@ -476,7 +480,7 @@ export function InsightsClient() {
                             )
                           : (
                               <>
-                                <Zap className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                                <Zap className="me-2 h-4 w-4" />
                                 {t('create_button')}
                               </>
                             )}
@@ -500,9 +504,9 @@ export function InsightsClient() {
                     <PopoverTrigger asChild>
                       <Button
                         variant="outline"
-                        className={`w-full justify-start text-left font-normal md:w-auto ${isRTL ? 'flex-row-reverse' : ''}`}
+                        className="w-full justify-start text-start font-normal md:w-auto"
                       >
-                        <CalendarIcon className={`h-4 w-4 ${isRTL ? 'ml-2' : 'mr-2'}`} />
+                        <CalendarIcon className="me-2 h-4 w-4 shrink-0" />
                         {format(dateRange.startDate, 'MMM dd, yyyy')}
                         {' - '}
                         {format(dateRange.endDate, 'MMM dd, yyyy')}
@@ -569,7 +573,7 @@ export function InsightsClient() {
                               </Badge>
                               <div className="flex-1">
                                 <p className="line-clamp-2 font-medium text-slate-900 dark:text-slate-100">{post.content}</p>
-                                <div className={`mt-2 flex items-center gap-4 text-sm text-slate-500 ${isRTL ? 'flex-row-reverse' : ''}`}>
+                                <div className="mt-2 flex items-center gap-4 text-sm text-slate-500">
                                   {platformDisplayName && (
                                     <div className="flex items-center gap-1">
                                       {post.platformPostUrl

@@ -99,7 +99,7 @@ function PlatformCardsContent({
             type="button"
             onClick={() => handlePlatformClick(platform.platform)}
             className={cn(
-              'min-w-0 cursor-pointer border-0 bg-transparent p-0 text-left',
+              'min-w-0 cursor-pointer border-0 bg-transparent p-0 text-start',
               'w-full',
               // Match previous ~2xl 7-column cell width so card content size stays consistent
               'md:shrink-0 md:w-auto md:min-w-[calc((100%-6rem)/7)]',

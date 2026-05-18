@@ -150,6 +150,12 @@ const PLATFORM_ICON_CONFIG = {
   youtube: { icon: YouTubeIcon, color: 'text-white', bg: 'bg-pink-500', name: 'YouTube' },
 } as const;
 
+/** Required when using next/image `fill` so the browser picks an appropriate responsive resolution. */
+const IMG_SIZE_PREVIEW_PHONE_FRAME = '(max-width: 768px) min(337px, 90vw), 281px';
+const IMG_SIZE_PREVIEW_FEED_CARD = '(max-width: 640px) 100vw, 384px';
+const IMG_SIZE_PREVIEW_FEED_VIDEO = '(max-width: 640px) 100vw, 560px';
+const IMG_SIZE_MEDIA_GRID_THUMB = '(max-width: 640px) 25vw, (max-width: 1024px) 20vw, 180px';
+
 // Default formats aligned with the publishing integration API (vendor docs).
 // Overridden when live API data is available.
 const DEFAULT_PLATFORM_FORMATS: Record<Platform, Format[]> = {
@@ -402,7 +408,7 @@ function PreviewCard({
                   <>
                     {/* Image */}
                     <div className="absolute inset-0">
-                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                      <Image src={previewMediaUrls[0]} alt="Story" fill sizes={IMG_SIZE_PREVIEW_PHONE_FRAME} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     </div>
                     {/* Text overlay on image */}
                     {(previewTitle || previewCaption) && (
@@ -462,7 +468,7 @@ function PreviewCard({
             {previewMediaUrls[0]
               ? (
                   <div className="relative h-full w-full">
-                    <Image src={previewMediaUrls[0]} alt="Reel" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                    <Image src={previewMediaUrls[0]} alt="Reel" fill sizes={IMG_SIZE_PREVIEW_PHONE_FRAME} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     <div className="absolute inset-0 flex items-center justify-center">
                       <Play className="h-16 w-16 rounded-full bg-black/50 p-4 text-white" />
                     </div>
@@ -525,7 +531,7 @@ function PreviewCard({
           {/* Media */}
           {previewMediaUrls[0] && (
             <div className="relative aspect-square w-full bg-slate-100 dark:bg-slate-800">
-              <Image src={previewMediaUrls[0]} alt="Post" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+              <Image src={previewMediaUrls[0]} alt="Post" fill sizes={IMG_SIZE_PREVIEW_FEED_CARD} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
             </div>
           )}
 
@@ -609,7 +615,7 @@ function PreviewCard({
               {previewMediaUrls[0] && (
                 <div className="mt-3 overflow-hidden rounded-2xl bg-slate-100 dark:bg-slate-800">
                   <div className="relative aspect-video w-full">
-                    <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                    <Image src={previewMediaUrls[0]} alt="Media" fill sizes={IMG_SIZE_PREVIEW_FEED_VIDEO} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                   </div>
                 </div>
               )}
@@ -661,7 +667,7 @@ function PreviewCard({
                   <>
                     {/* Image */}
                     <div className="absolute inset-0">
-                      <Image src={previewMediaUrls[0]} alt="Story" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                      <Image src={previewMediaUrls[0]} alt="Story" fill sizes={IMG_SIZE_PREVIEW_PHONE_FRAME} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                     </div>
                     {/* Text overlay on image */}
                     {(previewTitle || previewCaption) && (
@@ -719,7 +725,7 @@ function PreviewCard({
             {previewMediaUrls[0] && (
               <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
                 <div className="relative aspect-video w-full">
-                  <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                  <Image src={previewMediaUrls[0]} alt="Media" fill sizes={IMG_SIZE_PREVIEW_FEED_VIDEO} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
                 </div>
               </div>
             )}
@@ -772,7 +778,7 @@ function PreviewCard({
           {previewMediaUrls[0] && (
             <div className="mt-3 overflow-hidden rounded-lg bg-slate-100 dark:bg-slate-800">
               <div className="relative aspect-video w-full">
-                <Image src={previewMediaUrls[0]} alt="Media" fill className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
+                <Image src={previewMediaUrls[0]} alt="Media" fill sizes={IMG_SIZE_PREVIEW_FEED_VIDEO} className="object-cover" unoptimized={!previewMediaUrls[0].startsWith('/') && !previewMediaUrls[0].includes('supabase.co') && !previewMediaUrls[0].includes('getlate.dev')} />
               </div>
             </div>
           )}
@@ -826,7 +832,7 @@ function PreviewCard({
                 {previewMediaUrls[0]
                   ? (
                       <div className="relative h-full w-full">
-                        <Image src={previewMediaUrls[0]} alt="Short" fill className="object-cover" />
+                        <Image src={previewMediaUrls[0]} alt="Short" fill sizes={IMG_SIZE_PREVIEW_PHONE_FRAME} className="object-cover" />
                         <div className="absolute inset-0 flex items-center justify-center">
                           <Play className="h-16 w-16 rounded-full bg-red-600/80 p-4 text-white" />
                         </div>
@@ -850,7 +856,7 @@ function PreviewCard({
                   {previewMediaUrls[0]
                     ? (
                         <>
-                          <Image src={previewMediaUrls[0]} alt="Video" fill className="object-cover" />
+                          <Image src={previewMediaUrls[0]} alt="Video" fill sizes={IMG_SIZE_PREVIEW_FEED_VIDEO} className="object-cover" />
                           <div className="absolute inset-0 flex items-center justify-center">
                             <Play className="h-16 w-16 rounded-full bg-red-600/80 p-4 text-white" />
                           </div>
@@ -885,7 +891,7 @@ function PreviewCard({
         {previewMediaUrls[0]
           ? (
               <div className="relative h-full w-full">
-                <Image src={previewMediaUrls[0]} alt="TikTok" fill className="object-cover" />
+                <Image src={previewMediaUrls[0]} alt="TikTok" fill sizes={IMG_SIZE_PREVIEW_PHONE_FRAME} className="object-cover" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <Play className="h-16 w-16 rounded-full bg-black/50 p-4 text-white" />
                 </div>
@@ -1406,7 +1412,7 @@ export default function CreatePostPage() {
           prompt,
           mediaType: 'image', // Only images supported for now
           size: '1024x1024',
-          quality: 'standard',
+          quality: 'medium',
         }),
       });
 
@@ -3284,7 +3290,7 @@ export default function CreatePostPage() {
                                                     </div>
                                                   )
                                                 : (
-                                                    <Image src={url} alt={`Media ${idx + 1}`} fill className="object-cover" />
+                                                    <Image src={url} alt={`Media ${idx + 1}`} fill sizes={IMG_SIZE_MEDIA_GRID_THUMB} className="object-cover" />
                                                   )}
                                               <button
                                                 type="button"
@@ -4056,7 +4062,7 @@ export default function CreatePostPage() {
                                                                   </div>
                                                                 )
                                                               : (
-                                                                  <Image src={url} alt={`Media ${idx + 1}`} fill className="object-cover" />
+                                                                  <Image src={url} alt={`Media ${idx + 1}`} fill sizes={IMG_SIZE_MEDIA_GRID_THUMB} className="object-cover" />
                                                                 )}
                                                             <button
                                                               type="button"

@@ -397,7 +397,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
           </div>
           {availablePlatforms.length > 0 && (
             <div className={cn('flex items-center gap-2', localeCode === 'he' && 'flex-row-reverse')}>
-              <label className={cn('text-sm font-medium text-gray-700 dark:text-gray-300 whitespace-nowrap', localeCode === 'he' && 'text-right')}>
+              <label className="text-start text-sm font-medium whitespace-nowrap text-gray-700 dark:text-gray-300">
                 {localeCode === 'he' ? 'פלטפורמה:' : 'Platform:'}
               </label>
               <Select value={selectedPlatform} onValueChange={handlePlatformFilterChange}>
@@ -596,7 +596,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                 </div>
                               </div>
                             </td>
-                            <td className={`max-w-[200px] min-w-[150px] px-1.5 py-2 text-[10px] text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs dark:text-gray-300 ${localeCode === 'he' ? 'text-right' : 'text-left'}`}>
+                            <td className="max-w-[200px] min-w-[150px] px-1.5 py-2 text-start text-[10px] text-gray-700 sm:max-w-[220px] sm:min-w-[180px] sm:px-2 sm:text-xs dark:text-gray-300">
                               {/* Media Thumbnails - Show all media */}
                               {(() => {
                                 // Normalize and stabilize media URLs to prevent hydration mismatch
@@ -700,7 +700,7 @@ function PostsTable({ posts = EMPTY_POSTS, initialPlatformFilter }: PostsTablePr
                                 );
                               })()}
                               {/* Post Content */}
-                              <div className={`line-clamp-2 text-gray-700 dark:text-gray-300 ${localeCode === 'he' ? 'text-right' : 'text-left'}`} title={post.postContent}>
+                              <div className="line-clamp-2 text-start text-gray-700 dark:text-gray-300" title={post.postContent}>
                                 {post.postContent}
                               </div>
                             </td>

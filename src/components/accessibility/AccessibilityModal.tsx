@@ -66,7 +66,7 @@ export function AccessibilityModal({ open, onOpenChange }: Props) {
         <DialogHeader>
           <DialogTitle>{t('title')}</DialogTitle>
         </DialogHeader>
-        <div className={`space-y-6 ${isRTL ? 'text-right' : 'text-left'}`}>
+        <div className="space-y-6 text-start">
           <p className="text-sm text-gray-600 dark:text-slate-400">
             {t('description')}
           </p>

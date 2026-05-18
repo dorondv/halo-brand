@@ -29,12 +29,13 @@ import { getGetlateAnalyticsOverview } from '@/libs/getlate-overview';
 import { getGetlatePosts } from '@/libs/getlate-posts';
 import { calculateScoresForPosts } from '@/libs/post-score-calculator';
 import { createSupabaseServerClient } from '@/libs/Supabase';
+import { AppConfig } from '@/utils/AppConfig';
 import { PlatformCards } from './DashboardClient';
 import { DashboardWrapper } from './DashboardWrapper';
 import { MetricCardsClient } from './MetricCardsClient';
 
 export const metadata: Metadata = {
-  title: 'Branda - Dashboard',
+  title: `${AppConfig.name} - Dashboard`,
   description: 'Dashboard for social media analytics',
 };
 

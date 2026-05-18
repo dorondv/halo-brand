@@ -1801,7 +1801,7 @@ export default function ConnectionsPage() {
           animate={{ opacity: 1, y: 0 }}
           className={cn('flex flex-col gap-6 md:flex-row md:items-center', isRTL ? 'items-start justify-between' : 'items-start justify-between')}
         >
-          <div className={isRTL ? 'text-right' : 'text-left'}>
+          <div className="text-start">
             <h1 className="bg-linear-to-r from-slate-900 to-slate-600 bg-clip-text text-4xl font-bold text-transparent dark:from-slate-100 dark:to-slate-300">
               {t('title')}
             </h1>
@@ -1813,7 +1813,7 @@ export default function ConnectionsPage() {
         <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/80">
           <CardHeader>
             <div className="flex items-center justify-between">
-              <div className={cn(isRTL ? 'text-right flex-1' : 'text-left flex-1')}>
+              <div className="flex-1 text-start">
                 <CardTitle>{t('your_brands')}</CardTitle>
                 <CardDescription>{t('select_or_create_brand')}</CardDescription>
               </div>
@@ -1903,7 +1903,7 @@ export default function ConnectionsPage() {
                         </div>
                       </div>
                       {isBrandCreationBusy && (
-                        <div className={cn('flex items-center gap-2 rounded-md border border-pink-200 bg-white/80 px-3 py-2 text-xs text-pink-700 dark:border-pink-700 dark:bg-gray-900/70 dark:text-pink-300', isRTL ? 'flex-row-reverse text-right' : '')}>
+                        <div className={cn('flex items-center gap-2 rounded-md border border-pink-200 bg-white/80 px-3 py-2 text-xs text-start text-pink-700 dark:border-pink-700 dark:bg-gray-900/70 dark:text-pink-300', isRTL && 'flex-row-reverse')}>
                           <Loader2 className="h-3.5 w-3.5 animate-spin" />
                           <span>{brandCreationStatusText}</span>
                         </div>
@@ -2028,12 +2028,12 @@ export default function ConnectionsPage() {
         {selectedBrand && (
           <Card className="border-white/20 bg-white/70 shadow-xl backdrop-blur-sm dark:border-gray-700 dark:bg-gray-800/80">
             <CardHeader>
-              <CardTitle className={isRTL ? 'text-right' : 'text-left'}>
+              <CardTitle className="text-start">
                 {t('connected_accounts_for')}
                 {' '}
                 <span className="text-pink-600">{selectedBrand?.name || ''}</span>
               </CardTitle>
-              <CardDescription className={isRTL ? 'text-right' : 'text-left'}>
+              <CardDescription className="text-start">
                 {t('connect_accounts_description')}
               </CardDescription>
               {isRefreshingAccounts && (
@@ -2042,7 +2042,7 @@ export default function ConnectionsPage() {
                   <span>{t('syncing_accounts')}</span>
                 </div>
               )}
-              <div className={cn('mt-2 flex items-start gap-2 rounded-md bg-blue-50 dark:bg-blue-900/30 p-3', isRTL ? 'flex-row-reverse text-right' : 'text-left')}>
+              <div className={cn('mt-2 flex items-start gap-2 rounded-md bg-blue-50 p-3 text-start dark:bg-blue-900/30', isRTL && 'flex-row-reverse')}>
                 <Info className="mt-0.5 h-4 w-4 shrink-0 text-blue-600 dark:text-blue-400" />
                 <p className="text-xs text-blue-800 dark:text-blue-200">
                   {t('follower_count_disclaimer')}
@@ -2087,7 +2087,7 @@ export default function ConnectionsPage() {
                           <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-pink-50">
                             <Icon className={`h-6 w-6 ${config.color}`} />
                           </div>
-                          <div className={cn('flex-1 min-w-0', isRTL ? 'text-right' : 'text-left')}>
+                          <div className="min-w-0 flex-1 text-start">
                             <h3 className="truncate font-semibold text-slate-800 dark:text-slate-100">{config.name}</h3>
                             {connectedAccount
                               ? (
@@ -2284,7 +2284,7 @@ export default function ConnectionsPage() {
                               type="button"
                               onClick={() => setSelectedFacebookPageId(pageIdentifier)}
                               className={cn(
-                                'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                'w-full rounded-lg border-2 p-3 text-start transition-all',
                                 isSelected
                                   ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
@@ -2397,7 +2397,7 @@ export default function ConnectionsPage() {
                           onClick={() => void applyManageLinkedInPosting('personal')}
                           disabled={isSavingLinkedInOrg}
                           className={cn(
-                            'w-full rounded-lg border-2 p-4 text-left transition-all',
+                            'w-full rounded-lg border-2 p-4 text-start transition-all',
                             linkedInPostingConfig.postingType === 'personal'
                               ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                               : 'border-gray-200 bg-white hover:border-pink-300 hover:bg-gray-50 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-pink-700',
@@ -2431,7 +2431,7 @@ export default function ConnectionsPage() {
                                   })}
                                 disabled={isSavingLinkedInOrg}
                                 className={cn(
-                                  'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                  'w-full rounded-lg border-2 p-3 text-start transition-all',
                                   isCurrent
                                     ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                     : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
@@ -2521,7 +2521,7 @@ export default function ConnectionsPage() {
                               type="button"
                               onClick={() => setSelectedHeadlessFacebookPageId(pageIdentifier)}
                               className={cn(
-                                'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                'w-full rounded-lg border-2 p-3 text-start transition-all',
                                 isSelected
                                   ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',
@@ -2646,7 +2646,7 @@ export default function ConnectionsPage() {
                         onClick={() => handleSaveHeadlessLinkedInOrganization('personal')}
                         disabled={isSavingHeadlessSelection}
                         className={cn(
-                          'w-full rounded-lg border-2 p-4 text-left transition-all',
+                          'w-full rounded-lg border-2 p-4 text-start transition-all',
                           'border-gray-200 bg-white hover:border-pink-300 hover:bg-gray-50',
                         )}
                       >
@@ -2672,7 +2672,7 @@ export default function ConnectionsPage() {
                               })}
                               disabled={isSavingHeadlessSelection}
                               className={cn(
-                                'w-full rounded-lg border-2 p-3 text-left transition-all',
+                                'w-full rounded-lg border-2 p-3 text-start transition-all',
                                 isSelected
                                   ? 'border-pink-500 bg-pink-50 dark:border-pink-500 dark:bg-pink-900/30'
                                   : 'border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 hover:border-pink-300 dark:hover:border-pink-700',

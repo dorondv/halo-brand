@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { getTranslations } from 'next-intl/server';
 import { Logo } from '@/components/ui/Logo';
 import { Link } from '@/libs/I18nNavigation';
+import { AppConfig } from '@/utils/AppConfig';
 
 const SECTION_KEYS = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12] as const;
 
@@ -23,7 +24,7 @@ export default async function PrivacyPolicyPage() {
           <Link href="/" className="inline-flex items-center gap-2 text-sm font-medium text-pink-600 hover:text-pink-700 dark:text-pink-400">
             ←
             {' '}
-            Branda
+            {AppConfig.name}
           </Link>
           <Logo width={100} height={28} />
         </div>

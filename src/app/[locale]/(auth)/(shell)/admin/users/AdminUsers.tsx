@@ -5,6 +5,7 @@ import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useState } from 'react';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/components/ui/toast';
+import { getCsvExportMetadataLines } from '@/utils/csvExportMetadata';
 
 type AdminUser = {
   id: string;
@@ -91,6 +92,8 @@ export function AdminUsers() {
   const handleExport = async () => {
     try {
       const csv = [
+        ...getCsvExportMetadataLines(),
+        '',
         ['Name', 'Email', 'Role', 'Registration Date', 'Status', 'Plan', 'Total Paid', 'Coupon Used'].join(','),
         ...users.map(user => [
           user.name,
@@ -104,7 +107,7 @@ export function AdminUsers() {
         ].join(',')),
       ].join('\n');
 
-      const blob = new Blob([csv], { type: 'text/csv' });
+      const blob = new Blob([`\uFEFF${csv}`], { type: 'text/csv' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -411,31 +414,31 @@ export function AdminUsers() {
           <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
             <thead className="bg-gray-50 dark:bg-gray-900">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   User
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Role
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Registration
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Status
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Plan
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Total Paid
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Coupon
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Trial/Free Access
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
+                <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Actions
                 </th>
               </tr>

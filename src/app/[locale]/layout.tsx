@@ -12,6 +12,7 @@ import { ThemeInitScript } from '@/components/theme/ThemeInitScript';
 import { ThemeProvider } from '@/components/theme/ThemeProvider';
 import { CookieConsentProvider } from '@/contexts/CookieConsentContext';
 import { routing } from '@/libs/I18nRouting';
+import { AppConfig } from '@/utils/AppConfig';
 import '@/styles/global.css';
 
 const inter = Inter({
@@ -22,8 +23,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'Branda',
-    template: '%s | Branda',
+    default: AppConfig.name,
+    template: `%s | ${AppConfig.name}`,
   },
   icons: {
     icon: [

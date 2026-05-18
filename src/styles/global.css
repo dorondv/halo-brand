@@ -5,6 +5,9 @@
 /* Class-based dark mode: add "dark" to <html> to enable */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Hebrew / RTL: enable `rtl:*` utilities when document direction is rtl */
+@custom-variant rtl (&:where([dir='rtl'], [dir='rtl'] *));
+
 @theme {
   --color-pink-brand: #ec4899;
   --color-pink-brand-light: #f472b6;
@@ -23,6 +26,7 @@
 }
 
 body {
+  text-align: start;
   font-family:
     var(--font-inter),
     ui-sans-serif,
