@@ -256,7 +256,15 @@ export async function POST(request: NextRequest) {
         fileName = `${defaultFileName}.xlsx`;
         break;
       case 'pdf':
-        fileContent = await generatePDF(reportData, reportType, reportName || 'Report', dateFrom, dateTo, chartData);
+        fileContent = await generatePDF(
+          reportData,
+          reportType,
+          reportName || 'Report',
+          dateFrom,
+          dateTo,
+          chartData,
+          selectedPlatforms,
+        );
         mimeType = 'application/pdf';
         fileName = `${defaultFileName}.pdf`;
         break;
@@ -904,6 +912,66 @@ function calculateChartData(
   };
 }
 
+const PDF_REPORT_TYPE_LABELS: Record<string, string> = {
+  comprehensive: 'Comprehensive Performance Report',
+  engagement: 'Engagement Report',
+  growth: 'Growth Report',
+  posts: 'Posts Report',
+};
+
+const PDF_PLATFORM_LABELS: Record<string, string> = {
+  x: 'X',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  linkedin: 'LinkedIn',
+};
+
+/** jsPDF built-in fonts only support Latin-1; non-ASCII text renders as garbled characters. */
+function isLatin1Safe(text: string): boolean {
+  return /^[\x20-\x7E]*$/.test(text);
+}
+
+function buildPdfReportTitle(
+  reportType: string,
+  dateFrom: string,
+  dateTo: string,
+  reportName?: string,
+  selectedPlatforms?: string[],
+): string {
+  if (reportName && isLatin1Safe(reportName)) {
+    return reportName;
+  }
+
+  const reportTypeLabel = PDF_REPORT_TYPE_LABELS[reportType] ?? 'Report';
+  const fromDate = new Date(dateFrom);
+  const toDate = new Date(dateTo);
+
+  const isSameMonth
+    = fromDate.getMonth() === toDate.getMonth() && fromDate.getFullYear() === toDate.getFullYear();
+  const isSameYear = fromDate.getFullYear() === toDate.getFullYear();
+
+  let dateRangeStr: string;
+  if (isSameMonth) {
+    dateRangeStr = format(fromDate, 'MMMM yyyy');
+  } else if (isSameYear) {
+    dateRangeStr = `${format(fromDate, 'MMMM')} - ${format(toDate, 'MMMM yyyy')}`;
+  } else {
+    dateRangeStr = `${format(fromDate, 'MMMM yyyy')} - ${format(toDate, 'MMMM yyyy')}`;
+  }
+
+  let platformStr = '';
+  if (selectedPlatforms && selectedPlatforms.length > 0 && selectedPlatforms.length <= 3) {
+    const platformNames = selectedPlatforms
+      .map(platform => PDF_PLATFORM_LABELS[platform.toLowerCase()] ?? platform)
+      .join(', ');
+    platformStr = ` - ${platformNames}`;
+  }
+
+  return `${reportTypeLabel} - ${dateRangeStr}${platformStr}`;
+}
+
 async function generatePDF(
   data: ReportData,
   reportType: string,
@@ -911,6 +979,7 @@ async function generatePDF(
   dateFrom: string,
   dateTo: string,
   chartData?: ChartData,
+  selectedPlatforms?: string[],
 ): Promise<Buffer> {
   // eslint-disable-next-line new-cap
   const doc = new jsPDF('p', 'mm', 'a4');
@@ -1028,11 +1097,12 @@ async function generatePDF(
   doc.setTextColor(colors.text[0]!, colors.text[1]!, colors.text[2]!);
   yPosition = topMargin + 5;
 
-  // Title with better styling
+  // Title with better styling (English/Latin-1 only — jsPDF cannot render Hebrew/Unicode in built-in fonts)
   doc.setFontSize(titleFontSize);
   doc.setFont('helvetica', 'bold');
   doc.setTextColor(colors.primary[0]!, colors.primary[1]!, colors.primary[2]!);
-  const titleLines = doc.splitTextToSize(reportName, maxWidth);
+  const pdfTitle = buildPdfReportTitle(reportType, dateFrom, dateTo, reportName, selectedPlatforms);
+  const titleLines = doc.splitTextToSize(pdfTitle, maxWidth);
   titleLines.forEach((line: string) => {
     doc.text(line, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += lineHeight * 1.2;
