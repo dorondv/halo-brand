@@ -1,3 +1,10 @@
+import { NextRequest } from 'next/server';
+
+import { AppConfig } from '@/utils/AppConfig';
+
+/** Cookie used by next-intl for locale preference */
+export const LOCALE_COOKIE_NAME = 'NEXT_LOCALE';
+
 /**
  * Server-side Geo Detection Utility
  * Uses IP-based geo detection with fallback to client-provided data
@@ -105,6 +112,62 @@ async function getCountryFromIPAPICo(ip: string): Promise<string | null> {
  * Extract IP address from request headers
  * Handles various proxy headers (X-Forwarded-For, X-Real-IP, etc.)
  */
+/**
+ * Read country code from CDN / hosting geo headers (sync, edge-safe).
+ * Vercel: x-vercel-ip-country. Cloudflare: cf-ipcountry.
+ */
+export function getCountryFromRequestHeaders(headers: Headers): string | null {
+  const vercelCountry = headers.get('x-vercel-ip-country');
+  if (vercelCountry && vercelCountry.length === 2) {
+    return vercelCountry.toUpperCase();
+  }
+
+  const cfCountry = headers.get('cf-ipcountry');
+  if (cfCountry && cfCountry.length === 2 && cfCountry.toUpperCase() !== 'XX') {
+    return cfCountry.toUpperCase();
+  }
+
+  return null;
+}
+
+/** Default UI locale from country: Israel → Hebrew, elsewhere → English. */
+export function getDefaultLocaleFromCountry(country: string | null): 'he' | 'en' {
+  if (country === 'IL') {
+    return 'he';
+  }
+  if (country) {
+    return 'en';
+  }
+  // Local dev / missing geo headers: keep configured default (Hebrew)
+  return AppConfig.defaultLocale === 'he' ? 'he' : 'en';
+}
+
+const localePattern = new RegExp(`^/(${AppConfig.locales.join('|')})(/|$)`);
+
+/**
+ * When the URL has no locale prefix and no locale cookie yet, inject NEXT_LOCALE
+ * from geo so next-intl can redirect (e.g. non-IL visitors → /en/...).
+ */
+export function withGeoLocalePreference(request: NextRequest): NextRequest {
+  const { pathname } = request.nextUrl;
+
+  if (localePattern.test(pathname) || request.cookies.has(LOCALE_COOKIE_NAME)) {
+    return request;
+  }
+
+  const locale = getDefaultLocaleFromCountry(getCountryFromRequestHeaders(request.headers));
+  const requestHeaders = new Headers(request.headers);
+
+  const cookieParts = request.cookies
+    .getAll()
+    .filter(cookie => cookie.name !== LOCALE_COOKIE_NAME)
+    .map(cookie => `${cookie.name}=${cookie.value}`);
+  cookieParts.push(`${LOCALE_COOKIE_NAME}=${locale}`);
+  requestHeaders.set('cookie', cookieParts.join('; '));
+
+  return new NextRequest(request.url, { headers: requestHeaders });
+}
+
 export function extractIPAddress(headers: Headers | Record<string, string | string[] | undefined>): string | null {
   // Handle Headers object
   let getHeader: (name: string) => string | null;

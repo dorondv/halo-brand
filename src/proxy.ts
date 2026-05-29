@@ -5,13 +5,14 @@ import { NextResponse } from 'next/server';
 
 import { routing } from './libs/I18nRouting';
 import { AppConfig } from './utils/AppConfig';
+import { withGeoLocalePreference } from './utils/geoDetection';
 
-// Disable automatic locale detection from browser headers
-// Always use the default locale (Hebrew) unless explicitly specified in the URL
+// Geo-based default: IL → Hebrew, elsewhere → English (see withGeoLocalePreference).
+// Cookie takes priority over Accept-Language; explicit URL locale prefix wins over both.
 // createMiddleware's typing may vary between versions of next-intl; cast to any
 // to avoid type mismatch while preserving runtime behavior.
 const handleI18nRouting = (createMiddleware as any)(routing, {
-  localeDetection: false, // Disable automatic browser locale detection
+  localeDetection: true,
 });
 
 // Supported locales from AppConfig (single source of truth)
@@ -137,7 +138,7 @@ export async function proxy(req: NextRequest) {
       }
 
       // Auth succeeded — continue with i18n routing, preserving refreshed cookies
-      const i18nResponse = handleI18nRouting(req);
+      const i18nResponse = handleI18nRouting(withGeoLocalePreference(req));
       copyCookies(tempResponse, i18nResponse);
       return i18nResponse;
     } catch (error) {
@@ -168,7 +169,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Continue with i18n routing for all public routes
-  return handleI18nRouting(req);
+  return handleI18nRouting(withGeoLocalePreference(req));
 }
 
 export const config = {
