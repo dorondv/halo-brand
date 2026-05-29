@@ -32,11 +32,6 @@ export function AdminUsers() {
   const t = useTranslations('Admin');
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [loading, setLoading] = useState(true);
-  const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
-  const [showFreeAccessModal, setShowFreeAccessModal] = useState(false);
-  const [freeAccessDays, setFreeAccessDays] = useState(30);
-  const [freeAccessDate, setFreeAccessDate] = useState('');
-  const [isGrantingAccess, setIsGrantingAccess] = useState(false);
   const [editingPlan, setEditingPlan] = useState<string | null>(null);
   const [newPlanType, setNewPlanType] = useState<string>('');
   const [isUpdatingPlan, setIsUpdatingPlan] = useState(false);
@@ -68,16 +63,12 @@ export function AdminUsers() {
         return '—';
       }
       switch (planType) {
-        case 'free':
-          return t('plan_free');
         case 'basic':
           return t('plan_basic');
         case 'pro':
           return t('plan_pro');
         case 'business':
           return t('plan_business');
-        case 'trial':
-          return t('plan_trial');
         default:
           return planType;
       }
@@ -123,72 +114,9 @@ export function AdminUsers() {
     }
   };
 
-  const handleGrantFreeAccess = async () => {
-    if (!selectedUser || isGrantingAccess) {
-      return;
-    }
-
-    try {
-      setIsGrantingAccess(true);
-      const params = new URLSearchParams({ userId: selectedUser.id });
-      const data: any = {};
-      if (freeAccessDate) {
-        data.endDate = freeAccessDate;
-      } else {
-        data.days = freeAccessDays;
-      }
-
-      const response = await fetch(`/api/admin/users/free-access?${params}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to grant free access');
-      }
-
-      toast.success(`Free access granted to ${selectedUser.email}`);
-      setShowFreeAccessModal(false);
-      setSelectedUser(null);
-      setFreeAccessDays(30);
-      setFreeAccessDate('');
-      setIsGrantingAccess(false);
-      fetchUsers();
-    } catch (error: any) {
-      console.error('Error granting free access:', error);
-      toast.error(t('failed_grant_free_access'));
-      setIsGrantingAccess(false);
-    }
-  };
-
-  const handleRevokeFreeAccess = async (userId: string) => {
-    // eslint-disable-next-line no-alert
-    if (!confirm(t('confirm_revoke_free_access'))) {
-      return;
-    }
-
-    try {
-      const params = new URLSearchParams({ userId });
-      const response = await fetch(`/api/admin/users/free-access?${params}`, {
-        method: 'DELETE',
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to revoke free access');
-      }
-
-      toast.success(t('free_access_revoked'));
-      fetchUsers();
-    } catch (error: any) {
-      console.error('Error revoking free access:', error);
-      toast.error(t('failed_revoke_free_access'));
-    }
-  };
-
   const handlePlanEdit = (user: AdminUser) => {
     setEditingPlan(user.id);
-    setNewPlanType(user.planType || 'free');
+    setNewPlanType(user.planType || 'basic');
   };
 
   const handlePlanCancel = () => {
@@ -349,10 +277,6 @@ export function AdminUsers() {
         color: 'text-red-700 dark:text-red-400',
         bg: 'bg-red-100 dark:bg-red-900/30',
       },
-      'Free access': {
-        color: 'text-purple-700 dark:text-purple-400',
-        bg: 'bg-purple-100 dark:bg-purple-900/30',
-      },
     };
 
     const badge = badges[status] || {
@@ -436,7 +360,7 @@ export function AdminUsers() {
                   Coupon
                 </th>
                 <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
-                  Trial/Free Access
+                  Coupon Trial
                 </th>
                 <th className="px-6 py-3 text-start text-xs font-medium tracking-wider text-gray-500 uppercase dark:text-gray-400">
                   Actions
@@ -524,11 +448,9 @@ export function AdminUsers() {
                                 <SelectValue />
                               </SelectTrigger>
                               <SelectContent>
-                                <SelectItem value="free">{t('plan_free')}</SelectItem>
                                 <SelectItem value="basic">{t('plan_basic')}</SelectItem>
                                 <SelectItem value="pro">{t('plan_pro')}</SelectItem>
                                 <SelectItem value="business">{t('plan_business')}</SelectItem>
-                                <SelectItem value="trial">{t('plan_trial')}</SelectItem>
                               </SelectContent>
                             </Select>
                             <button
@@ -588,11 +510,11 @@ export function AdminUsers() {
                         )}
                   </td>
                   <td className="px-6 py-4 text-sm whitespace-nowrap text-gray-500 dark:text-gray-400">
-                    {user.isFreeAccess && user.expirationDate
+                    {user.isTrialCoupon && user.expirationDate
                       ? (
                           <div>
-                            <div className="mb-1 text-xs font-medium text-purple-600 dark:text-purple-400">
-                              Free Access
+                            <div className="mb-1 text-xs font-medium text-blue-600 dark:text-blue-400">
+                              Coupon trial
                             </div>
                             <div>{new Date(user.expirationDate).toLocaleDateString()}</div>
                             {(() => {
@@ -629,25 +551,6 @@ export function AdminUsers() {
                   </td>
                   <td className="px-6 py-4 text-sm font-medium whitespace-nowrap">
                     <div className="flex gap-2">
-                      {user.userStatus === 'Churned' && !user.isPayPalTrial && (
-                        <button
-                          onClick={() => {
-                            setSelectedUser(user);
-                            setShowFreeAccessModal(true);
-                          }}
-                          className="text-blue-600 hover:text-blue-900 dark:text-blue-400 dark:hover:text-blue-300"
-                        >
-                          Grant Access
-                        </button>
-                      )}
-                      {user.isFreeAccess && user.expirationDate && getRemainingDays(user.expirationDate) !== null && getRemainingDays(user.expirationDate)! >= 0 && (
-                        <button
-                          onClick={() => handleRevokeFreeAccess(user.id)}
-                          className="text-red-600 hover:text-red-900 dark:text-red-400 dark:hover:text-red-300"
-                        >
-                          Revoke
-                        </button>
-                      )}
                       <button
                         onClick={() => handleDeleteUser(user)}
                         disabled={deletingUserId === user.id}
@@ -671,88 +574,6 @@ export function AdminUsers() {
           </table>
         </div>
       </div>
-
-      {/* Free Access Modal */}
-      {showFreeAccessModal && selectedUser && (
-        <div className="bg-opacity-50 fixed inset-0 z-50 flex items-center justify-center bg-black">
-          <div className="mx-4 w-full max-w-md rounded-lg bg-white p-6 dark:bg-gray-800">
-            <h2 className="mb-4 text-xl font-bold text-gray-900 dark:text-white">
-              Grant Free Access
-            </h2>
-            <p className="mb-4 text-sm text-gray-600 dark:text-gray-400">
-              User:
-              {' '}
-              <strong>{selectedUser.email}</strong>
-            </p>
-
-            <div className="space-y-4">
-              <div>
-                <label htmlFor="free-access-days" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  Number of Days
-                </label>
-                <input
-                  id="free-access-days"
-                  type="number"
-                  value={freeAccessDays}
-                  onChange={e => setFreeAccessDays(Number.parseInt(e.target.value) || 30)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                  min="1"
-                />
-              </div>
-
-              <div className="text-center text-gray-500 dark:text-gray-400">OR</div>
-
-              <div>
-                <label htmlFor="free-access-end-date" className="mb-2 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                  End Date
-                </label>
-                <input
-                  id="free-access-end-date"
-                  type="date"
-                  value={freeAccessDate}
-                  onChange={e => setFreeAccessDate(e.target.value)}
-                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-gray-900 dark:border-gray-600 dark:bg-gray-700 dark:text-white"
-                />
-              </div>
-            </div>
-
-            <div className="mt-6 flex gap-3">
-              <button
-                onClick={() => {
-                  if (isGrantingAccess) {
-                    return;
-                  }
-                  setShowFreeAccessModal(false);
-                  setSelectedUser(null);
-                  setFreeAccessDays(30);
-                  setFreeAccessDate('');
-                  setIsGrantingAccess(false);
-                }}
-                disabled={isGrantingAccess}
-                className="flex-1 rounded-lg bg-gray-100 px-4 py-2 text-gray-700 transition-colors hover:bg-gray-200 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-gray-700 dark:text-gray-300 dark:hover:bg-gray-600"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleGrantFreeAccess}
-                disabled={isGrantingAccess}
-                className="flex flex-1 items-center justify-center gap-2 rounded-lg bg-pink-500 px-4 py-2 text-white transition-colors hover:bg-pink-600 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {isGrantingAccess
-                  ? (
-                      <>
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                        Processing...
-                      </>
-                    )
-                  : (
-                      'Grant Access'
-                    )}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

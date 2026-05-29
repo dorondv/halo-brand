@@ -4,6 +4,7 @@ import { NextResponse } from 'next/server';
 import { db } from '@/libs/DB';
 import { createGetlateClient } from '@/libs/Getlate';
 import { getFeatureFlagsForPlan } from '@/libs/planFeatureFlags';
+import { hasSubscriptionAccess } from '@/libs/subscriptionAccess';
 import {
   getSubscriptionPlan,
   getUserSubscription,
@@ -65,22 +66,24 @@ export async function GET(request: Request) {
 
     const subscription = await getUserSubscription(user.id);
 
+    const noAccess = !subscription || !hasSubscriptionAccess(subscription);
+
     let limits: {
       maxPostsPerMonth: number;
       maxAIGenerationsPerMonth: number;
-      maxImageGenerationsPerMonth: number; // Separate limit for image generation, equals AI content limit
+      maxImageGenerationsPerMonth: number;
       maxImagesPerPost: number;
       maxBrands: number;
       maxSocialAccounts: number;
-      planType: 'free' | 'basic' | 'pro' | 'business';
+      planType: 'basic' | 'pro' | 'business' | 'none';
     } = {
-      maxPostsPerMonth: 10,
-      maxAIGenerationsPerMonth: 5,
-      maxImageGenerationsPerMonth: 5, // Same as AI content limit
-      maxImagesPerPost: 3,
-      maxBrands: 1,
-      maxSocialAccounts: 3,
-      planType: 'free',
+      maxPostsPerMonth: 0,
+      maxAIGenerationsPerMonth: 0,
+      maxImageGenerationsPerMonth: 0,
+      maxImagesPerPost: 0,
+      maxBrands: 0,
+      maxSocialAccounts: 0,
+      planType: 'none',
     };
 
     let features = {
@@ -92,46 +95,44 @@ export async function GET(request: Request) {
       dedicatedSupport: false,
     };
 
-    if (subscription && subscription.planType !== 'free') {
-      if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
-        const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+    if (!noAccess && subscription && subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
+      const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
 
-        if (plan) {
-          const maxAIGenerations = (plan.features as any)?.max_ai_generations_per_month
+      if (plan) {
+        const maxAIGenerations = (plan.features as any)?.max_ai_generations_per_month
+          || (subscription.planType === 'basic'
+            ? 50
+            : subscription.planType === 'pro' ? 500 : 2500);
+
+        limits = {
+          maxPostsPerMonth: plan.maxPostsPerMonth || 999999, // Unlimited if null
+          maxAIGenerationsPerMonth: maxAIGenerations,
+          maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
+          maxImagesPerPost: (plan.features as any)?.max_images_per_post
             || (subscription.planType === 'basic'
-              ? 50
-              : subscription.planType === 'pro' ? 500 : 2500);
+              ? 5
+              : subscription.planType === 'pro' ? 10 : 20),
+          maxBrands: plan.maxBrands || 999999, // Unlimited if null
+          maxSocialAccounts: plan.maxSocialAccounts || 999999, // Unlimited if null
+          planType: subscription.planType as 'basic' | 'pro' | 'business',
+        };
 
-          limits = {
-            maxPostsPerMonth: plan.maxPostsPerMonth || 999999, // Unlimited if null
-            maxAIGenerationsPerMonth: maxAIGenerations,
-            maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
-            maxImagesPerPost: (plan.features as any)?.max_images_per_post
-              || (subscription.planType === 'basic'
-                ? 5
-                : subscription.planType === 'pro' ? 10 : 20),
-            maxBrands: plan.maxBrands || 999999, // Unlimited if null
-            maxSocialAccounts: plan.maxSocialAccounts || 999999, // Unlimited if null
-            planType: subscription.planType as 'basic' | 'pro' | 'business' | 'free',
-          };
+        features = getFeatureFlagsForPlan(subscription.planType);
+      } else {
+        // Fallback if plan not found - use hardcoded defaults
+        const maxAIGenerations = subscription.planType === 'basic' ? 50 : subscription.planType === 'pro' ? 500 : 2500;
 
-          features = getFeatureFlagsForPlan(subscription.planType);
-        } else {
-          // Fallback if plan not found - use hardcoded defaults
-          const maxAIGenerations = subscription.planType === 'basic' ? 50 : subscription.planType === 'pro' ? 500 : 2500;
+        limits = {
+          maxPostsPerMonth: subscription.planType === 'basic' ? 30 : subscription.planType === 'pro' ? 300 : 1500,
+          maxAIGenerationsPerMonth: maxAIGenerations,
+          maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
+          maxImagesPerPost: subscription.planType === 'basic' ? 5 : subscription.planType === 'pro' ? 10 : 20,
+          maxBrands: subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50,
+          maxSocialAccounts: subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350,
+          planType: subscription.planType as 'basic' | 'pro' | 'business',
+        };
 
-          limits = {
-            maxPostsPerMonth: subscription.planType === 'basic' ? 30 : subscription.planType === 'pro' ? 300 : 1500,
-            maxAIGenerationsPerMonth: maxAIGenerations,
-            maxImageGenerationsPerMonth: maxAIGenerations, // Same as AI content limit
-            maxImagesPerPost: subscription.planType === 'basic' ? 5 : subscription.planType === 'pro' ? 10 : 20,
-            maxBrands: subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50,
-            maxSocialAccounts: subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350,
-            planType: subscription.planType as 'basic' | 'pro' | 'business',
-          };
-
-          features = getFeatureFlagsForPlan(subscription.planType);
-        }
+        features = getFeatureFlagsForPlan(subscription.planType);
       }
     }
 
@@ -252,11 +253,12 @@ export async function GET(request: Request) {
       limits,
       usage,
       features,
-      canCreatePost: (usage.postsThisMonth || 0) < limits.maxPostsPerMonth,
-      canGenerateAI: (usage.aiGenerationsThisMonth || 0) < limits.maxAIGenerationsPerMonth,
-      canCreateBrand: (usage.brandsCount || 0) < limits.maxBrands,
-      canConnectAccount: (usage.socialAccountsCount || 0) < limits.maxSocialAccounts,
-      canGenerateImage: aiImageCount < limits.maxImageGenerationsPerMonth, // Separate check for image generation
+      canCreatePost: !noAccess && (usage.postsThisMonth || 0) < limits.maxPostsPerMonth,
+      canGenerateAI: !noAccess && (usage.aiGenerationsThisMonth || 0) < limits.maxAIGenerationsPerMonth,
+      canCreateBrand: !noAccess && (usage.brandsCount || 0) < limits.maxBrands,
+      canConnectAccount: !noAccess && (usage.socialAccountsCount || 0) < limits.maxSocialAccounts,
+      canGenerateImage: !noAccess && aiImageCount < limits.maxImageGenerationsPerMonth,
+      hasSubscriptionAccess: !noAccess,
     });
   } catch (error: any) {
     console.error('Error getting subscription limits:', error);

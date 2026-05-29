@@ -12,7 +12,7 @@ export type PlanFeatureFlags = {
 };
 
 export function getFeatureFlagsForPlan(
-  planType: 'free' | 'basic' | 'pro' | 'business' | 'trial' | string,
+  planType: 'basic' | 'pro' | 'business' | string,
 ): PlanFeatureFlags {
   switch (planType) {
     case 'pro':
@@ -32,16 +32,6 @@ export function getFeatureFlagsForPlan(
         preferredSupport: true,
         apiAccess: true,
         dedicatedSupport: true,
-      };
-    case 'trial':
-      // Paid trial tier mirrors Pro entitlements for feature gates
-      return {
-        pdfPptReports: true,
-        semanticAnalysis: true,
-        brandSentiment: true,
-        preferredSupport: true,
-        apiAccess: false,
-        dedicatedSupport: false,
       };
     default:
       return {

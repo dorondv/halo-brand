@@ -31,9 +31,8 @@ export async function GET() {
       .select({
         totalSubscriptions: sql<number>`count(*)::int`,
         activeSubscriptions: sql<number>`count(*) filter (where ${subscriptions.status} = 'active')::int`,
-        trialSubscriptions: sql<number>`count(*) filter (where ${subscriptions.status} = 'trialing' or ${subscriptions.isTrialCoupon} = true)::int`,
+        trialSubscriptions: sql<number>`count(*) filter (where ${subscriptions.isTrialCoupon} = true)::int`,
         cancelledSubscriptions: sql<number>`count(*) filter (where ${subscriptions.status} = 'cancelled')::int`,
-        freeSubscriptions: sql<number>`count(*) filter (where ${subscriptions.status} = 'free' or ${subscriptions.isFreeAccess} = true)::int`,
       })
       .from(subscriptions);
 
@@ -57,7 +56,6 @@ export async function GET() {
         activeSubscriptions: subscriptionStats[0]?.activeSubscriptions || 0,
         trialSubscriptions: subscriptionStats[0]?.trialSubscriptions || 0,
         cancelledSubscriptions: subscriptionStats[0]?.cancelledSubscriptions || 0,
-        freeSubscriptions: subscriptionStats[0]?.freeSubscriptions || 0,
         totalRevenue: Number(paymentStats[0]?.totalRevenue || 0),
       },
       paymentStats: {

@@ -310,14 +310,12 @@ export async function GET(request: NextRequest) {
         const subscription = await getUserSubscription(user.id);
         let maxSocialAccounts = 3;
 
-        if (subscription && subscription.planType !== 'free') {
-          if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
-            const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
-            if (plan) {
-              maxSocialAccounts = plan.maxSocialAccounts || 999999;
-            } else {
-              maxSocialAccounts = subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350;
-            }
+        if (subscription && subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
+          const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+          if (plan) {
+            maxSocialAccounts = plan.maxSocialAccounts || 999999;
+          } else {
+            maxSocialAccounts = subscription.planType === 'basic' ? 7 : subscription.planType === 'pro' ? 70 : 350;
           }
         }
 

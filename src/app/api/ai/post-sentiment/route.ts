@@ -453,7 +453,7 @@ export async function POST(request: Request) {
     );
   }
 
-  const planType = subscription.planType || 'free';
+  const planType = subscription.planType;
 
   if (planType !== 'pro' && planType !== 'business') {
     return NextResponse.json(

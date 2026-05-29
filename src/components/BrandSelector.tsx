@@ -79,7 +79,7 @@ export function BrandSelector() {
               id: user.id,
               email: user.email || '',
               name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'User',
-              plan: 'free',
+              plan: 'none',
               is_active: true,
             },
           ])

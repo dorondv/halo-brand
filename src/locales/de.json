@@ -947,6 +947,7 @@
         "brands": "1 Marke",
         "social_accounts": "7 Social-Media-Konten",
         "posts_per_month": "30 Beiträge pro Monat",
+        "ai_monthly": "50 KI-Inhaltsgenerierungen pro Monat",
         "post_scheduling": "Beitragsplanung",
         "analytics_unlimited": "Analysen mit unbegrenztem Verlauf",
         "events_calendar": "Ereigniskalender",
@@ -962,6 +963,7 @@
         "brands": "Bis zu 10 Marken",
         "social_accounts": "Bis zu 70 Social-Media-Konten",
         "posts_per_month": "300 Beiträge pro Monat",
+        "ai_monthly": "500 KI-Inhaltsgenerierungen pro Monat",
         "post_scheduling": "Beitragsplanung",
         "analytics_unlimited": "Analysen mit unbegrenztem Verlauf",
         "events_calendar": "Ereigniskalender",
@@ -982,6 +984,7 @@
         "brands": "Bis zu 50 Marken",
         "social_accounts": "Bis zu 350 Social-Media-Konten",
         "posts_per_month": "1500 Beiträge pro Monat",
+        "ai_monthly": "2.500 KI-Inhaltsgenerierungen pro Monat",
         "post_scheduling": "Beitragsplanung",
         "analytics_unlimited": "Analysen mit unbegrenztem Verlauf",
         "events_calendar": "Ereigniskalender",
@@ -990,7 +993,9 @@
         "pdf_ppt_reports": "PDF- und PPT-Berichte",
         "semantic_analysis": "Semantische Analyse von Beiträgen",
         "brand_sentiment": "Markenstimmung",
-        "preferred_support": "Bevorzugter Support"
+        "preferred_support": "Bevorzugter Support",
+        "api_access": "API-Zugang",
+        "dedicated_support": "Dedizierter Support"
       },
       "button": "Kontaktieren Sie uns"
     },
