@@ -4,14 +4,16 @@ import createMiddleware from 'next-intl/middleware';
 import { NextResponse } from 'next/server';
 
 import { routing } from './libs/I18nRouting';
+import { hasSubscriptionAccess, isSubscriptionExemptPath } from './libs/subscriptionAccess';
 import { AppConfig } from './utils/AppConfig';
+import { withGeoLocalePreference } from './utils/geoDetection';
 
-// Disable automatic locale detection from browser headers
-// Always use the default locale (Hebrew) unless explicitly specified in the URL
+// Geo-based default: IL → Hebrew, elsewhere → English (see withGeoLocalePreference).
+// Cookie takes priority over Accept-Language; explicit URL locale prefix wins over both.
 // createMiddleware's typing may vary between versions of next-intl; cast to any
 // to avoid type mismatch while preserving runtime behavior.
 const handleI18nRouting = (createMiddleware as any)(routing, {
-  localeDetection: false, // Disable automatic browser locale detection
+  localeDetection: true,
 });
 
 // Supported locales from AppConfig (single source of truth)
@@ -24,16 +26,17 @@ const PUBLIC_PATHS = ['/', '/sign-in', '/sign-up', '/privacy', '/terms'];
 // Auth-related paths where authenticated users should be redirected to dashboard
 const AUTH_PATHS = ['/sign-in', '/sign-up'];
 
+function getBarePath(pathname: string): string {
+  const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
+  return normalized.replace(localePattern, '/') || '/';
+}
+
 /**
  * Check if a pathname is a public route.
  * Strips the locale prefix dynamically and checks against PUBLIC_PATHS.
  */
 function isPublicRoute(pathname: string): boolean {
-  const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
-
-  // Strip locale prefix to get the bare path
-  const barePath = normalized.replace(localePattern, '/') || '/';
-
+  const barePath = getBarePath(pathname);
   return PUBLIC_PATHS.some(p => barePath === p || barePath.startsWith(`${p}/`));
 }
 
@@ -41,10 +44,39 @@ function isPublicRoute(pathname: string): boolean {
  * Check if the pathname is an auth-related path (sign-in, sign-up)
  */
 function isAuthPath(pathname: string): boolean {
-  const normalized = pathname === '/' ? '/' : pathname.replace(/\/$/, '');
-  const barePath = normalized.replace(localePattern, '/') || '/';
-
+  const barePath = getBarePath(pathname);
   return AUTH_PATHS.some(p => barePath === p || barePath.startsWith(`${p}/`));
+}
+
+async function userHasProductAccess(
+  supabase: ReturnType<typeof createSupabaseProxyClient>,
+  userId: string,
+  userEmail: string | undefined,
+): Promise<boolean> {
+  const adminEmail = process.env.ADMIN_EMAIL;
+  if (adminEmail && userEmail === adminEmail) {
+    return true;
+  }
+
+  const { data: subscription } = await supabase
+    .from('subscriptions')
+    .select('plan_type, status, paypal_subscription_id, end_date, trial_end_date, is_free_access, is_trial_coupon')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!subscription) {
+    return false;
+  }
+
+  return hasSubscriptionAccess({
+    planType: subscription.plan_type,
+    status: subscription.status,
+    paypalSubscriptionId: subscription.paypal_subscription_id,
+    endDate: subscription.end_date,
+    trialEndDate: subscription.trial_end_date,
+    isFreeAccess: subscription.is_free_access,
+    isTrialCoupon: subscription.is_trial_coupon,
+  });
 }
 
 // Create Supabase client for proxy (Edge runtime compatible)
@@ -136,8 +168,18 @@ export async function proxy(req: NextRequest) {
         return NextResponse.redirect(buildLocalizedUrl('/sign-in'));
       }
 
+      const barePath = getBarePath(pathname);
+      const needsSubscription = !isSubscriptionExemptPath(barePath);
+
+      if (needsSubscription) {
+        const hasAccess = await userHasProductAccess(supabase, user.id, user.email);
+        if (!hasAccess) {
+          return NextResponse.redirect(buildLocalizedUrl('/pricing'));
+        }
+      }
+
       // Auth succeeded — continue with i18n routing, preserving refreshed cookies
-      const i18nResponse = handleI18nRouting(req);
+      const i18nResponse = handleI18nRouting(withGeoLocalePreference(req));
       copyCookies(tempResponse, i18nResponse);
       return i18nResponse;
     } catch (error) {
@@ -157,9 +199,10 @@ export async function proxy(req: NextRequest) {
         data: { user },
       } = await supabase.auth.getUser();
 
-      // If authenticated and trying to access sign-in/sign-up, redirect to dashboard
+      // If authenticated and trying to access sign-in/sign-up, redirect to app
       if (user) {
-        return NextResponse.redirect(buildLocalizedUrl('/dashboard'));
+        const hasAccess = await userHasProductAccess(supabase, user.id, user.email);
+        return NextResponse.redirect(buildLocalizedUrl(hasAccess ? '/dashboard' : '/pricing'));
       }
     } catch {
       // If auth check fails on public route, continue (don't block)
@@ -168,7 +211,7 @@ export async function proxy(req: NextRequest) {
   }
 
   // Continue with i18n routing for all public routes
-  return handleI18nRouting(req);
+  return handleI18nRouting(withGeoLocalePreference(req));
 }
 
 export const config = {

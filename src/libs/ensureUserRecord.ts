@@ -41,7 +41,7 @@ export async function ensureUserRecord(
         id: authUser.id,
         email: authUser.email || '',
         name: fallbackName,
-        plan: 'free',
+        plan: 'none',
         is_active: true,
       },
     ])

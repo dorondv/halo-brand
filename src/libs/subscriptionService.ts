@@ -1,12 +1,21 @@
 import type { InferSelectModel } from 'drizzle-orm';
+import type { PayPalSubscriptionDetails } from './paypalService';
+import type { PaidPlanType } from './subscriptionAccess';
 import { eq } from 'drizzle-orm';
 import { billingHistory, subscriptionPlans, subscriptions } from '@/models/Schema';
 import { db } from './DB';
-import type { PayPalSubscriptionDetails } from './paypalService';
 import { getPayPalPlanId, getSubscriptionDetails } from './paypalService';
+import {
+  checkSubscriptionAccessFromRow,
+  hasSubscriptionAccess,
+  isPaidPlanType,
 
-export type PlanType = 'basic' | 'pro' | 'business' | 'free' | 'trial';
-export type SubscriptionStatus = 'trialing' | 'active' | 'cancelled' | 'expired' | 'suspended' | 'free';
+} from './subscriptionAccess';
+
+export type PlanType = PaidPlanType;
+export type SubscriptionStatus = 'trialing' | 'active' | 'cancelled' | 'expired' | 'suspended';
+
+export { isPaidPlanType };
 
 type Subscription = InferSelectModel<typeof subscriptions>;
 type SubscriptionPlan = InferSelectModel<typeof subscriptionPlans>;
@@ -110,18 +119,14 @@ export async function createSubscription(
     billingCycle = 'monthly',
   } = options;
 
-  // Determine status based on plan type
   let status: SubscriptionStatus = 'active';
-  if (planType === 'free' || planType === 'trial') {
-    status = planType === 'free' ? 'free' : 'trialing';
-  } else if (paypalSubscriptionId) {
-    status = 'active';
+  if (isTrialCoupon) {
+    status = 'trialing';
+  } else if (paypalSubscriptionId && trialEndDate && new Date() < trialEndDate) {
+    status = 'trialing';
   }
 
-  // Get PayPal plan ID if not provided
-  const finalPaypalPlanId = paypalPlanId || (planType !== 'free' && planType !== 'trial'
-    ? getPayPalPlanId(planType as 'basic' | 'pro' | 'business', billingCycle)
-    : null);
+  const finalPaypalPlanId = paypalPlanId || getPayPalPlanId(planType, billingCycle);
 
   const [subscription] = await db.insert(subscriptions).values({
     userId,
@@ -257,12 +262,7 @@ export async function linkPayPalSubscription(
     return updated;
   }
 
-  // Handle regular subscription linking
-  let finalTrialEndDate = trialEndDate;
-
-  if (!finalTrialEndDate && !existingSubscription) {
-    finalTrialEndDate = calculateTrialEndDate(5); // 5 days trial for new users
-  }
+  const finalTrialEndDate = trialEndDate;
 
   const subscriptionData: Partial<InferSelectModel<typeof subscriptions>> = {
     planType,
@@ -306,125 +306,25 @@ export function checkSubscriptionAccess(subscription: Subscription | null): {
   expirationDate: Date | null;
   status: 'active' | 'trial' | 'expired' | 'none';
 } {
-  // Settings and pricing are always accessible
-
-  if (!subscription) {
-    return {
-      hasFullAccess: false,
-      canAccessSettings: true,
-      canAccessPricing: true,
-      expirationDate: null,
-      status: 'none',
-    };
-  }
-
-  if (subscription.status === 'suspended') {
-    return {
-      hasFullAccess: false,
-      canAccessSettings: true,
-      canAccessPricing: true,
-      expirationDate: subscription.endDate || null,
-      status: 'expired',
-    };
-  }
-
-  if (subscription.status === 'active' && subscription.paypalSubscriptionId) {
-    return {
-      hasFullAccess: true,
-      canAccessSettings: true,
-      canAccessPricing: true,
-      expirationDate: subscription.endDate || null,
-      status: 'active',
-    };
-  }
-
-  if (subscription.planType === 'free' || subscription.planType === 'trial') {
-    const isExpired = subscription.endDate
-      ? new Date() > subscription.endDate
-      : false;
-
-    return {
-      hasFullAccess: !isExpired,
-      canAccessSettings: true,
-      canAccessPricing: true,
-      expirationDate: subscription.endDate || null,
-      status: isExpired ? 'expired' : 'trial',
-    };
-  }
-
-  return {
-    hasFullAccess: false,
-    canAccessSettings: true,
-    canAccessPricing: true,
-    expirationDate: subscription.endDate || null,
-    status: 'expired',
-  };
-}
-
-export function isPaidPlanType(planType: string): boolean {
-  return planType === 'basic' || planType === 'pro' || planType === 'business';
+  return checkSubscriptionAccessFromRow(subscription);
 }
 
 /**
  * Get user status based on subscription
  */
-export function getUserStatus(subscription: Subscription | null): 'Free trial' | 'Active user (Paid)' | 'Churned' | 'Free access' {
-  if (!subscription) {
+export function getUserStatus(subscription: Subscription | null): 'Free trial' | 'Active user (Paid)' | 'Churned' {
+  if (!subscription || !hasSubscriptionAccess(subscription)) {
     return 'Churned';
   }
 
-  if (subscription.isFreeAccess && subscription.planType === 'free') {
-    if (subscription.status === 'expired') {
-      return 'Churned';
-    }
-    const isExpired = subscription.endDate
-      ? new Date() > subscription.endDate
-      : false;
-    return isExpired ? 'Churned' : 'Free access';
-  }
-
-  if (subscription.isTrialCoupon && subscription.planType === 'trial') {
-    const isExpired = subscription.endDate
-      ? new Date() > subscription.endDate
-      : false;
-    return isExpired ? 'Churned' : 'Free trial';
-  }
-
-  if (subscription.status === 'suspended') {
-    return 'Churned';
-  }
-
-  // Paid via PayPal OR admin-assigned / legacy row with paid plan type (no paypal_subscription_id)
   if (
-    subscription.status === 'active'
-    && (subscription.paypalSubscriptionId || isPaidPlanType(subscription.planType))
-  ) {
-    return 'Active user (Paid)';
-  }
-
-  if (
-    subscription.status === 'trialing'
-    && (
-      subscription.paypalSubscriptionId
-      || isPaidPlanType(subscription.planType)
-      || subscription.planType === 'trial'
-    )
+    subscription.isTrialCoupon
+    || (subscription.status === 'trialing' && subscription.paypalSubscriptionId)
   ) {
     return 'Free trial';
   }
 
-  if (subscription.status === 'cancelled' || subscription.status === 'expired') {
-    return 'Churned';
-  }
-
-  if ((subscription.planType === 'free' || subscription.planType === 'trial') && subscription.endDate) {
-    if (new Date() > subscription.endDate) {
-      return 'Churned';
-    }
-    return subscription.isFreeAccess ? 'Free access' : 'Free trial';
-  }
-
-  return 'Churned';
+  return 'Active user (Paid)';
 }
 
 /**
@@ -435,17 +335,10 @@ export function getUserStatus(subscription: Subscription | null): 'Free trial' |
 export function subscriptionShouldApplyPaidPlanLimits(
   subscription: Parameters<typeof getUserStatus>[0],
 ): boolean {
-  if (!subscription || subscription.planType === 'free') {
+  if (!subscription || !isPaidPlanType(subscription.planType)) {
     return false;
   }
-  if (isPaidPlanType(subscription.planType)) {
-    const label = getUserStatus(subscription);
-    return label === 'Active user (Paid)' || label === 'Free trial';
-  }
-  const now = new Date();
-  const isSubscriptionActive = subscription.status === 'active' || subscription.status === 'trialing';
-  const isNotExpired = !subscription.endDate || new Date(subscription.endDate) > now;
-  return isSubscriptionActive && isNotExpired;
+  return hasSubscriptionAccess(subscription);
 }
 
 /**

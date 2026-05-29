@@ -977,7 +977,7 @@ export default function CreatePostPage() {
     maxImagesPerPost: number;
     maxBrands: number;
     maxSocialAccounts: number;
-    planType: 'basic' | 'pro' | 'business' | 'free';
+    planType: 'basic' | 'pro' | 'business' | 'none';
   } | null>(null);
   const [usage, setUsage] = useState<{
     postsThisMonth: number;

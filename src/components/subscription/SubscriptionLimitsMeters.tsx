@@ -410,15 +410,13 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
   const upgradeLabel = tCreate('upgrade_plan');
   const planType = data.limits.planType;
   const planName
-    = planType === 'free'
-      ? t('plan_free')
-      : planType === 'basic'
-        ? tPricing('plan_basic.name')
-        : planType === 'pro'
-          ? tPricing('plan_pro.name')
-          : planType === 'business'
-            ? tPricing('plan_business.name')
-            : planType;
+    = planType === 'basic'
+      ? tPricing('plan_basic.name')
+      : planType === 'pro'
+        ? tPricing('plan_pro.name')
+        : planType === 'business'
+          ? tPricing('plan_business.name')
+          : planType;
 
   const currentPlanLine = t.rich('current_plan', {
     plan: planName,
@@ -449,9 +447,7 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
               {currentPlanLine}
             </span>
           </div>
-          {data.limits.planType === 'free' && (
-            <p className="max-w-full text-xs leading-snug text-gray-500 sm:text-sm dark:text-gray-400">{t('free_tier_note')}</p>
-          )}
+
           <div className="flex gap-3 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:thin]">
             {meters.map((def) => {
               const atLimit = def.used >= def.max && def.max < 999999;
@@ -480,11 +476,6 @@ export function SubscriptionLimitsMeters({ variant = 'full', brandId, className 
         <p className="text-sm text-gray-600 dark:text-gray-400">
           {currentPlanLine}
         </p>
-        {data.limits.planType === 'free' && (
-          <p className="text-xs text-gray-500 dark:text-gray-400">
-            {t('free_tier_note')}
-          </p>
-        )}
       </div>
       <div className={gridClass}>
         {meters.map((def) => {

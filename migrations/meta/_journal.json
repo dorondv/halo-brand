@@ -113,6 +113,13 @@
       "when": 1769439000000,
       "tag": "0015_payment_webhooks_rls_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1748516000000,
+      "tag": "0016_remove_free_trial_plans",
+      "breakpoints": true
     }
   ]
 }

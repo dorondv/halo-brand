@@ -29,7 +29,7 @@ export default async function BrandSentimentPage() {
     redirect('/pricing?feature=brand_sentiment');
   }
 
-  const planType = subscription.planType || 'free';
+  const planType = subscription.planType;
 
   if (planType !== 'pro' && planType !== 'business') {
     redirect('/pricing?feature=brand_sentiment');

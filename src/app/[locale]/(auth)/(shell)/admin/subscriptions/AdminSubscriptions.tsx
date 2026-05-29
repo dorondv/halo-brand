@@ -56,16 +56,12 @@ export function AdminSubscriptions() {
   const planDisplayName = useCallback(
     (planType: string) => {
       switch (planType) {
-        case 'free':
-          return t('plan_free');
         case 'basic':
           return t('plan_basic');
         case 'pro':
           return t('plan_pro');
         case 'business':
           return t('plan_business');
-        case 'trial':
-          return t('plan_trial');
         default:
           return planType;
       }

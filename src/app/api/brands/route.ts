@@ -249,14 +249,12 @@ export async function POST(request: NextRequest) {
     const subscription = await getUserSubscription(user.id);
     let maxBrands = 1;
 
-    if (subscription && subscription.planType !== 'free') {
-      if (subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
-        const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
-        if (plan) {
-          maxBrands = plan.maxBrands || 999999;
-        } else {
-          maxBrands = subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50;
-        }
+    if (subscription && subscriptionShouldApplyPaidPlanLimits(subscription) && isPaidPlanType(subscription.planType)) {
+      const plan = await getSubscriptionPlan(subscription.planType as 'basic' | 'pro' | 'business');
+      if (plan) {
+        maxBrands = plan.maxBrands || 999999;
+      } else {
+        maxBrands = subscription.planType === 'basic' ? 1 : subscription.planType === 'pro' ? 10 : 50;
       }
     }
 

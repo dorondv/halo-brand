@@ -15,7 +15,6 @@ async function requireAdmin() {
     throw new Error('Unauthorized');
   }
 
-  // Check if user email is the admin email
   if (user.email !== ADMIN_EMAIL) {
     throw new Error('Admin access required');
   }
@@ -24,9 +23,8 @@ async function requireAdmin() {
 }
 
 const updatePlanSchema = z.object({
-  planType: z.enum(['free', 'basic', 'pro', 'business', 'trial']),
+  planType: z.enum(['basic', 'pro', 'business']),
   billingCycle: z.enum(['monthly', 'annual']).optional().default('monthly'),
-  endDate: z.string().optional(), // Optional end date for free/trial plans
 });
 
 export async function PUT(request: Request) {
@@ -43,69 +41,37 @@ export async function PUT(request: Request) {
     const body = await request.json();
     const data = updatePlanSchema.parse(body);
 
-    // Get plan details to get price
-    let price = 0;
-    if (data.planType !== 'free' && data.planType !== 'trial') {
-      const plan = await getSubscriptionPlan(data.planType as 'basic' | 'pro' | 'business');
-      if (!plan) {
-        return NextResponse.json({ error: `Plan ${data.planType} not found` }, { status: 404 });
-      }
-      price = data.billingCycle === 'annual' && plan.priceAnnual
-        ? plan.priceAnnual / 12 // Store monthly equivalent for annual plans
-        : plan.priceMonthly;
+    const plan = await getSubscriptionPlan(data.planType);
+    if (!plan) {
+      return NextResponse.json({ error: `Plan ${data.planType} not found` }, { status: 404 });
     }
 
-    // Determine status based on plan type
-    let status: 'trialing' | 'active' | 'cancelled' | 'expired' | 'suspended' | 'free' = 'active';
-    if (data.planType === 'free') {
-      status = 'free';
-    } else if (data.planType === 'trial') {
-      status = 'trialing';
-    }
+    const price = data.billingCycle === 'annual' && plan.priceAnnual
+      ? plan.priceAnnual / 12
+      : plan.priceMonthly;
 
-    // Check if user has existing subscription
     const existingSubscriptions = await db
       .select()
       .from(subscriptions)
       .where(eq(subscriptions.userId, userId))
       .limit(1);
 
-    const updateData: any = {
+    const updateData = {
       planType: data.planType,
       billingCycle: data.billingCycle || 'monthly',
-      status,
+      status: 'active' as const,
       price,
       currency: 'USD',
+      endDate: null,
+      trialEndDate: null,
+      paypalSubscriptionId: null,
+      paypalPlanId: null,
+      isFreeAccess: false,
+      grantedByAdminId: adminId,
       updatedAt: new Date(),
     };
 
-    // Set end date if provided or for free/trial plans
-    if (data.endDate) {
-      updateData.endDate = new Date(data.endDate);
-      if (data.planType === 'trial') {
-        updateData.trialEndDate = new Date(data.endDate);
-      }
-    } else if (data.planType === 'basic' || data.planType === 'pro' || data.planType === 'business') {
-      // Clear stale end_date from a previous free/trial row so limits API matches admin "Active user (Paid)"
-      updateData.endDate = null;
-    } else if (data.planType === 'free' || data.planType === 'trial') {
-      // Set default end date for free/trial plans (30 days from now)
-      const defaultEndDate = new Date();
-      defaultEndDate.setDate(defaultEndDate.getDate() + 30);
-      updateData.endDate = defaultEndDate;
-      if (data.planType === 'trial') {
-        updateData.trialEndDate = defaultEndDate;
-      }
-    }
-
-    // Clear PayPal-related fields when manually changing plan
-    updateData.paypalSubscriptionId = null;
-    updateData.paypalPlanId = null;
-    updateData.isFreeAccess = data.planType === 'free';
-    updateData.grantedByAdminId = adminId;
-
     if (existingSubscriptions.length > 0) {
-      // Update existing subscription
       const [updated] = await db
         .update(subscriptions)
         .set(updateData)
@@ -124,46 +90,45 @@ export async function PUT(request: Request) {
           status: updated.status,
           billingCycle: updated.billingCycle,
           price: Number(updated.price),
-          endDate: updated.endDate?.toISOString() || null,
-          trialEndDate: updated.trialEndDate?.toISOString() || null,
-        },
-      });
-    } else {
-      // Create new subscription
-      const [created] = await db
-        .insert(subscriptions)
-        .values({
-          userId,
-          planType: data.planType,
-          billingCycle: data.billingCycle || 'monthly',
-          status,
-          startDate: new Date(),
-          endDate: updateData.endDate || null,
-          trialEndDate: updateData.trialEndDate || null,
-          price,
-          currency: 'USD',
-          isFreeAccess: data.planType === 'free',
-          grantedByAdminId: adminId,
-        })
-        .returning();
-
-      if (!created) {
-        return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 });
-      }
-
-      return NextResponse.json({
-        success: true,
-        subscription: {
-          id: created.id,
-          planType: created.planType,
-          status: created.status,
-          billingCycle: created.billingCycle,
-          price: Number(created.price),
-          endDate: created.endDate?.toISOString() || null,
-          trialEndDate: created.trialEndDate?.toISOString() || null,
+          endDate: null,
+          trialEndDate: null,
         },
       });
     }
+
+    const [created] = await db
+      .insert(subscriptions)
+      .values({
+        userId,
+        planType: data.planType,
+        billingCycle: data.billingCycle || 'monthly',
+        status: 'active',
+        startDate: new Date(),
+        endDate: null,
+        trialEndDate: null,
+        price,
+        currency: 'USD',
+        isFreeAccess: false,
+        grantedByAdminId: adminId,
+      })
+      .returning();
+
+    if (!created) {
+      return NextResponse.json({ error: 'Failed to create subscription' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      success: true,
+      subscription: {
+        id: created.id,
+        planType: created.planType,
+        status: created.status,
+        billingCycle: created.billingCycle,
+        price: Number(created.price),
+        endDate: null,
+        trialEndDate: null,
+      },
+    });
   } catch (error: any) {
     console.error('Error updating user plan:', error);
     if (error.message === 'Unauthorized') {

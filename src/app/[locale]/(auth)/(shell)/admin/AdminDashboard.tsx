@@ -10,7 +10,6 @@ type SubscriptionStats = {
   activeSubscriptions: number;
   trialSubscriptions: number;
   cancelledSubscriptions: number;
-  freeSubscriptions: number;
   totalRevenue: number;
 };
 
@@ -193,13 +192,7 @@ export function AdminDashboard() {
               </span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Free Access:</span>
-              <span className="font-medium text-blue-600">
-                {subscriptionStats?.freeSubscriptions || 0}
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span className="text-gray-600 dark:text-gray-400">Trials:</span>
+              <span className="text-gray-600 dark:text-gray-400">Coupon Trials:</span>
               <span className="font-medium text-orange-600">
                 {subscriptionStats?.trialSubscriptions || 0}
               </span>

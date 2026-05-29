@@ -6,7 +6,8 @@ const localePrefix: LocalePrefixMode = 'as-needed';
 export const AppConfig = {
   /** Single source for product name in UI metadata, exports (PDF/CSV), emails, and alt text. */
   name: 'Branda',
-  locales: ['he', 'en', 'es', 'fr', 'de', 'pt'], // Hebrew first as default
-  defaultLocale: 'he', // Hebrew is the default locale
+  locales: ['he', 'en', 'es', 'fr', 'de', 'pt'],
+  /** URL default (Hebrew has no prefix with localePrefix: 'as-needed'). Visitor default is geo-based in proxy. */
+  defaultLocale: 'he',
   localePrefix,
 };

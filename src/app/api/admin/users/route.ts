@@ -139,7 +139,7 @@ async function backfillUsersFromAuth(db: ReturnType<typeof createDbConnection>) 
       return {
         id: authUser.id,
         email,
-        plan: 'free' as const,
+        plan: 'none' as const,
         name: getFallbackName(authUser.id, authUser.email, authUser.rawUserMetaData),
         provider,
         isActive: true,
