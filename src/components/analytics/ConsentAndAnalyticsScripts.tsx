@@ -2,18 +2,45 @@
 /* eslint-disable react-dom/no-dangerously-set-innerhtml -- inline gtag/GTM/Meta bootstrap only */
 import Script from 'next/script';
 
-const DEFAULT_GTM_CONTAINER_ID = 'GTM-TS3SV3CC';
+const DEFAULT_GTM_CONTAINER_ID = 'GTM-NHQPJC5W';
 
 function consentDefaultInline(): string {
   return `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('consent','default',{ad_storage:'denied',ad_user_data:'denied',ad_personalization:'denied',analytics_storage:'denied',wait_for_update:500});try{var c=localStorage.getItem('branda_consent');if(c){var p=JSON.parse(c);if(p.v===1)gtag('consent','update',{ad_storage:p.ad_storage,ad_user_data:p.ad_user_data,ad_personalization:p.ad_personalization,analytics_storage:p.analytics_storage});}}catch(e){}}`;
 }
 
 /**
- * Google Consent Mode v2 defaults + Tag Manager / optional GA4, Google Ads, Meta Pixel.
- * Must run before interactive tracking; keep in sync with `src/libs/consent.ts` storage key and version.
+ * Google Consent Mode v2 defaults + Tag Manager. Injected in <head> before hydration.
+ * Keep in sync with `src/libs/consent.ts` storage key and version.
  */
-export function ConsentAndAnalyticsScripts() {
+export function ConsentAndAnalyticsHeadScripts() {
   const gtmId = process.env.NEXT_PUBLIC_GTM_CONTAINER_ID?.trim() || DEFAULT_GTM_CONTAINER_ID;
+
+  return (
+    <>
+      <Script
+        id="consent-default"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{ __html: consentDefaultInline() }}
+      />
+      {gtmId && (
+        <Script
+          id="gtm-script"
+          strategy="beforeInteractive"
+          dangerouslySetInnerHTML={{
+            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
+new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
+j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
+'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
+})(window,document,'script','dataLayer','${gtmId}');`,
+          }}
+        />
+      )}
+    </>
+  );
+}
+
+/** Optional GA4, Google Ads, Meta Pixel — load after hydration. */
+export function ConsentAndAnalyticsBodyScripts() {
   const gaId = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID?.trim();
   const gadsId = process.env.NEXT_PUBLIC_GOOGLE_ADS_ID?.trim();
   const metaId = process.env.NEXT_PUBLIC_META_PIXEL_ID?.trim();
@@ -29,11 +56,6 @@ export function ConsentAndAnalyticsScripts() {
 
   return (
     <>
-      <Script
-        id="consent-default"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{ __html: consentDefaultInline() }}
-      />
       {gtagLoaderId && (
         <>
           <Script
@@ -46,19 +68,6 @@ export function ConsentAndAnalyticsScripts() {
             dangerouslySetInnerHTML={{ __html: gtagConfigLines.join('') }}
           />
         </>
-      )}
-      {gtmId && (
-        <Script
-          id="gtm-script"
-          strategy="afterInteractive"
-          dangerouslySetInnerHTML={{
-            __html: `(function(w,d,s,l,i){w[l]=w[l]||[];w[l].push({'gtm.start':
-new Date().getTime(),event:'gtm.js'});var f=d.getElementsByTagName(s)[0],
-j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
-'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
-})(window,document,'script','dataLayer','${gtmId}');`,
-          }}
-        />
       )}
       {metaId && (
         <Script

@@ -1,12 +1,16 @@
+/* eslint-disable next/no-before-interactive-script-outside-document -- theme must apply before hydration; supported in App Router root layout */
+/* eslint-disable react-dom/no-dangerously-set-innerhtml -- static theme init script, no user input */
+import Script from 'next/script';
+
 /**
  * Runs before React hydrates to apply theme from localStorage immediately,
  * preventing a flash of wrong theme on page load.
- * Static script content - no user input.
  */
 export function ThemeInitScript() {
   return (
-    <script
-      // eslint-disable-next-line react-dom/no-dangerously-set-innerhtml -- Static theme init script, no user input
+    <Script
+      id="theme-init"
+      strategy="beforeInteractive"
       dangerouslySetInnerHTML={{
         __html: `(function(){var t=localStorage.getItem('theme');document.documentElement.classList.toggle('dark',t==='dark');})();`,
       }}

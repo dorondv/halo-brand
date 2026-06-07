@@ -244,12 +244,17 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ error: 'You cannot delete your own admin account' }, { status: 400 });
     }
 
-    const deleted = await db
-      .delete(users)
-      .where(eq(users.id, userId))
-      .returning({
-        id: users.id,
-      });
+    const deleted = await db.transaction(async (tx) => {
+      // Delete auth record first so backfillUsersFromAuth (called on GET) cannot recreate the user.
+      await tx.execute(sql`DELETE FROM auth.users WHERE id = ${userId}::uuid`);
+
+      return tx
+        .delete(users)
+        .where(eq(users.id, userId))
+        .returning({
+          id: users.id,
+        });
+    });
 
     if (deleted.length === 0) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
