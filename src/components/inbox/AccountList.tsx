@@ -76,7 +76,7 @@ export function AccountList({
   });
 
   return (
-    <div className={cn('flex h-full w-[280px] flex-shrink-0 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full min-h-0 w-[280px] flex-shrink-0 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-4 py-4 dark:border-gray-700 dark:bg-gray-900">
         <h2 className={cn('mb-3 text-lg font-semibold text-gray-900 dark:text-gray-100', isRTL && 'text-right')}>{t('title')}</h2>
@@ -96,8 +96,8 @@ export function AccountList({
                 !supportsInboxChat && inboxType === 'comment'
                   ? t('inbox_chat_unsupported_hint')
                   : !supportsInboxComment && inboxType === 'chat'
-                    ? t('inbox_comment_unsupported_hint')
-                    : undefined
+                      ? t('inbox_comment_unsupported_hint')
+                      : undefined
               }
             >
               <SelectValue

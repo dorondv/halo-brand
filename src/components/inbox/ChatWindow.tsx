@@ -723,7 +723,7 @@ export function ChatWindow({
   }
 
   return (
-    <div className="flex h-full flex-1 flex-col bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className="flex h-full min-h-0 flex-1 flex-col overflow-hidden bg-white dark:bg-gray-900" dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Comment Header */}
       <div className={cn('flex items-center justify-between border-b border-gray-200 dark:border-gray-700 px-6 py-4', isRTL && 'flex-row-reverse')}>
         <div className={cn('flex items-center gap-3', isRTL && 'flex-row-reverse')}>
@@ -806,279 +806,280 @@ export function ChatWindow({
         </div>
       )}
 
-      {/* Messages */}
-      <div className="flex-1 overflow-y-auto px-6 py-4">
+      {/* Messages + reply input */}
+      <div className="min-h-0 flex-1 overflow-y-auto px-6 py-4">
         {isLoading
           ? (
-              <div className="flex h-full items-center justify-center">
+              <div className="flex items-center justify-center py-8">
                 <div className="text-center">
                   <div className="mx-auto mb-2 h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-pink-500" />
                   <p className={cn('text-sm text-gray-500', isRTL && 'text-right')}>{t('loading_messages')}</p>
                 </div>
               </div>
             )
-          : messages.length === 0
-            ? (
-                <div className="flex h-full items-center justify-center">
-                  <p className={cn('text-gray-500', isRTL && 'text-right')}>{t('no_messages')}</p>
-                </div>
-              )
-            : (
-                <div className="space-y-4">
-                  <AnimatePresence>
-                    {messages.map((message) => {
-                      // Render message and its nested replies recursively
-                      return (
-                        <CommentThread
-                          key={message.id}
-                          message={message}
-                          conversation={conversation}
-                          messageLikes={messageLikes}
-                          likingMessageId={likingMessageId}
-                          replyingToMessage={replyingToMessage}
-                          onLike={handleLike}
-                          onReply={handleReplyToComment}
-                          locale={locale}
-                          isRTL={isRTL}
-                          intlLocale={intlLocale}
-                          accountId={accountId}
-                        />
-                      );
-                    })}
-                  </AnimatePresence>
-                  <div ref={messagesEndRef} />
-                </div>
-              )}
-      </div>
-
-      {/* Message Input */}
-      <div className="border-t border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
-        {/* Reply indicator */}
-        {replyingToMessage && conversation?.type === 'comment' && (
-          <div className={cn('mb-2 flex items-center justify-between rounded-lg bg-pink-50 border border-pink-200 px-3 py-2', isRTL && 'flex-row-reverse')}>
-            <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
-              <MessageCircle className="h-4 w-4 text-pink-600" />
-              <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
-                {t('replying_to')}
-                {' '}
-                <span className="font-semibold">{replyingToMessage.senderName}</span>
-              </span>
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon"
-              className="h-6 w-6 text-pink-600 hover:bg-pink-100"
-              onClick={() => setReplyingToMessage(null)}
-              title={t('cancel_reply')}
-            >
-              <X className="h-4 w-4" />
-            </Button>
-          </div>
-        )}
-
-        {/* Attachments Preview */}
-        {attachments.length > 0 && (
-          <div className="mb-2 flex flex-wrap gap-2">
-            {attachments.map(att => (
-              <div key={`${att.type}-${att.url}`} className="relative">
-                {att.type === 'image'
+          : (
+              <>
+                {messages.length === 0
                   ? (
-                      <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
-                        <Image
-                          src={att.url}
-                          alt="Attachment"
-                          fill
-                          className="object-cover"
-                        />
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 p-0 text-white hover:bg-red-600"
-                          onClick={() => removeAttachment(attachments.indexOf(att))}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
+                      <p className={cn('py-2 text-gray-500', isRTL && 'text-right')}>{t('no_messages')}</p>
                     )
                   : (
-                      <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
-                        <Paperclip className="h-4 w-4 text-gray-600" />
-                        <span className="max-w-[100px] truncate text-xs text-gray-700">{att.file.name}</span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-4 w-4 text-gray-500 hover:text-red-500"
-                          onClick={() => removeAttachment(attachments.indexOf(att))}
-                        >
-                          <X className="h-3 w-3" />
-                        </Button>
+                      <div className="space-y-4">
+                        <AnimatePresence>
+                          {messages.map((message) => {
+                            return (
+                              <CommentThread
+                                key={message.id}
+                                message={message}
+                                conversation={conversation}
+                                messageLikes={messageLikes}
+                                likingMessageId={likingMessageId}
+                                replyingToMessage={replyingToMessage}
+                                onLike={handleLike}
+                                onReply={handleReplyToComment}
+                                locale={locale}
+                                isRTL={isRTL}
+                                intlLocale={intlLocale}
+                                accountId={accountId}
+                              />
+                            );
+                          })}
+                        </AnimatePresence>
+                        <div ref={messagesEndRef} />
                       </div>
                     )}
-              </div>
-            ))}
-          </div>
-        )}
 
-        <div className="flex items-end gap-2">
-          <div className="relative flex-1">
-            {/* Hidden file input */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*,video/*,.pdf,.doc,.docx,.txt"
-              className="hidden"
-              onChange={handleFileUpload}
-              multiple
-            />
-
-            <div className="relative">
-              <Textarea
-                ref={textareaRef}
-                placeholder={t('write_message')}
-                value={newMessage}
-                onChange={e => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
-                className={cn('min-h-[60px] resize-none bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
-                disabled={isSending}
-                dir={isRTL ? 'rtl' : 'ltr'}
-              />
-              <div className={cn('absolute bottom-2 flex items-center gap-1', isRTL ? 'left-2' : 'right-2')}>
-                {/* Emoji Picker Button */}
-                <div className="relative" ref={emojiPickerRef}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={`h-8 w-8 ${showEmojiPicker ? 'bg-pink-100 text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
-                    onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  >
-                    <Smile className="h-4 w-4" />
-                  </Button>
-                  {/* Emoji Picker */}
-                  {showEmojiPicker && (
-                    <div className={cn('absolute bottom-full mb-2 w-[320px] rounded-lg border border-gray-200 bg-white shadow-lg z-50 p-3', isRTL ? 'left-0' : 'right-0')}>
-                      <div className="mb-2 flex gap-1 overflow-x-auto border-b border-gray-200 pb-2">
-                        {Object.keys(EMOJI_CATEGORIES).map(category => (
-                          <button
-                            key={category}
-                            type="button"
-                            onClick={() => {}}
-                            className="rounded px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600 hover:bg-gray-100"
-                          >
-                            {category.split(' ')[0]}
-                          </button>
-                        ))}
+                {/* Message Input — inline below the last message / empty state */}
+                <div className="mt-4 border-t border-gray-200 pt-4 dark:border-gray-700">
+                  {/* Reply indicator */}
+                  {replyingToMessage && conversation?.type === 'comment' && (
+                    <div className={cn('mb-2 flex items-center justify-between rounded-lg bg-pink-50 border border-pink-200 px-3 py-2', isRTL && 'flex-row-reverse')}>
+                      <div className={cn('flex items-center gap-2', isRTL && 'flex-row-reverse')}>
+                        <MessageCircle className="h-4 w-4 text-pink-600" />
+                        <span className={cn('text-sm text-pink-700', isRTL && 'text-right')}>
+                          {t('replying_to')}
+                          {' '}
+                          <span className="font-semibold">{replyingToMessage.senderName}</span>
+                        </span>
                       </div>
-                      <div className="max-h-[200px] overflow-y-auto">
-                        <div className="grid grid-cols-8 gap-1">
-                          {EMOJI_CATEGORIES['Smileys & People'].slice(0, 48).map(emoji => (
-                            <button
-                              key={emoji}
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        className="h-6 w-6 text-pink-600 hover:bg-pink-100"
+                        onClick={() => setReplyingToMessage(null)}
+                        title={t('cancel_reply')}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  )}
+
+                  {/* Attachments Preview */}
+                  {attachments.length > 0 && (
+                    <div className="mb-2 flex flex-wrap gap-2">
+                      {attachments.map(att => (
+                        <div key={`${att.type}-${att.url}`} className="relative">
+                          {att.type === 'image'
+                            ? (
+                                <div className="relative h-20 w-20 overflow-hidden rounded-lg border border-gray-200">
+                                  <Image
+                                    src={att.url}
+                                    alt="Attachment"
+                                    fill
+                                    className="object-cover"
+                                  />
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 p-0 text-white hover:bg-red-600"
+                                    onClick={() => removeAttachment(attachments.indexOf(att))}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )
+                            : (
+                                <div className="flex items-center gap-2 rounded-lg border border-gray-200 bg-gray-50 px-3 py-2">
+                                  <Paperclip className="h-4 w-4 text-gray-600" />
+                                  <span className="max-w-[100px] truncate text-xs text-gray-700">{att.file.name}</span>
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-4 w-4 text-gray-500 hover:text-red-500"
+                                    onClick={() => removeAttachment(attachments.indexOf(att))}
+                                  >
+                                    <X className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  <div className="flex items-end gap-2">
+                    <div className="relative flex-1">
+                      {/* Hidden file input */}
+                      <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept="image/*,video/*,.pdf,.doc,.docx,.txt"
+                        className="hidden"
+                        onChange={handleFileUpload}
+                        multiple
+                      />
+
+                      <div className="relative">
+                        <Textarea
+                          ref={textareaRef}
+                          placeholder={t('write_message')}
+                          value={newMessage}
+                          onChange={e => setNewMessage(e.target.value)}
+                          onKeyPress={handleKeyPress}
+                          className={cn('min-h-[60px] resize-none bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-600 text-gray-900 dark:text-gray-100 placeholder:text-gray-400 focus-visible:bg-white dark:focus-visible:bg-gray-800 focus-visible:border-pink-300 focus-visible:ring-pink-500', isRTL ? 'pl-20' : 'pr-20')}
+                          disabled={isSending}
+                          dir={isRTL ? 'rtl' : 'ltr'}
+                        />
+                        <div className={cn('absolute bottom-2 flex items-center gap-1', isRTL ? 'left-2' : 'right-2')}>
+                          {/* Emoji Picker Button */}
+                          <div className="relative" ref={emojiPickerRef}>
+                            <Button
                               type="button"
-                              onClick={() => insertEmoji(emoji)}
-                              className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors hover:bg-pink-100"
+                              variant="ghost"
+                              size="icon"
+                              className={`h-8 w-8 ${showEmojiPicker ? 'bg-pink-100 text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
+                              onClick={() => setShowEmojiPicker(!showEmojiPicker)}
                             >
-                              {emoji}
-                            </button>
-                          ))}
+                              <Smile className="h-4 w-4" />
+                            </Button>
+                            {/* Emoji Picker */}
+                            {showEmojiPicker && (
+                              <div className={cn('absolute bottom-full mb-2 w-[320px] rounded-lg border border-gray-200 bg-white shadow-lg z-50 p-3', isRTL ? 'left-0' : 'right-0')}>
+                                <div className="mb-2 flex gap-1 overflow-x-auto border-b border-gray-200 pb-2">
+                                  {Object.keys(EMOJI_CATEGORIES).map(category => (
+                                    <button
+                                      key={category}
+                                      type="button"
+                                      onClick={() => {}}
+                                      className="rounded px-2 py-1 text-xs font-medium whitespace-nowrap text-gray-600 hover:bg-gray-100"
+                                    >
+                                      {category.split(' ')[0]}
+                                    </button>
+                                  ))}
+                                </div>
+                                <div className="max-h-[200px] overflow-y-auto">
+                                  <div className="grid grid-cols-8 gap-1">
+                                    {EMOJI_CATEGORIES['Smileys & People'].slice(0, 48).map(emoji => (
+                                      <button
+                                        key={emoji}
+                                        type="button"
+                                        onClick={() => insertEmoji(emoji)}
+                                        className="flex h-8 w-8 items-center justify-center rounded-lg text-lg transition-colors hover:bg-pink-100"
+                                      >
+                                        {emoji}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* File/Image Upload Button */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-gray-400 hover:text-gray-600"
+                            onClick={() => fileInputRef.current?.click()}
+                            title={t('attach_file')}
+                          >
+                            <Paperclip className="h-4 w-4" />
+                          </Button>
+
+                          {/* Plus Menu Button */}
+                          <div className="relative" ref={plusMenuRef}>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className={`h-8 w-8 ${showPlusMenu ? 'bg-pink-100 text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
+                              onClick={() => setShowPlusMenu(!showPlusMenu)}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                            {/* Plus Menu - Quick Replies */}
+                            {showPlusMenu && (
+                              <div className={cn('absolute bottom-full mb-2 w-64 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-2', isRTL ? 'left-0' : 'right-0')} dir={isRTL ? 'rtl' : 'ltr'}>
+                                <div className={cn('px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide', isRTL && 'text-right')}>
+                                  {t('quick_replies')}
+                                </div>
+                                {QUICK_REPLIES.map((reply, index) => {
+                                  const Icon = reply.icon;
+                                  const replyKeys: Array<'thank_you_message' | 'will_get_back' | 'thanks_reaching_out' | 'appreciate_feedback' | 'let_me_help'> = ['thank_you_message', 'will_get_back', 'thanks_reaching_out', 'appreciate_feedback', 'let_me_help'];
+                                  const replyKey = replyKeys[index];
+                                  if (!replyKey) {
+                                    return null;
+                                  }
+                                  return (
+                                    <button
+                                      key={replyKey}
+                                      type="button"
+                                      className={cn(
+                                        'flex w-full items-center gap-3 px-4 py-2 text-start text-sm text-gray-700 transition-colors hover:bg-pink-50',
+                                        isRTL && 'flex-row-reverse',
+                                      )}
+                                      onClick={() => insertQuickReply(t(replyKey))}
+                                    >
+                                      <Icon className="h-4 w-4 flex-shrink-0 text-gray-400" />
+                                      <span className="truncate">{t(replyKey)}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+
+                          {/* AI Generate/Improve Button */}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className={`h-8 w-8 ${isGeneratingAI ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
+                            onClick={generateAIResponse}
+                            disabled={isGeneratingAI || !conversation}
+                            title={newMessage.trim() ? t('improve_message') : t('suggest_reply')}
+                          >
+                            {isGeneratingAI
+                              ? (
+                                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
+                                )
+                              : (
+                                  <Sparkles className="h-4 w-4" />
+                                )}
+                          </Button>
                         </div>
                       </div>
                     </div>
-                  )}
+                    <Button
+                      onClick={handleSend}
+                      disabled={(!newMessage.trim() && attachments.length === 0) || isSending}
+                      className="h-[60px] w-[60px] rounded-full bg-pink-500 hover:bg-pink-600 disabled:bg-gray-300"
+                      size="icon"
+                    >
+                      {isSending
+                        ? (
+                            <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
+                          )
+                        : (
+                            <Send className="h-5 w-5 text-white" />
+                          )}
+                    </Button>
+                  </div>
                 </div>
-
-                {/* File/Image Upload Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 text-gray-400 hover:text-gray-600"
-                  onClick={() => fileInputRef.current?.click()}
-                  title={t('attach_file')}
-                >
-                  <Paperclip className="h-4 w-4" />
-                </Button>
-
-                {/* Plus Menu Button */}
-                <div className="relative" ref={plusMenuRef}>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="icon"
-                    className={`h-8 w-8 ${showPlusMenu ? 'bg-pink-100 text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
-                    onClick={() => setShowPlusMenu(!showPlusMenu)}
-                  >
-                    <Plus className="h-4 w-4" />
-                  </Button>
-                  {/* Plus Menu - Quick Replies */}
-                  {showPlusMenu && (
-                    <div className={cn('absolute bottom-full mb-2 w-64 rounded-lg border border-gray-200 bg-white shadow-lg z-50 py-2', isRTL ? 'left-0' : 'right-0')} dir={isRTL ? 'rtl' : 'ltr'}>
-                      <div className={cn('px-3 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wide', isRTL && 'text-right')}>
-                        {t('quick_replies')}
-                      </div>
-                      {QUICK_REPLIES.map((reply, index) => {
-                        const Icon = reply.icon;
-                        const replyKeys: Array<'thank_you_message' | 'will_get_back' | 'thanks_reaching_out' | 'appreciate_feedback' | 'let_me_help'> = ['thank_you_message', 'will_get_back', 'thanks_reaching_out', 'appreciate_feedback', 'let_me_help'];
-                        const replyKey = replyKeys[index];
-                        if (!replyKey) {
-                          return null;
-                        }
-                        return (
-                          <button
-                            key={replyKey}
-                            type="button"
-                            className={cn(
-                              'flex w-full items-center gap-3 px-4 py-2 text-start text-sm text-gray-700 transition-colors hover:bg-pink-50',
-                              isRTL && 'flex-row-reverse',
-                            )}
-                            onClick={() => insertQuickReply(t(replyKey))}
-                          >
-                            <Icon className="h-4 w-4 flex-shrink-0 text-gray-400" />
-                            <span className="truncate">{t(replyKey)}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* AI Generate/Improve Button */}
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  className={`h-8 w-8 ${isGeneratingAI ? 'text-pink-600' : 'text-gray-400 hover:text-gray-600'}`}
-                  onClick={generateAIResponse}
-                  disabled={isGeneratingAI || !conversation}
-                  title={newMessage.trim() ? t('improve_message') : t('suggest_reply')}
-                >
-                  {isGeneratingAI
-                    ? (
-                        <div className="h-4 w-4 animate-spin rounded-full border-2 border-pink-500 border-t-transparent" />
-                      )
-                    : (
-                        <Sparkles className="h-4 w-4" />
-                      )}
-                </Button>
-              </div>
-            </div>
-          </div>
-          <Button
-            onClick={handleSend}
-            disabled={(!newMessage.trim() && attachments.length === 0) || isSending}
-            className="h-[60px] w-[60px] rounded-full bg-pink-500 hover:bg-pink-600 disabled:bg-gray-300"
-            size="icon"
-          >
-            {isSending
-              ? (
-                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-white border-t-transparent" />
-                )
-              : (
-                  <Send className="h-5 w-5 text-white" />
-                )}
-          </Button>
-        </div>
+              </>
+            )}
       </div>
     </div>
   );

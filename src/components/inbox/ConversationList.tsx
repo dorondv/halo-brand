@@ -168,7 +168,7 @@ export function ConversationList({
   });
 
   return (
-    <div className={cn('flex h-full flex-1 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full min-h-0 flex-1 flex-col bg-white dark:bg-gray-900', isRTL ? 'border-l' : 'border-r', 'border-gray-200 dark:border-gray-700')} dir={isRTL ? 'rtl' : 'ltr'}>
       {/* Header */}
       <div className="border-b border-gray-200 bg-white px-6 py-4 dark:border-gray-700 dark:bg-gray-900">
         {/* Selected Conversation Name and Type */}

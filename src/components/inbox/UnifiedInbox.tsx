@@ -1,10 +1,10 @@
 'use client';
 
 import type { Conversation, InboxAccount, Message } from '@/libs/meta-inbox';
-import { platformSupportsInboxChat, platformSupportsInboxComments } from '@/libs/inboxPlatformSupport';
 import { useTranslations } from 'next-intl';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { cn } from '@/libs/cn';
+import { platformSupportsInboxChat, platformSupportsInboxComments } from '@/libs/inboxPlatformSupport';
 import { AccountList } from './AccountList';
 import { ChatWindow } from './ChatWindow';
 import { ConversationList } from './ConversationList';
@@ -460,7 +460,7 @@ export function UnifiedInbox({ locale }: UnifiedInboxProps) {
   );
 
   return (
-    <div className={cn('flex h-full w-full overflow-hidden bg-white dark:bg-gray-900', isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
+    <div className={cn('flex h-full min-h-0 w-full overflow-hidden bg-white dark:bg-gray-900', isRTL && 'flex-row-reverse')} dir={isRTL ? 'rtl' : 'ltr'}>
       {isRTL
         ? (
             <>
